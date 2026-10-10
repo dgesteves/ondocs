@@ -45,6 +45,24 @@ export function llmsOutputs(option: LlmsTxtOption | undefined): Required<LlmsOut
   };
 }
 
+export interface WriteLlmsFilesOptions {
+  /** The pages, such as `loadBuiltPage(…, { markdown: true }).page` for each indexed page. */
+  pages: readonly LlmsPage[];
+  /** The site's title, summary, URL, base path and MCP endpoint, for `llms.txt`. */
+  site: LlmsSite;
+  /** Which files to write: `llmsOutputs(options.llmsTxt)`. */
+  outputs: Required<LlmsOutputs>;
+  /** The outputs another plugin of the site writes, by output, with that plugin's name. */
+  owners?: ReadonlyMap<LlmsOutput, string>;
+  /** The build output folder that `site.base` is served from. */
+  dir: string;
+  /** How the log refers to `dir`, e.g. `build/`. */
+  label: string;
+  log: Logger;
+  /** Replace files that are there, as the CLI does in the folder it is told to write to. */
+  overwrite?: boolean;
+}
+
 /**
  * Writes the files for `pages` into `dir`, leaving out the outputs another plugin writes
  * (`owners`: output → plugin name) and never replacing a file already there, which came from
@@ -59,18 +77,7 @@ export async function writeLlmsFiles({
   label,
   log,
   overwrite = false,
-}: {
-  pages: readonly LlmsPage[];
-  site: LlmsSite;
-  outputs: Required<LlmsOutputs>;
-  owners?: ReadonlyMap<LlmsOutput, string>;
-  dir: string;
-  /** How the log refers to `dir`, e.g. `build/`. */
-  label: string;
-  log: Logger;
-  /** Replace files that are there, as the CLI does in the folder it is told to write to. */
-  overwrite?: boolean;
-}): Promise<void> {
+}: WriteLlmsFilesOptions): Promise<void> {
   const enabled = {
     index: outputs.index && !owners.has('index'),
     full: outputs.full && !owners.has('full'),

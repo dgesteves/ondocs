@@ -8,11 +8,9 @@
  */
 
 import { readdirSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { OndocsDialogOptions as DialogOptions } from '../embed/options';
 import {
   buildEmbedding,
   checkIndexOptions,
@@ -21,28 +19,26 @@ import {
   excluder,
   hintDevEndpoint,
   indexCache,
+  llmsOutputs,
+  loadBuiltPage,
+  readBuiltHtml,
   resolveMcp,
   warnMissingDialogPeers,
+  writeLlmsFiles,
   writeSiteIndex,
   type IndexOptions,
+  type LlmsOutput,
+  type LlmsPage,
+  type LlmsTxtOption,
+  type LocaleDialogOptions,
   type Logger,
   type McpOption,
-} from '../integrations/build';
-import {
-  llmsOutputs,
-  writeLlmsFiles,
-  type LlmsOutput,
-  type LlmsTxtOption,
-} from '../integrations/llms';
-import type { LlmsPage } from '../llms';
-import { attribute, fromHtml } from '../loaders/html';
-import type { SourceDocument } from '../types';
+  type OndocsDialogOptions as DialogOptions,
+  type SourceDocument,
+} from '../integration';
 
 /** What the dialog shows in one locale, over the dialog's own options. */
-export type OndocsLocaleDialogOptions = Pick<
-  DialogOptions,
-  'labels' | 'placeholder' | 'suggestions' | 'buttonLabel'
-> & { title?: string };
+export type OndocsLocaleDialogOptions = LocaleDialogOptions;
 
 /** What the dialog shows; passed to `AskDialog`. */
 export interface OndocsDialogOptions extends DialogOptions {
@@ -310,7 +306,8 @@ const LISTING_PAGES = [
 /** Whether a built page is content to index, from its page type. */
 function isContentPage(html: string): boolean {
   const tag = /<html(?=[\s>])[^<>]*>/i.exec(html)?.[0] ?? '';
-  const classes = (attribute(tag, 'class') ?? '').split(/\s+/);
+  const quoted = /\sclass\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(tag);
+  const classes = (quoted?.[1] ?? quoted?.[2] ?? quoted?.[3] ?? '').split(/\s+/);
   if (classes.includes('docs-doc-page')) {
     // A generated-index category page is a docs page too, but without the doc's id: its cards
     // repeat the pages they link to.
@@ -350,39 +347,12 @@ async function loadBuiltPages(
   for (const route of [...new Set(routesPaths)].sort()) {
     const path = sitePath(route, baseUrl);
     if (route.endsWith('404.html') || excluded(path)) continue;
-    const html = await readBuiltRoute(outDir, path);
+    const html = await readBuiltHtml(outDir, path);
     if (html === undefined || !isContentPage(html)) continue;
-    const document = fromHtml(html, { id: route, url: route, root: 'article' });
-    if (!document?.content.trim()) continue;
-    // A title read from <title> ends with the site's: "Setup | Acme Docs".
-    const { title } = document;
-    const page =
-      title.endsWith(titleSuffix) && title.length > titleSuffix.length
-        ? { ...document, title: title.slice(0, -titleSuffix.length) }
-        : document;
-    documents.push(page);
-    if (markdown) {
-      const copy = fromHtml(html, { id: route, url: route, root: 'article', markdown: true });
-      pages.push({
-        url: route,
-        title: page.title,
-        ...(page.description ? { description: page.description } : {}),
-        content: copy?.content ?? page.content,
-      });
-    }
+    const built = loadBuiltPage(html, { url: route, root: 'article', titleSuffix, markdown });
+    if (!built) continue;
+    documents.push(built.document);
+    if (built.page) pages.push(built.page);
   }
   return { documents, pages };
-}
-
-/** `/intro` is `intro/index.html`, or `intro.html` with `trailingSlash: false`. */
-async function readBuiltRoute(outDir: string, path: string): Promise<string | undefined> {
-  const clean = path.replace(/^\/+|\/+$/g, '');
-  for (const file of [join(outDir, clean, 'index.html'), join(outDir, `${clean}.html`)]) {
-    try {
-      return await readFile(file, 'utf8');
-    } catch {
-      // Try the other layout.
-    }
-  }
-  return undefined;
 }

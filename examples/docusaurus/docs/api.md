@@ -4,12 +4,13 @@ title: 'Package API'
 description: "The package's imports, the core functions for building and searching an index, and what each entry point exports."
 ---
 
-The package has one CLI and these imports. Each is tree-shakeable, and only `ondocs/node`, the framework plugins and the CLI touch Node.js built-ins, so the rest runs on edge runtimes, in workers and in browsers.
+The package has one CLI and these imports. Each is tree-shakeable, and only `ondocs/node`, `ondocs/integration`, the framework plugins and the CLI touch Node.js built-ins, so the rest runs on edge runtimes, in workers and in browsers.
 
 | Import                          | For                                                                                                             |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `ondocs`                        | Loaders, chunking, `buildIndex`, `checkIndex`, `loadIndex`, `retrieve`, `buildLlmsFiles`, `mcpInstallLinks`     |
 | `ondocs/node`                   | `loadDirectory`, `readIndexFile`, `writeIndexFile`, and the config module's types                               |
+| `ondocs/integration`            | The build helpers the plugins are made of, for [writing an integration](./writing-an-integration.md)            |
 | `ondocs/server`                 | `createAskHandler`, `createMcpHandler`, `remoteIndex`, the rate limiters, the budget and answer cache stores    |
 | `ondocs/react`                  | `AskDialog`, `useAsk`, `AskAnswer`, `McpInstall` and `loadAskDialog`; needs `@radix-ui/react-dialog` and `cmdk` |
 | `ondocs/embed`                  | `mountAskDialog`: the dialog and its button without writing React                                               |

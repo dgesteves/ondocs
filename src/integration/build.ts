@@ -263,11 +263,28 @@ async function readCachedIndex(path: string): Promise<AskIndexFile | null> {
   }
 }
 
+export interface WriteSiteIndexOptions {
+  /** The pages to index, such as `loadBuiltPage(…).document` for each page the build wrote. */
+  documents: SourceDocument[];
+  /** From `buildEmbedding`; `null` for a keyword-only index. */
+  embeddingModel: EmbeddingModel | null;
+  embeddingProviderOptions?: EmbeddingProviderOptions | undefined;
+  /** The plugin's options, for `chunking`. */
+  options: IndexOptions;
+  /** Where to write the index: in the build output, where the site serves it from. */
+  file: string;
+  /** Where to keep a copy for the next build; see `indexCache`. */
+  cache: { path: string; legacy?: string };
+  /** How the log line names `file`, such as `ask-index.json`. */
+  name: string;
+  log: Logger;
+}
+
 /**
  * Builds the index of `documents` and writes it to `file`. The previous build's index, kept at
  * `cache.path` (or, the first time after the rename, at `cache.legacy`), gives unchanged pages
  * their vectors back instead of embedding them again; the new one replaces it at `cache.path`.
- * `name` is how the log line refers to the file.
+ * Logs what it indexed, embedded and reused.
  */
 export async function writeSiteIndex({
   documents,
@@ -278,16 +295,7 @@ export async function writeSiteIndex({
   cache,
   name,
   log,
-}: {
-  documents: SourceDocument[];
-  embeddingModel: EmbeddingModel | null;
-  embeddingProviderOptions?: EmbeddingProviderOptions | undefined;
-  options: IndexOptions;
-  file: string;
-  cache: { path: string; legacy?: string };
-  name: string;
-  log: Logger;
-}): Promise<void> {
+}: WriteSiteIndexOptions): Promise<void> {
   // Without one, embed everything.
   const previous =
     (await readCachedIndex(cache.path)) ??

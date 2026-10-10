@@ -50,6 +50,10 @@
       "types": "./dist/node.d.ts",
       "default": "./dist/node.js"
     },
+    "./integration": {
+      "types": "./dist/integration.d.ts",
+      "default": "./dist/integration.js"
+    },
     "./server": {
       "types": "./dist/server.d.ts",
       "default": "./dist/server.js"
