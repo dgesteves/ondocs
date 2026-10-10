@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildLlmsFiles, fromHtml, fromMarkdown, markdownPath, type LlmsPage } from '../src';
-import { llmsOutputs, writeLlmsFiles } from '../src/integrations/llms';
+import { llmsOutputs, writeLlmsFiles } from '../src/integration';
 
 const PAGES: LlmsPage[] = [
   {

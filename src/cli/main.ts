@@ -10,7 +10,7 @@ import { buildIndex, checkIndex, embeddingModelId, type EmbeddingProviderOptions
 import { DEFAULT_CHUNKING } from '../chunk';
 import type { AskIndexFile } from '../index-file';
 import { embeddingFromSpec, EmbeddingSpecError } from '../node/embedding';
-import { llmsOutputs, writeLlmsFiles } from '../integrations/llms';
+import { llmsOutputs, writeLlmsFiles } from '../integration/llms';
 import type { LlmsPage } from '../llms';
 import { dev } from './dev';
 import { evalCommand } from './eval';

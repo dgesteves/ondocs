@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 
 import type { AstroConfig, AstroIntegration } from 'astro';
 
-import type { OndocsDialogOptions as DialogOptions, OndocsTheme } from '../embed/options';
 import {
   buildEmbedding,
   checkIndexOptions,
@@ -15,30 +14,31 @@ import {
   excluder,
   hintDevEndpoint,
   indexCache,
+  LAUNCHER_STYLESHEETS,
+  launcherScript,
+  llmsOutputs,
+  loadBuiltPage,
+  readBuiltHtml,
   resolveMcp,
   warnMissingDialogPeers,
+  writeLlmsFiles,
   writeSiteIndex,
   type IndexOptions,
-  type McpOption,
-} from '../integrations/build';
-import {
-  llmsOutputs,
-  writeLlmsFiles,
   type LlmsOutput,
+  type LlmsPage,
   type LlmsTxtOption,
-} from '../integrations/llms';
-import type { LlmsPage } from '../llms';
-import { fromHtml } from '../loaders/html';
-import type { SourceDocument } from '../types';
+  type LocaleDialogOptions,
+  type McpOption,
+  type OndocsDialogOptions as DialogOptions,
+  type OndocsTheme,
+  type SourceDocument,
+} from '../integration';
 import type { RouteSettings } from './route';
 
-/** What the dialog shows; passed to `mountAskDialog` from `ondocs/embed`. */
 /** What the dialog shows in one locale, over the dialog's own options. */
-export type OndocsLocaleDialogOptions = Pick<
-  DialogOptions,
-  'labels' | 'placeholder' | 'suggestions' | 'buttonLabel'
-> & { title?: string };
+export type OndocsLocaleDialogOptions = LocaleDialogOptions;
 
+/** What the dialog shows; passed to `mountAskDialog` from `ondocs/embed`. */
 export interface OndocsDialogOptions extends DialogOptions {
   /**
    * The dialog's accessible name. Default "Ask this site", or "Ask {site title}" in Starlight, or
@@ -261,22 +261,22 @@ export function createIntegration(
         // The stylesheets go into every page's CSS: a `page` script's CSS is built but not linked.
         injectScript(
           'page-ssr',
-          ['ondocs/react/styles.css', 'ondocs/embed/launcher.css']
-            .concat(preset.stylesheets ?? [])
+          [...LAUNCHER_STYLESHEETS, ...(preset.stylesheets ?? [])]
             .map((stylesheet) => `import ${JSON.stringify(stylesheet)};`)
             .join('\n'),
         );
         // Bundled by Vite with each page's scripts, so React is the site's own copy, if it has one.
         injectScript(
           'page',
-          pageScript(
+          launcherScript({
             endpoint,
-            options,
-            preset,
-            preset.locales ?? astroLocales(astro),
+            dialog: options.dialog,
+            title: preset.title,
+            locales: preset.locales ?? astroLocales(astro),
+            localeTitles: preset.localeTitles,
             // A test's partial config may have no base.
-            astro.base || '/',
-          ),
+            base: astro.base || '/',
+          }),
         );
         updateConfig({
           vite: {
@@ -584,59 +584,6 @@ function virtualModule(id: string, value: unknown) {
   };
 }
 
-/** The script every page runs: `mountAskDialog` with the dialog's options. */
-function pageScript(
-  endpoint: string,
-  options: OndocsOptions,
-  preset: IntegrationPreset,
-  locales: readonly string[],
-  base: string,
-): string {
-  const { locales: perLocale, ...dialog } = options.dialog ?? {};
-  const mount = {
-    endpoint,
-    ...dialog,
-    title: dialog.title ?? dialog.labels?.title ?? preset.title,
-  };
-  if (locales.length === 0) {
-    return [
-      "import { mountAskDialog } from 'ondocs/embed';",
-      `mountAskDialog(${JSON.stringify(mount)});`,
-    ].join('\n');
-  }
-  // Each locale's options over the dialog's, its labels over the dialog's labels.
-  const byLocale = Object.fromEntries(
-    locales.map((locale) => {
-      const own = perLocale?.[locale];
-      const labels = { ...dialog.labels, ...own?.labels };
-      const title =
-        own?.title ??
-        own?.labels?.title ??
-        dialog.title ??
-        preset.localeTitles?.[locale] ??
-        mount.title;
-      return [
-        locale,
-        {
-          ...own,
-          ...(Object.keys(labels).length > 0 ? { labels } : {}),
-          ...(title ? { title } : {}),
-          locale,
-        },
-      ];
-    }),
-  );
-  return [
-    "import { mountAskDialog } from 'ondocs/embed';",
-    `const options = ${JSON.stringify(mount)};`,
-    `const locales = ${JSON.stringify(byLocale)};`,
-    // The page's locale, from its path under `base`: `/docs/fr/guides/` is French.
-    `const path = location.pathname.slice(${String(base.replace(/\/+$/, '').length)}).replace(/^\\/+/, '');`,
-    'const locale = Object.keys(locales).find((key) => path === key || path.startsWith(`${key}/`));',
-    'mountAskDialog(locale ? { ...options, ...locales[locale] } : options);',
-  ].join('\n');
-}
-
 /**
  * The locale path prefixes in Astro's `i18n` config: every locale's path, except the default
  * locale's unless `prefixDefaultLocale` is set.
@@ -685,7 +632,11 @@ async function loadBuiltPages(
     if (path === '404' || path === '500') continue;
     const locale = locales.find((prefix) => path === prefix || path.startsWith(`${prefix}/`)) ?? '';
     if (excluded(path) || (locale && excluded(path.slice(locale.length)))) continue;
-    const html = await readBuiltPage(outDir, path, config.build.format);
+    const html = await readBuiltHtml(
+      outDir,
+      path,
+      config.build.format === 'file' ? 'file' : 'directory',
+    );
     if (html === undefined) continue;
     const url =
       pathname === ''
@@ -693,18 +644,10 @@ async function loadBuiltPages(
           ? base
           : `${base}/`
         : `${base}/${pathname}`;
-    const meta = { id: url, url, root, ...(ignore ? { ignore } : {}) };
-    const document = fromHtml(html, meta);
-    if (!document?.content.trim()) continue;
-    groups.get(locale)?.push(document);
-    if (markdown) {
-      copies.get(locale)?.push({
-        url,
-        title: document.title,
-        ...(document.description ? { description: document.description } : {}),
-        content: fromHtml(html, { ...meta, markdown: true })?.content ?? document.content,
-      });
-    }
+    const built = loadBuiltPage(html, { url, root, ignore, markdown });
+    if (!built) continue;
+    groups.get(locale)?.push(built.document);
+    if (built.page) copies.get(locale)?.push(built.page);
   }
   return { groups, copies };
 }
@@ -729,29 +672,4 @@ function llmsOwners(names: readonly string[]): Map<LlmsOutput, string> {
     }
   }
   return owners;
-}
-
-/**
- * The HTML Astro wrote for a page: `guides/setup/index.html` for the `directory` format,
- * `guides/setup.html` for `file`, and either for `preserve`, which follows the source file.
- */
-async function readBuiltPage(
-  outDir: string,
-  path: string,
-  format: AstroConfig['build']['format'],
-): Promise<string | undefined> {
-  const files =
-    path === ''
-      ? ['index.html']
-      : format === 'file'
-        ? [`${path}.html`, `${path}/index.html`]
-        : [`${path}/index.html`, `${path}.html`];
-  for (const file of files) {
-    try {
-      return await readFile(join(outDir, file), 'utf8');
-    } catch {
-      // Try the other layout.
-    }
-  }
-  return undefined;
 }

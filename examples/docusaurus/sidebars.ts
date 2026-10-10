@@ -13,7 +13,15 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Integrations',
       collapsible: false,
-      items: ['docusaurus', 'astro', 'nextjs', 'script-tag', 'mcp', 'llms-txt'],
+      items: [
+        'docusaurus',
+        'astro',
+        'nextjs',
+        'script-tag',
+        'mcp',
+        'llms-txt',
+        'writing-an-integration',
+      ],
     },
     {
       type: 'category',

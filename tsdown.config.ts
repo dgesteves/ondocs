@@ -31,6 +31,8 @@ export default defineConfig([
     entry: {
       index: 'src/index.ts',
       node: 'src/node/index.ts',
+      // The build helpers the framework plugins share, for integrations with other frameworks.
+      integration: 'src/integration/index.ts',
       server: 'src/server/index.ts',
       react: 'src/react/index.ts',
       mock: 'src/mock/index.ts',

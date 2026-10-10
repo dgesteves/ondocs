@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ondocs, { llmsOwners } from '../src/docusaurus';
 import { parseIndexFile } from '../src/index-file';
-import { consoleLogger, warnMissingDialogPeers } from '../src/integrations/build';
+import { consoleLogger, warnMissingDialogPeers } from '../src/integration';
 import { mockEmbeddingModel } from '../src/mock';
 
 let root: string;
