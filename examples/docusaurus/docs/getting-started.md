@@ -10,6 +10,7 @@ Every setup has the same two halves: an index built with your site, and an endpo
 
 - **Docusaurus.** One line in `docusaurus.config.ts`: the plugin builds the index and adds the dialog. See [Docusaurus](./docusaurus.md).
 - **Astro or Starlight.** One plugin or integration in `astro.config.mjs`, which builds the index and adds the dialog. See [Astro and Starlight](./astro.md).
+- **VitePress.** Wrap the config in `.vitepress/config.mts` with `withOndocs`, which builds the index and adds the dialog. See [VitePress](./vitepress.md).
 - **Next.js or another React app.** Index with the CLI, mount `createAskHandler` as a route, and render `<AskDialog />`. See [Next.js and React](./nextjs.md).
 - **Any other site.** Index the built HTML with the CLI, write the endpoint with `npx ondocs init`, and add one script tag. See [Script tag](./script-tag.md).
 
@@ -33,7 +34,7 @@ Point the CLI at your content. It reads Markdown, MDX and HTML, splits pages at 
 npx ondocs index ./docs --base-url /docs -e openai:text-embedding-3-small --dimensions 512
 ```
 
-With the Docusaurus, Astro or Starlight plugin you skip this step: the plugin indexes the built site after every build.
+With the Docusaurus, Astro, Starlight or VitePress plugin you skip this step: the plugin indexes the built site after every build.
 
 ## Add the endpoint
 

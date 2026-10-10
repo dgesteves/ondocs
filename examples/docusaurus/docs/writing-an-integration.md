@@ -1,10 +1,10 @@
 ---
 # Generated from examples/nextjs/content/docs/writing-an-integration.md by scripts/sync-example-docs.mjs. Edit that file instead.
 title: 'Writing an integration'
-description: 'Build a plugin for another docs framework from ondocs/integration, the helpers the Docusaurus, Astro and Starlight plugins are made of.'
+description: 'Build a plugin for another docs framework from ondocs/integration, the helpers the Docusaurus, Astro, Starlight and VitePress plugins are made of.'
 ---
 
-The Docusaurus plugin, the Astro integration and the Starlight plugin are built from one import, `ondocs/integration`, and use nothing else of ondocs's to build. A plugin for another framework imports the same helpers: it reads the pages the framework built, writes the index and the llms files next to them, and adds the launcher to every page. It runs in Node.js, as the site builds.
+The Docusaurus plugin, the Astro integration, and the Starlight and VitePress plugins are built from one import, `ondocs/integration`, and use nothing else of ondocs's to build. A plugin for another framework imports the same helpers: it reads the pages the framework built, writes the index and the llms files next to them, and adds the launcher to every page. It runs in Node.js, as the site builds.
 
 ## What an integration does
 
@@ -124,7 +124,7 @@ A site with locales gets an index per locale: group the pages by their locale's 
 
 Every page needs the launcher, the "Ask AI" button and the ⌘I shortcut, which loads the dialog the first time it is wanted. How you add it depends on how the framework builds its pages:
 
-- **A framework that bundles each page's scripts**, with Vite, Rollup or webpack: `launcherScript` returns the source of a module that mounts the launcher with `mountAskDialog` from `ondocs/embed`, about 1.5 KB gzipped, with the dialog in a chunk of its own. Serve it as a virtual module every page imports, with `LAUNCHER_STYLESHEETS`, the dialog's and the launcher's stylesheets. Give it `locales` and `base`, and each page under a locale's path prefix gets that locale's labels and sends its locale. The Astro integration does this; the site installs React, `@radix-ui/react-dialog` and `cmdk` for the dialog.
+- **A framework that bundles each page's scripts**, with Vite, Rollup or webpack: `launcherScript` returns the source of a module that mounts the launcher with `mountAskDialog` from `ondocs/embed`, about 1.5 KB gzipped, with the dialog in a chunk of its own. Serve it as a virtual module every page imports, with `LAUNCHER_STYLESHEETS`, the dialog's and the launcher's stylesheets. Give it `locales` and `base`, and each page under a locale's path prefix gets that locale's labels and sends its locale; with `spa: true`, for a site that moves between pages without loading them, it mounts again when a navigation changes `<html lang>`. With Vite, add `quietUseClient()` to its plugins, which blanks the `"use client"` directives that Radix and cmdk start with, so the build does not warn about each one. The Astro integration and the VitePress plugin do this; the site installs React, `@radix-ui/react-dialog` and `cmdk` for the dialog.
 - **A React framework**: render `AskDialog` from `ondocs/react` with `launcher`, as in the [Next.js guide](./nextjs.md). The Docusaurus plugin's theme does the same.
 - **Anything else**: the [script tag](./script-tag.md), which brings the dialog with its own copy of React.
 
@@ -148,6 +148,7 @@ The endpoint itself is a function next to the site, as for any other static site
 | `writeSiteIndex`, `indexCache`               | Write the index, reusing the vectors cached from the previous build                   |
 | `llmsOutputs`, `writeLlmsFiles`              | Read the `llmsTxt` option, and write `llms.txt`, `llms-full.txt` and the `.md` pages  |
 | `launcherScript`, `LAUNCHER_STYLESHEETS`     | The module and the stylesheets that add the launcher to every page                    |
+| `quietUseClient`                             | A Vite plugin that keeps the dialog's dependencies from warning about `"use client"`  |
 | `dialogEndpoint`, `hintDevEndpoint`          | Where the dialog posts, and how to get answers in development                         |
 | `warnMissingDialogPeers`                     | Name the dialog's missing packages                                                    |
 | `resolveMcp`                                 | The `mcp` option as an absolute URL and a name                                        |

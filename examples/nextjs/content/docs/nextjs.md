@@ -2,7 +2,7 @@
 title: Next.js and React
 description: Index with the CLI, mount createAskHandler as a route handler, and render AskDialog.
 section: Integrations
-order: 12
+order: 13
 ---
 
 In a Next.js app, or any React app with a server, ondocs is three pieces: an index built by the CLI, a route handler made with `createAskHandler`, and the `<AskDialog />` component. The ondocs website is built exactly this way.

@@ -71,11 +71,11 @@ Yes. `npx ondocs init --host github-pages` writes a Cloudflare Worker that reads
 
 ## Does it work with versioned docs and several languages?
 
-Yes. Docusaurus and Starlight sites get one index per locale, and the dialog on a locale's pages is answered from it. Versioned Docusaurus docs index every version; leave old ones out with `exclude: ['/docs/1.0']`. See [Docusaurus](/docs/docusaurus#locales-and-versions).
+Yes. Docusaurus, Starlight and VitePress sites get one index per locale, and the dialog on a locale's pages is answered from it. Versioned Docusaurus docs index every version; leave old ones out with `exclude: ['/docs/1.0']`. See [Docusaurus](/docs/docusaurus#locales-and-versions).
 
 ## How is the ondocs website built?
 
-The website is a Next.js app that uses ondocs on these docs. `ondocs index` builds the index from the Markdown pages before every build, `createAskHandler` serves `/api/ask`, and `<AskDialog />` is the dialog. In production it answers with OpenAI; its preview deployments, and the example run locally without a key, use mock mode, where answers are quotes picked from the pages rather than written by a model. The repository's Docusaurus and Starlight examples build the same pages with their plugins.
+The website is a Next.js app that uses ondocs on these docs. `ondocs index` builds the index from the Markdown pages before every build, `createAskHandler` serves `/api/ask`, and `<AskDialog />` is the dialog. In production it answers with OpenAI; its preview deployments, and the example run locally without a key, use mock mode, where answers are quotes picked from the pages rather than written by a model. The repository's Docusaurus, Starlight and VitePress examples build the same pages with their plugins.
 
 ## Was ondocs called ask-my-site?
 

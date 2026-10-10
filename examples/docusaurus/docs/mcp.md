@@ -72,10 +72,11 @@ Browsers on other sites get no CORS headers, so they cannot read the answers. Re
 
 ## Show it on your site
 
-Give the Docusaurus or Starlight plugin the endpoint's URL with `mcp`, and a page can show how to add it to Cursor, VS Code, Claude, Claude Code and ChatGPT:
+Give the plugin the endpoint's URL with `mcp`, and a page can show how to add it to Cursor, VS Code, Claude, Claude Code and ChatGPT:
 
 - **Docusaurus:** `['ondocs/docusaurus', { mcp: '/api/mcp' }]`, then in an MDX page, `import OndocsMcp from '@theme/OndocsMcp'` and `<OndocsMcp />`.
 - **Astro and Starlight:** `ondocs({ mcp: '/api/mcp' })`, with `site` set, then in an MDX page, `import McpInstall from 'ondocs/astro/McpInstall.astro'` and `<McpInstall />`.
+- **VitePress:** `withOndocs(config, { mcp: '/api/mcp' })`, with `sitemap.hostname` set, points `llms.txt` at it; for the links on a page, use `mcpInstallLinks` below.
 - **React:** `<McpInstall url="https://docs.example.com/api/mcp" name="acme-docs" />` from `ondocs/react`.
 - **Anything else:** `mcpInstallLinks({ url, name })` from `ondocs` returns the Cursor and VS Code install links, the claude.ai link, the Claude Code command and the JSON for other clients.
 

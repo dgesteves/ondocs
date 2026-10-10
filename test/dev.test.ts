@@ -159,10 +159,15 @@ describe('ondocs dev', () => {
     expect(logs).toContain('Reloaded the index (1 chunks).');
   });
 
-  it('finds the index the CLI, Docusaurus or Astro wrote, or says how to make one', async () => {
+  it('finds the index the CLI, Docusaurus, Astro or VitePress wrote, or says how to make one', async () => {
     expect(() => findIndexFile(root)).toThrow(
-      /No index found: looked for ask-index.json, build\/ask-index.json, dist\/ask-index.json, dist\/client\/ask-index.json/,
+      /No index found: looked for ask-index.json, build\/ask-index.json, dist\/ask-index.json, dist\/client\/ask-index.json, \.vitepress\/dist\/ask-index.json, docs\/\.vitepress\/dist\/ask-index.json/,
     );
+    // VitePress, in docs/ as `vitepress init` suggests, or at the root.
+    await indexAt('docs/.vitepress/dist/ask-index.json');
+    expect(findIndexFile(root)).toBe(join(root, 'docs/.vitepress/dist/ask-index.json'));
+    await indexAt('.vitepress/dist/ask-index.json');
+    expect(findIndexFile(root)).toBe(join(root, '.vitepress/dist/ask-index.json'));
     // An Astro site with an adapter: its static files, the index among them, go to dist/client.
     await indexAt('dist/client/ask-index.json');
     expect(findIndexFile(root)).toBe(join(root, 'dist/client/ask-index.json'));

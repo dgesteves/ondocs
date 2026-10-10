@@ -15,9 +15,9 @@ The examples run in mock mode, so they need no key: deterministic embeddings and
 
 ```
 src/                  the package: build and search (root), cli/, node/, server/, react/, embed/,
-                      docusaurus/, astro/, starlight/, loaders/, mock/
+                      integration/, docusaurus/, astro/, starlight/, vitepress/, loaders/, mock/
 test/                 Vitest: unit, robustness (linear-time parsing), plugins, dialog with axe
-examples/             nextjs (the live demo), docusaurus and starlight, built in CI
+examples/             nextjs (the live demo), docusaurus, starlight and vitepress, built in CI
 scripts/              consumer-site.mjs (fresh sites from the packed package), deploy-recipes.mjs, openai-stub.mjs, assets
 bench/                retrieval and load benchmarks
 packages/             docusaurus-plugin-ondocs and starlight-ondocs, which re-export
@@ -29,10 +29,10 @@ packages/             docusaurus-plugin-ondocs and starlight-ondocs, which re-ex
 `pnpm validate` runs what CI runs, except the fresh-site job:
 
 ```bash
-pnpm validate   # lint, format, typecheck, test, build, publint and attw, and the three example builds
+pnpm validate   # lint, format, typecheck, test, build, publint and attw, and the four example builds
 ```
 
-The `consumers` CI job packs the package, scaffolds fresh Next.js, Docusaurus and Starlight sites, installs the tarball and builds each against a local OpenAI stub. Two more sites install the plugin through `packages/`, packed alongside it. To run one locally:
+The `consumers` CI job packs the package, scaffolds fresh Next.js, Docusaurus, Starlight and VitePress sites, installs the tarball and builds each against a local OpenAI stub. Two more sites install the plugin through `packages/`, packed alongside it. To run one locally:
 
 ```bash
 pnpm build && npm pack --pack-destination /tmp
@@ -46,7 +46,7 @@ pnpm build && npm pack --pack-destination /tmp
 node scripts/deploy-recipes.mjs github-pages /tmp/ondocs-*.tgz /tmp/recipe
 ```
 
-The docs live in `examples/nextjs/content/docs`, and the Docusaurus and Starlight examples' pages are generated from them: after editing a page, run `pnpm build && pnpm examples:sync` and commit the result. CI fails when they drift.
+The docs live in `examples/nextjs/content/docs`, and the Docusaurus, Starlight and VitePress examples' pages are generated from them: after editing a page, run `pnpm build && pnpm examples:sync` and commit the result. CI fails when they drift.
 
 `test/corpus.test.ts` checks search on real docs: docusaurus.io's, at a pinned commit. Fetch them once with `node scripts/corpus.mjs` (a few MB, into the git-ignored `.corpus/`); without them the file is skipped locally, and CI always fetches them. A change that moves its counts has to say why.
 

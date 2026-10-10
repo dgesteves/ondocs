@@ -52,5 +52,5 @@ Text on your pages reaches the model as data inside tags it cannot forge, but it
 
 - **A reranking hook:** an optional AI SDK reranking model over the fused candidates.
 - **Bigger corpora:** sharded indexes loaded per section, and binary quantization with int8 rescoring.
-- **More framework plugins:** VitePress, after the Docusaurus, Astro and Starlight ones.
+- **More framework plugins,** built on [`ondocs/integration`](/integrations/writing-an-integration/) as the Docusaurus, Astro, Starlight and VitePress ones are.
 - **Language-aware keyword search:** stopwords and stemming per language.

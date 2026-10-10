@@ -17,6 +17,7 @@ The package has one CLI and these imports. Each is tree-shakeable, and only `ond
 | `ondocs/docusaurus`             | The [Docusaurus plugin](./docusaurus.md)                                                                        |
 | `ondocs/astro`                  | The [Astro integration](./astro.md)                                                                             |
 | `ondocs/starlight`              | The [Starlight plugin](./astro.md)                                                                              |
+| `ondocs/vitepress`              | The [VitePress plugin](./vitepress.md): `withOndocs`                                                            |
 | `ondocs/astro/McpInstall.astro` | The "Add to Cursor / VS Code / Claude" block for an Astro or Starlight page                                     |
 | `ondocs/mock`                   | `mockEmbeddingModel` and `mockLanguageModel`, for tests and offline demos                                       |
 | `ondocs` (bin)                  | [`ondocs index`, `init` and `dev`](./cli.md)                                                                    |

@@ -16,7 +16,7 @@ npx ondocs index ./docs -e mock   # writes ask-index.json
 npx ondocs dev                    # serves POST http://localhost:8787/api/ask
 ```
 
-`ondocs dev` answers from `ask-index.json`, or from `build/ask-index.json` or `dist/ask-index.json`, where the Docusaurus and Astro plugins write theirs. It listens on 127.0.0.1 port 8787 (`--port`), answers pages on this machine only (`--allow-origin` adds another origin), and picks up a rebuilt index on the next question.
+`ondocs dev` answers from `ask-index.json`, or from `build/ask-index.json`, `dist/ask-index.json` or `.vitepress/dist/ask-index.json`, where the Docusaurus, Astro and VitePress plugins write theirs. It listens on 127.0.0.1 port 8787 (`--port`), answers pages on this machine only (`--allow-origin` adds another origin), and picks up a rebuilt index on the next question.
 
 ## Point the dialog at it
 
@@ -42,4 +42,4 @@ The CLI and `ondocs dev` read `.env` and `.env.local` in the working directory, 
 
 ## The demo website
 
-The ondocs website is a Next.js app that indexes these pages with `ondocs index` at build time and answers through `createAskHandler`. In production it answers with OpenAI, under a rate limit. Its preview deployments, and the example when you run it without a key, use mock mode: `mockLanguageModel()` answers with quotes from these docs, picked by the words they share with the question, where a real model writes full sentences from the same sources. The Docusaurus and Starlight examples in the repository answer the same way through `ondocs dev`.
+The ondocs website is a Next.js app that indexes these pages with `ondocs index` at build time and answers through `createAskHandler`. In production it answers with OpenAI, under a rate limit. Its preview deployments, and the example when you run it without a key, use mock mode: `mockLanguageModel()` answers with quotes from these docs, picked by the words they share with the question, where a real model writes full sentences from the same sources. The Docusaurus, Starlight and VitePress examples in the repository answer the same way through `ondocs dev`.

@@ -3,7 +3,7 @@
 title: 'Script tag'
 description: 'Add the dialog to Hugo, Jekyll, Eleventy, MkDocs or plain HTML with one script tag.'
 sidebar:
-  order: 13
+  order: 14
 ---
 
 For a site that does not build with React, such as Hugo, Jekyll, Eleventy, MkDocs or plain HTML, one script tag adds the dialog and its "Ask AI" button.

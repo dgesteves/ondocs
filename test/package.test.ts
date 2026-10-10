@@ -48,6 +48,7 @@ describe('package.json', () => {
       '@docusaurus/core',
       'astro',
       '@astrojs/starlight',
+      'vitepress',
     ]) {
       expect(manifest.peerDependencies?.[name]).toBeDefined();
       expect(manifest.peerDependenciesMeta?.[name]?.optional).toBe(true);

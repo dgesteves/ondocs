@@ -3,7 +3,7 @@
 // more before interaction than its budget.
 //
 //   pnpm build && pnpm --filter <example> build
-//   node scripts/js-weight.mjs [docusaurus|starlight|next|embed ...] [--check] [--json]
+//   node scripts/js-weight.mjs [docusaurus|starlight|vitepress|next|embed ...] [--check] [--json]
 //
 // Each site is served from its build output by a static server in this process (Next.js by
 // `next start`), so what Chrome downloads is what a host would serve. Bytes are gzipped here,
@@ -41,6 +41,13 @@ const SITES = {
     key: 'i',
     // Starlight's own 34 KB, and the launcher (1.5 KB).
     budget: 40,
+  },
+  vitepress: {
+    dir: 'examples/vitepress/.vitepress/dist',
+    page: '/getting-started',
+    key: 'i',
+    // VitePress's own 58 KB, and the launcher (2 KB).
+    budget: 64,
   },
   next: {
     next: 'examples/nextjs',

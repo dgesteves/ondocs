@@ -63,7 +63,7 @@ const HOST_LABELS: Record<Host, string> = {
   'github-pages': 'GitHub Pages',
 };
 
-type SiteKind = 'docusaurus' | 'starlight' | 'astro' | 'next' | 'static';
+type SiteKind = 'docusaurus' | 'starlight' | 'astro' | 'vitepress' | 'next' | 'static';
 
 /** What init found out about the site. */
 interface Site extends TemplateSite {
@@ -72,6 +72,8 @@ interface Site extends TemplateSite {
   label: string;
   /** Astro's SSR adapter package, when the site has one. */
   adapter?: string;
+  /** VitePress's config file: `.vitepress/config.mts` or `docs/.vitepress/config.mts`. */
+  config?: string;
   /** Next.js's app folder: `app` or `src/app`. */
   appDir?: string;
   /** For a site the CLI indexes (Next.js, static generators): the command that builds the index. */
@@ -261,10 +263,29 @@ function detectSite(p: Project, flags: { out?: string; name?: string; siteUrl?: 
     );
   }
 
+  // VitePress, in docs/ as `vitepress init` suggests, or at the root: the plugin builds the index.
   const vitepress = first(p, ['docs/.vitepress', '.vitepress']);
-  const generator = vitepress
-    ? { label: 'VitePress', out: `${vitepress}/dist` }
-    : STATIC_GENERATORS.find(({ files }) => files.some((file) => p.has(file)));
+  if (vitepress) {
+    const config = first(
+      p,
+      ['mts', 'ts', 'mjs', 'js'].map((extension) => `${vitepress}/config.${extension}`),
+    );
+    const source = config ? p.read(config) : null;
+    return withUrl(
+      {
+        kind: 'vitepress',
+        label: 'VitePress',
+        name: named(configString(source, 'title')),
+        indexFile: `${vitepress}/dist/ask-index.json`,
+        indexPath: '/ask-index.json',
+        config: config ?? `${vitepress}/config.mts`,
+        ...localesOf(configLocales(source, true)),
+      },
+      url(joinUrl(configString(source, 'hostname'), configString(source, 'base'))),
+    );
+  }
+
+  const generator = STATIC_GENERATORS.find(({ files }) => files.some((file) => p.has(file)));
   const out = (flags.out ?? generator?.out)?.replace(/^\.\/|\/+$/g, '');
   if (!out) {
     throw new InitError(
@@ -479,7 +500,7 @@ function install(p: Project, packages: string[], dev = false): string | null {
 /** The packages the site needs for the dialog and the endpoint it was given. */
 function sitePackages(site: Site, openai = true): string[] {
   const dialog =
-    site.kind === 'starlight' || site.kind === 'astro'
+    site.kind === 'starlight' || site.kind === 'astro' || site.kind === 'vitepress'
       ? ['react', 'react-dom', '@radix-ui/react-dialog', 'cmdk']
       : site.kind === 'static'
         ? []
@@ -512,6 +533,8 @@ function dialogStep(site: Site, endpoint: string | null, embedding?: string): st
       return `Add the plugin to Starlight in astro.config: plugins: [ondocs(${option})], from 'ondocs/starlight'${withEmbedding}`;
     case 'astro':
       return `Add the integration to astro.config: integrations: [ondocs(${option})], from 'ondocs/astro'${withEmbedding}`;
+    case 'vitepress':
+      return `Wrap the config in ${site.config ?? '.vitepress/config.mts'} in withOndocs, from 'ondocs/vitepress': export default withOndocs(defineConfig({ ... })${option ? `, ${option}` : ''})${withEmbedding}`;
     case 'next':
       return `Render <AskDialog launcher${endpoint ? ` endpoint="${endpoint}"` : ''} /> from 'ondocs/react' in your layout, with 'ondocs/react/styles.css' and 'ondocs/embed/launcher.css'`;
     case 'static':

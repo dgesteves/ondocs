@@ -39,6 +39,7 @@ Search runs in memory inside one function you deploy: BM25 and vectors, merged w
 | ---------------------------------- | --------------------------- | --------------------------------------------------------------------- |
 | Docusaurus 3                       | A plugin                    | [Docusaurus](https://ask-my-site-demo.vercel.app/docs/docusaurus)     |
 | Starlight, or any Astro site       | A plugin, or an integration | [Astro and Starlight](https://ask-my-site-demo.vercel.app/docs/astro) |
+| VitePress                          | One wrapper in its config   | [VitePress](https://ask-my-site-demo.vercel.app/docs/vitepress)       |
 | Next.js or another React app       | A route and a component     | [Next.js and React](https://ask-my-site-demo.vercel.app/docs/nextjs)  |
 | Hugo, Jekyll, MkDocs or plain HTML | One script tag              | [Script tag](https://ask-my-site-demo.vercel.app/docs/script-tag)     |
 
@@ -119,9 +120,9 @@ See [MCP server](https://ask-my-site-demo.vercel.app/docs/mcp) and [llms.txt and
 - **Kapa.ai and Inkeep** are hosted. They take more sources than your docs (forums, issues, chat) and come with analytics dashboards and support tooling. ondocs gives you `ondocs eval` for CI, readers' ratings and a log of unanswered questions you wire yourself, not a dashboard.
 - **Fumadocs** has first-party AI chat and an MCP route. On a Fumadocs site, they fit its framework natively.
 - **docusaurus-plugin-mcp-server** builds the same kind of index for an MCP endpoint, more widely used today, with no Ask box for people.
-- **The llms.txt plugins** (docusaurus-plugin-llms, @signalwire/docusaurus-plugin-llms-txt, starlight-llms-txt) have more output options, such as custom sets and versions. ondocs writes the basics, and steps aside when one of them is installed.
+- **The llms.txt plugins** (docusaurus-plugin-llms, @signalwire/docusaurus-plugin-llms-txt, starlight-llms-txt, vitepress-plugin-llms) have more output options, such as custom sets and versions. ondocs writes the basics, and steps aside when one of them is installed.
 
-What ondocs adds is one index you host serving both people and agents, on Docusaurus, Starlight, Next.js or any static site, with no vendor account. See [Limits and trade-offs](https://ask-my-site-demo.vercel.app/docs/limits) for where it is the wrong tool.
+What ondocs adds is one index you host serving both people and agents, on Docusaurus, Starlight, VitePress, Next.js or any static site, with no vendor account. See [Limits and trade-offs](https://ask-my-site-demo.vercel.app/docs/limits) for where it is the wrong tool.
 
 ## Links
 

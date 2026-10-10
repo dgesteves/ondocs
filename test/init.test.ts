@@ -149,6 +149,30 @@ describe('ondocs init: what it writes per host', () => {
       [],
     ],
     [
+      'VitePress in docs/, in two locales, on Vercel',
+      {
+        'package.json': JSON.stringify({
+          name: 'acme',
+          devDependencies: { vitepress: '1.6.4' },
+          scripts: { 'docs:build': 'vitepress build docs' },
+        }),
+        'docs/.vitepress/config.mts':
+          "import { defineConfig } from 'vitepress';\n\nexport default defineConfig({\n  title: 'Acme Docs',\n  base: '/docs/',\n  sitemap: { hostname: 'https://acme.dev' },\n  locales: {\n    root: { label: 'English', lang: 'en' },\n    fr: { label: 'Français', lang: 'fr' },\n  },\n});\n",
+        'vercel.json': '{}\n',
+      },
+      [],
+    ],
+    [
+      'VitePress on GitHub Pages',
+      {
+        'package.json': JSON.stringify({ devDependencies: { vitepress: '1.6.4' } }),
+        '.vitepress/config.mts':
+          "import { defineConfig } from 'vitepress';\n\nexport default defineConfig({ title: 'Acme', base: '/acme/' });\n",
+        '.github/workflows/deploy.yml': 'steps:\n  - uses: actions/deploy-pages@v4\n',
+      },
+      ['--site-url', 'https://acme.github.io/acme'],
+    ],
+    [
       'Hugo on a GitHub Pages workflow',
       {
         'hugo.toml': 'baseURL = "https://acme.github.io/site/"\ntitle = "Acme"\n',

@@ -1,0 +1,20 @@
+{
+  "name": "ask-my-site-example-vitepress",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview",
+    "api": "ondocs dev"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.23",
+    "cmdk": "^1.1.1",
+    "ondocs": "workspace:*",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "vitepress": "1.6.4"
+  }
+}

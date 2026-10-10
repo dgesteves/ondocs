@@ -52,6 +52,7 @@ export default defineConfig([
       'astro/ask-route': 'src/astro/ask-route.ts',
       'astro/mcp-route': 'src/astro/mcp-route.ts',
       'starlight/index': 'src/starlight/index.ts',
+      'vitepress/index': 'src/vitepress/index.ts',
     },
     // Provided by the Docusaurus site at build time: its modules and theme components.
     // And by the Astro site: the module the integration generates for its routes, and Astro's own.
@@ -79,6 +80,7 @@ export default defineConfig([
       { from: 'src/react/styles.css', to: 'dist' },
       { from: 'src/embed/launcher.css', to: 'dist/embed' },
       { from: 'src/starlight/launcher.css', to: 'dist/starlight' },
+      { from: 'src/vitepress/launcher.css', to: 'dist/vitepress' },
       { from: 'src/docusaurus/launcher.css', to: 'dist/docusaurus' },
       { from: 'src/docusaurus/theme.d.ts', to: 'dist/docusaurus' },
       // Compiled by the site's Astro, as Astro components in packages are.
