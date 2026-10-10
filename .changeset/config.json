@@ -1,17 +1,26 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@4.0.1/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "dgesteves/ondocs" }],
+  "changelog": [
+    "@changesets/changelog-github",
+    {
+      "repo": "dgesteves/ondocs"
+    }
+  ],
   "commit": false,
   "access": "public",
   "baseBranch": "main",
   "fixed": [["ondocs", "docusaurus-plugin-ondocs", "starlight-ondocs"]],
   "linked": [],
   "updateInternalDependencies": "patch",
-  "privatePackages": { "version": true, "tag": false },
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  },
   "ignore": [
     "ask-my-site-example-docusaurus",
     "ask-my-site-example-nextjs",
-    "ask-my-site-example-starlight"
+    "ask-my-site-example-starlight",
+    "ask-my-site-example-vitepress"
   ],
   "changedFilePatterns": ["src/**", "package.json", "README.md"]
 }

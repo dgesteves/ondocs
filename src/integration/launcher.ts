@@ -40,6 +40,12 @@ export interface LauncherScriptOptions {
   localeTitles?: Record<string, string>;
   /** The path the site is served under, which the locale prefixes follow. Default `/`. */
   base?: string;
+  /**
+   * The site moves between pages without loading them, as VitePress does: when a navigation
+   * changes `<html lang>`, the launcher mounts again with the new page's locale. Only matters with
+   * `locales`. Default `false`.
+   */
+  spa?: boolean;
 }
 
 /**
@@ -56,6 +62,7 @@ export function launcherScript({
   locales = [],
   localeTitles,
   base = '/',
+  spa = false,
 }: LauncherScriptOptions): string {
   const { locales: perLocale, ...dialog } = options;
   const mount = {
@@ -87,13 +94,53 @@ export function launcherScript({
       ];
     }),
   );
-  return [
+  const pathUnderBase = `location.pathname.slice(${String(base.replace(/\/+$/, '').length)}).replace(/^\\/+/, '')`;
+  const head = [
     "import { mountAskDialog } from 'ondocs/embed';",
     `const options = ${JSON.stringify(mount)};`,
     `const locales = ${JSON.stringify(byLocale)};`,
-    // The page's locale, from its path under `base`: `/docs/fr/guides/` is French.
-    `const path = location.pathname.slice(${String(base.replace(/\/+$/, '').length)}).replace(/^\\/+/, '');`,
-    'const locale = Object.keys(locales).find((key) => path === key || path.startsWith(`${key}/`));',
-    'mountAskDialog(locale ? { ...options, ...locales[locale] } : options);',
+  ];
+  if (!spa) {
+    return [
+      ...head,
+      // The page's locale, from its path under `base`: `/docs/fr/guides/` is French.
+      `const path = ${pathUnderBase};`,
+      'const locale = Object.keys(locales).find((key) => path === key || path.startsWith(`${key}/`));',
+      'mountAskDialog(locale ? { ...options, ...locales[locale] } : options);',
+    ].join('\n');
+  }
+  return [
+    ...head,
+    'const localeOf = (path) => Object.keys(locales).find((key) => path === key || path.startsWith(`${key}/`));',
+    'const mount = (locale) => mountAskDialog(locale ? { ...options, ...locales[locale] } : options);',
+    `let locale = localeOf(${pathUnderBase});`,
+    'let mounted = mount(locale);',
+    // A navigation to a page in another locale changes <html lang>: mount for that locale.
+    'new MutationObserver(() => {',
+    `  const next = localeOf(${pathUnderBase});`,
+    '  if (next === locale) return;',
+    '  locale = next;',
+    '  mounted.unmount();',
+    '  mounted = mount(locale);',
+    "}).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });",
   ].join('\n');
+}
+
+/**
+ * Radix and cmdk start their modules with "use client", a React Server Components directive that
+ * means nothing in a browser bundle, and Vite warns about each one at length. This blanks it out
+ * in those packages only (with spaces, so source positions do not move). A Vite plugin, for the
+ * site's bundler where the launcher's dialog is bundled.
+ */
+export function quietUseClient() {
+  return {
+    name: 'ondocs:quiet-use-client',
+    transform(code: string, id: string) {
+      if (!/[\\/]node_modules[\\/](?:@radix-ui[\\/][^\\/]+|cmdk)[\\/]/.test(id)) return null;
+      const blanked = code.replace(/^(["'])use client\1;?/, (directive) =>
+        ' '.repeat(directive.length),
+      );
+      return blanked === code ? null : { code: blanked, map: null };
+    },
+  };
 }

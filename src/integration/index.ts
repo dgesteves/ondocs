@@ -26,7 +26,7 @@ export { llmsOutputs, writeLlmsFiles } from './llms';
 export type { LlmsOutput, LlmsTxtOption, WriteLlmsFilesOptions } from './llms';
 export { loadBuiltPage, readBuiltHtml } from './pages';
 export type { BuiltPage, BuiltPageOptions } from './pages';
-export { LAUNCHER_STYLESHEETS, launcherScript } from './launcher';
+export { LAUNCHER_STYLESHEETS, launcherScript, quietUseClient } from './launcher';
 export type { LauncherDialogOptions, LauncherScriptOptions, LocaleDialogOptions } from './launcher';
 
 // The types those take and return, so an integration needs no other import.

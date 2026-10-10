@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 // ondocs/integration: the build helpers the framework plugins share, public so an integration with
 // another framework needs nothing else. The plugins themselves are held to it: their build code
 // imports ondocs only through it.
@@ -36,6 +37,7 @@ const INTEGRATIONS = [
   { name: 'Docusaurus', files: ['docusaurus/index.ts'], own: ['docusaurus'] },
   { name: 'Astro', files: ['astro/index.ts', 'astro/integration.ts'], own: ['astro'] },
   { name: 'Starlight', files: ['starlight/index.ts'], own: ['starlight', 'astro/integration.ts'] },
+  { name: 'VitePress', files: ['vitepress/index.ts'], own: ['vitepress'] },
 ];
 
 /** Every module specifier a file imports or re-exports, statically or dynamically. */
@@ -107,6 +109,7 @@ describe('ondocs/integration', () => {
       'launcherScript',
       'llmsOutputs',
       'loadBuiltPage',
+      'quietUseClient',
       'readBuiltHtml',
       'resolveMcp',
       'warnMissingDialogPeers',
@@ -266,6 +269,54 @@ describe('launcherScript', () => {
       title: 'Demander à Acme',
       locale: 'fr',
     });
+  });
+});
+
+describe('launcherScript, for a site that moves between pages without loading them', () => {
+  it('mounts again, in the new locale, when a navigation changes <html lang>', async () => {
+    document.documentElement.lang = 'en';
+    const script = launcherScript({
+      endpoint: '/api/ask',
+      title: 'Ask Acme',
+      locales: ['fr'],
+      localeTitles: { fr: 'Demander à Acme' },
+      spa: true,
+    });
+    const location = { pathname: '/guide/' };
+    const events: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const page = new Function(
+      'mountAskDialog',
+      'location',
+      'document',
+      'MutationObserver',
+      script.replace(/^import .*\n/, ''),
+    ) as (...args: unknown[]) => void;
+    page(
+      (options: { title: string }) => {
+        events.push(`mount ${options.title}`);
+        return { unmount: () => events.push('unmount') };
+      },
+      location,
+      document,
+      MutationObserver,
+    );
+    const navigate = async (pathname: string, lang: string) => {
+      location.pathname = pathname;
+      document.documentElement.lang = lang;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    };
+    await navigate('/fr/guide/', 'fr');
+    // Within a locale, nothing changes.
+    await navigate('/fr/other/', 'fr-FR');
+    await navigate('/guide/', 'en');
+    expect(events).toEqual([
+      'mount Ask Acme',
+      'unmount',
+      'mount Demander à Acme',
+      'unmount',
+      'mount Ask Acme',
+    ]);
   });
 });
 

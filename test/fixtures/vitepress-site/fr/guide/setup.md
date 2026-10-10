@@ -1,0 +1,3 @@
+# Installation
+
+Lancez le programme.

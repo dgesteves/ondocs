@@ -16,6 +16,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'docusaurus',
         'astro',
+        'vitepress',
         'nextjs',
         'script-tag',
         'mcp',

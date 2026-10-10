@@ -66,6 +66,11 @@ jobs:
           pnpm --filter ask-my-site-example-starlight build
           node -e "const i=JSON.parse(require('fs').readFileSync('examples/starlight/dist/ask-index.json','utf8'));if(i.documents.length<5)throw new Error('only '+i.documents.length+' pages indexed');if(i.documents.some(d=>d.url.startsWith('/changelog')))throw new Error('indexed the pagefind: false changelog');console.log(i.documents.length,'pages,',i.chunks.length,'chunks')"
           test -s examples/starlight/dist/llms.txt && test -s examples/starlight/dist/llms-full.txt && test -s examples/starlight/dist/integrations/mcp.md && test ! -e examples/starlight/dist/changelog.md
+      - name: Build the VitePress example; the plugin must write its index and llms files
+        run: |
+          pnpm --filter ask-my-site-example-vitepress build
+          node -e "const i=JSON.parse(require('fs').readFileSync('examples/vitepress/.vitepress/dist/ask-index.json','utf8'));if(i.documents.length<5)throw new Error('only '+i.documents.length+' pages indexed');console.log(i.documents.length,'pages,',i.chunks.length,'chunks')"
+          test -s examples/vitepress/.vitepress/dist/llms.txt && test -s examples/vitepress/.vitepress/dist/llms-full.txt && test -s examples/vitepress/.vitepress/dist/vitepress.md
 
       # Each docs page in headless Chrome: the JavaScript it loads before any interaction, within
       # each site's budget, and the dialog opening from a shortcut pressed while its code loads,
@@ -73,7 +78,7 @@ jobs:
       - name: Install headless Chrome
         run: pnpm exec playwright-core install --with-deps --only-shell chromium
       - name: JavaScript per page and the dialog's focus, in a browser
-        run: node scripts/js-weight.mjs docusaurus starlight next embed --check
+        run: node scripts/js-weight.mjs docusaurus starlight vitepress next embed --check
 
   # A site made the way a new user makes one, with the scaffolder's defaults, and ondocs
   # installed from the packed tarball rather than linked from the workspace. The index is built
@@ -87,7 +92,7 @@ jobs:
       fail-fast: false
       matrix:
         # The last two install the plugin under its own package's name, from packages/.
-        site: [next, docusaurus, starlight, docusaurus-plugin-ondocs, starlight-ondocs]
+        site: [next, docusaurus, starlight, vitepress, docusaurus-plugin-ondocs, starlight-ondocs]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6

@@ -16,6 +16,7 @@ body:
       options:
         - Docusaurus plugin
         - Starlight plugin
+        - VitePress plugin
         - Astro integration
         - Script embed
         - React (AskDialog) with the CLI index

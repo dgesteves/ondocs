@@ -11,7 +11,7 @@ It was published as `ask-my-site` until 0.6.0: [Migrating from ask-my-site](./mi
 
 ## How it works
 
-At build time, `ondocs index` (or the Docusaurus, Astro or Starlight plugin) splits your pages into chunks at every heading, embeds each chunk and writes one static JSON file, `ask-index.json`. Vectors are stored as int8, so a site of 1,000 chunks makes an index of about 1.6 MB.
+At build time, `ondocs index` (or the Docusaurus, Astro, Starlight or VitePress plugin) splits your pages into chunks at every heading, embeds each chunk and writes one static JSON file, `ask-index.json`. Vectors are stored as int8, so a site of 1,000 chunks makes an index of about 1.6 MB.
 
 At request time, a function you deploy loads that file into memory once and searches it for each question: BM25 keyword search and cosine similarity over the vectors, merged with reciprocal rank fusion. A relevance gate then decides whether anything found is good enough to answer from. If it is, your model streams an answer that cites its sources as `[1]`, `[2]`. If it is not, the answer is "I don't know", and the model is never called.
 
@@ -33,7 +33,7 @@ Hosted assistants such as Kapa, Inkeep, Algolia Ask AI, Biel.ai and Markprompt i
 
 ## When it fits
 
-ondocs fits documentation sites, product sites, blogs and changelogs: content of up to tens of thousands of chunks that changes when you deploy. It ships a plugin for Docusaurus, a plugin for Starlight, an integration for Astro, React components for Next.js and other React apps, and a script tag for everything else, such as Hugo, Jekyll, Eleventy or MkDocs.
+ondocs fits documentation sites, product sites, blogs and changelogs: content of up to tens of thousands of chunks that changes when you deploy. It ships a plugin for Docusaurus, a plugin for Starlight, an integration for Astro, a plugin for VitePress, React components for Next.js and other React apps, and a script tag for everything else, such as Hugo, Jekyll, Eleventy or MkDocs.
 
 ## When it is the wrong tool
 

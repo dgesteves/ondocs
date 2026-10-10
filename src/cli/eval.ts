@@ -33,7 +33,8 @@ language model. It exits 1 when a score is under its threshold, for CI.
 
 Options:
       --index <file>                 The index (default: the file's \`index\`, else ask-index.json,
-                                     build/ask-index.json, dist/ask-index.json or dist/client/ask-index.json)
+                                     build/ask-index.json, dist/ask-index.json, dist/client/ask-index.json,
+                                     or .vitepress/dist/ask-index.json, at the root or in docs/)
       --min-hit-at-1 <n>             Thresholds from 0 to 1, over the file's
       --min-hit-at-3 <n>
       --min-refusal-precision <n>

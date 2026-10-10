@@ -18,6 +18,7 @@ import {
   launcherScript,
   llmsOutputs,
   loadBuiltPage,
+  quietUseClient,
   readBuiltHtml,
   resolveMcp,
   warnMissingDialogPeers,
@@ -553,24 +554,6 @@ function serveBuiltIndex(
       },
     );
   });
-}
-
-/**
- * Radix and cmdk start their modules with "use client", a React Server Components directive that
- * means nothing in a browser bundle, and Vite 8 warns about each one at length. This blanks it out
- * in those packages only (with spaces, so source positions do not move).
- */
-function quietUseClient() {
-  return {
-    name: 'ondocs:quiet-use-client',
-    transform(code: string, id: string) {
-      if (!/[\\/]node_modules[\\/](?:@radix-ui[\\/][^\\/]+|cmdk)[\\/]/.test(id)) return null;
-      const blanked = code.replace(/^(["'])use client\1;?/, (directive) =>
-        ' '.repeat(directive.length),
-      );
-      return blanked === code ? null : { code: blanked, map: null };
-    },
-  };
 }
 
 /** A Vite plugin serving `id` as a module whose default export is `value`. */

@@ -5,7 +5,7 @@
 //
 //   npm pack && node scripts/consumer-site.mjs <site> ondocs-x.y.z.tgz [dir]
 //
-// The sites are next, docusaurus and starlight, and docusaurus-plugin-ondocs and
+// The sites are next, docusaurus, starlight and vitepress, and docusaurus-plugin-ondocs and
 // starlight-ondocs, which install the plugin under its own package's name (packages/).
 //
 // The workspace examples link the package from source, so they cannot catch what only an
@@ -36,8 +36,11 @@ const PEERS = ['ai', '@ai-sdk/openai', '@radix-ui/react-dialog', 'cmdk'];
  * if any (packed here, and installed with the tarball, so it resolves to that and not to npm). Scaffolders are pinned to a major version, so a new major is a
  * deliberate upgrade here rather than a surprise in an unrelated pull request.
  *
+ * Some sites have more to check, such as where their pages are served (`check`, which returns the
+ * problems it finds).
+ *
  * @type {Record<string, {
- *   create: (dir: string) => [string, string[], string?],
+ *   create: (dir: string) => [string, string[], string?] | [string, string[], string?][],
  *   configure: (dir: string) => void,
  *   install: string[],
  *   build: string[][],
@@ -45,6 +48,7 @@ const PEERS = ['ai', '@ai-sdk/openai', '@radix-ui/react-dialog', 'cmdk'];
  *   llms: string,
  *   dimensions: number,
  *   package?: string,
+ *   check?: (dir: string, index: { documents: { url: string }[] }) => string[],
  * }>}
  */
 const SITES = {
@@ -148,6 +152,67 @@ export function Ask() {
     ...starlight('starlight-ondocs'),
     package: 'starlight-ondocs',
   },
+  // `vitepress init` with its defaults, written by the scaffold function it runs (init itself only
+  // asks questions), then the config wrapped in withOndocs with no options: the default model.
+  vitepress: {
+    create: (dir) => [
+      ['mkdir', ['-p', dir]],
+      ['npm', ['init', '-y'], dir],
+      ['npm', ['install', '--no-audit', '--no-fund', '-D', 'vitepress@1'], dir],
+      [
+        'node',
+        [
+          '--input-type=module',
+          '-e',
+          "const { scaffold } = await import('vitepress'); scaffold({ root: './', theme: 'default theme', useTs: true, injectNpmScripts: true });",
+        ],
+        dir,
+      ],
+    ],
+    configure: (dir) => {
+      edit(dir, '.vitepress/config.mts', (config) =>
+        config
+          .replace(
+            "import { defineConfig } from 'vitepress'",
+            "import { defineConfig } from 'vitepress'\nimport { withOndocs } from 'ondocs/vitepress'",
+          )
+          .replace('export default defineConfig({', 'export default withOndocs(defineConfig({')
+          .replace(/\}\)\s*$/, '}))\n'),
+      );
+    },
+    install: [...PEERS, 'react', 'react-dom'],
+    build: [['npm', 'run', 'docs:build']],
+    index: '.vitepress/dist/ask-index.json',
+    llms: '.vitepress/dist',
+    dimensions: 512,
+    check: (dir, index) => {
+      const out = join(dir, '.vitepress/dist');
+      const problems = [];
+      // Each URL in the index is a page the build wrote, as a static host serves it.
+      for (const { url } of index.documents) {
+        const path = decodeURI(url).replace(/^\//, '');
+        const files = [path, `${path}.html`, `${path}index.html`, `${path}/index.html`];
+        if (!files.some((file) => file && existsSync(join(out, file)))) {
+          problems.push(`the index has ${url}, which the build did not write`);
+        }
+      }
+      // The launcher, in a chunk of its own that every page preloads; the dialog in another.
+      const chunks = readdirSync(join(out, 'assets/chunks'));
+      const text = (file) => readFileSync(join(out, 'assets/chunks', file), 'utf8');
+      const launcher = chunks.find((file) => text(file).includes('ondocs-launcher'));
+      const dialog = chunks.find((file) => text(file).includes('ask-dialog'));
+      if (!launcher) problems.push('no chunk has the launcher');
+      if (!dialog || dialog === launcher) problems.push('the dialog is not in a chunk of its own');
+      for (const page of readdirSync(out).filter((file) => file.endsWith('.html'))) {
+        const html = readFileSync(join(out, page), 'utf8');
+        if (page !== '404.html' && launcher && !html.includes(`/assets/chunks/${launcher}`)) {
+          problems.push(`${page} does not load the launcher`);
+        }
+        if (dialog && html.includes(dialog)) problems.push(`${page} loads the dialog up front`);
+      }
+      return problems;
+    },
+  },
 };
 
 /** A Docusaurus site with `plugin` in its plugins. */
@@ -235,8 +300,10 @@ const dir = resolve(target ?? join(tmpdir(), `ondocs-consumer-${name}`));
 rmSync(dir, { recursive: true, force: true });
 mkdirSync(dirname(dir), { recursive: true });
 
-const [command, args, cwd] = site.create(dir);
-await run(command, args, { cwd: cwd ?? dirname(dir) });
+const created = site.create(dir);
+for (const [command, args, cwd] of Array.isArray(created[0]) ? created : [created]) {
+  await run(command, args, { cwd: cwd ?? dirname(dir) });
+}
 site.configure(dir);
 const tarballs = [resolve(tarball)];
 if (site.package) {
@@ -300,6 +367,7 @@ for (const link of links) {
   const file = join(llmsDir, decodeURI(new URL(link, 'http://site').pathname).replace(/^\//, ''));
   if (!existsSync(file)) problems.push(`llms.txt links ${link}, which is not in ${site.llms}`);
 }
+problems.push(...(site.check?.(dir, index) ?? []));
 const strays = stub.requests.filter((request) => request !== 'POST /v1/embeddings');
 if (stub.requests.length === 0) problems.push('the stub received no embedding request');
 if (strays.length > 0) problems.push(`the stub received ${strays.join(', ')}`);

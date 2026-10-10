@@ -1,7 +1,7 @@
 {
   "name": "ondocs",
   "version": "0.7.0",
-  "description": "Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Docusaurus and Starlight plugins, Next.js, or one script tag.",
+  "description": "Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Docusaurus, Starlight and VitePress plugins, Next.js, or one script tag.",
   "keywords": [
     "ask-ai",
     "ai-search",
@@ -25,6 +25,8 @@
     "withastro",
     "starlight",
     "starlight-plugin",
+    "vitepress",
+    "vitepress-plugin",
     "chatbot",
     "ui",
     "utility"
@@ -93,6 +95,11 @@
       "default": "./dist/starlight/index.js"
     },
     "./starlight/launcher.css": "./dist/starlight/launcher.css",
+    "./vitepress": {
+      "types": "./dist/vitepress/index.d.ts",
+      "default": "./dist/vitepress/index.js"
+    },
+    "./vitepress/launcher.css": "./dist/vitepress/launcher.css",
     "./astro/McpInstall.astro": "./dist/astro/McpInstall.astro",
     "./package.json": "./package.json"
   },
@@ -114,7 +121,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:package": "publint --strict && attw --pack . --profile esm-only --exclude-entrypoints ./react/styles.css ./embed/launcher.css ./starlight/launcher.css ./astro/McpInstall.astro",
+    "check:package": "publint --strict && attw --pack . --profile esm-only --exclude-entrypoints ./react/styles.css ./embed/launcher.css ./starlight/launcher.css ./vitepress/launcher.css ./astro/McpInstall.astro",
     "bench": "pnpm build && node --expose-gc bench/run.mjs",
     "assets": "node scripts/assets/architecture.mjs",
     "screenshot": "node scripts/assets/screenshot.mjs",
@@ -124,7 +131,7 @@
     "examples:check": "node scripts/sync-example-docs.mjs --check",
     "template:sync": "node scripts/sync-template.mjs",
     "template:check": "node scripts/sync-template.mjs --check",
-    "validate": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm check:package && pnpm examples:check && pnpm template:check && pnpm example:build && pnpm --filter ask-my-site-example-nextjs lint && pnpm --filter ask-my-site-example-docusaurus build && pnpm --filter ask-my-site-example-starlight build",
+    "validate": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm check:package && pnpm examples:check && pnpm template:check && pnpm example:build && pnpm --filter ask-my-site-example-nextjs lint && pnpm --filter ask-my-site-example-docusaurus build && pnpm --filter ask-my-site-example-starlight build && pnpm --filter ask-my-site-example-vitepress build",
     "changeset": "changeset",
     "release": "pnpm build && changeset publish",
     "prepack": "node scripts/npm-readme.mjs prepack",
@@ -172,6 +179,7 @@
     "tsdown": "^0.23.0",
     "typescript": "6.0.3",
     "typescript-eslint": "^8.71.0",
+    "vitepress": "1.6.4",
     "vitest": "^5.0.3",
     "workers-ai-provider": "^4.0.0"
   },
@@ -184,7 +192,8 @@
     "astro": "^5.0.0 || ^6.0.0 || ^7.0.0",
     "cmdk": "^1.1.1",
     "react": "^18.3.0 || ^19.0.0",
-    "react-dom": "^18.3.0 || ^19.0.0"
+    "react-dom": "^18.3.0 || ^19.0.0",
+    "vitepress": "^1.0.0 || ^2.0.0-0"
   },
   "peerDependenciesMeta": {
     "@ai-sdk/openai": {
@@ -209,6 +218,9 @@
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "vitepress": {
       "optional": true
     }
   },

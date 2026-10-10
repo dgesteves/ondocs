@@ -14,9 +14,9 @@ The pages are the ones in the index, so `exclude` leaves a page out of both. Bui
 
 This site serves its own: [/llms.txt](https://ask-my-site-demo.vercel.app/llms.txt), [/llms-full.txt](https://ask-my-site-demo.vercel.app/llms-full.txt), and every page plus `.md`, as [/docs/mcp.md](https://ask-my-site-demo.vercel.app/docs/mcp.md).
 
-## In Docusaurus, Astro and Starlight
+## In Docusaurus, Astro, Starlight and VitePress
 
-The plugins write all three after the build, into the build output next to `ask-index.json`, with nothing to set: `build/` for Docusaurus and `dist/` for Astro (`dist/client/` with an adapter). Each locale gets its own, as the index does. `llms.txt` takes its title and summary from the site's title and its tagline (Docusaurus) or description (Starlight), and links absolutely when the site has a URL: `url` in Docusaurus, `site` in Astro.
+The plugins write all three after the build, into the build output next to `ask-index.json`, with nothing to set: `build/` for Docusaurus, `dist/` for Astro (`dist/client/` with an adapter) and `.vitepress/dist/` for VitePress. Each locale gets its own, as the index does. `llms.txt` takes its title and summary from the site's title and its tagline (Docusaurus) or description (Starlight and VitePress), and links absolutely when the site has a URL: `url` in Docusaurus, `site` in Astro, `sitemap.hostname` in VitePress.
 
 Turn them off with `llmsTxt: false`, or one at a time:
 
@@ -37,6 +37,7 @@ A site that already uses an llms plugin keeps it. The plugins never replace a fi
 | `docusaurus-plugin-copy-page-button`                            | the `.md` copies, with `generateMarkdownRoutes`                                |
 | `starlight-llms-txt`                                            | `llms.txt` and `llms-full.txt`                                                 |
 | `starlight-page-actions`, `starlight-llm-actions`               | the `.md` copies                                                               |
+| `vitepress-plugin-llms`                                         | `llms.txt`, `llms-full.txt` and the `.md` copies                               |
 
 ## With the CLI
 
