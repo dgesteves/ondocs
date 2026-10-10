@@ -11,6 +11,12 @@ export type {
   IndexSource,
 } from './handler';
 export type { FollowUpOptions } from './follow-up';
+export type {
+  AskRetrievalOptions,
+  RetrievalHookContext,
+  RetrievalHooks,
+  RetrievalQuery,
+} from './retrieval';
 export { createMcpHandler, MCP_PROTOCOL_VERSIONS } from './mcp';
 export type { McpHandlerOptions, McpToolCallEvent } from './mcp';
 export type { McpSearchResult } from './mcp-tools';

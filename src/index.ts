@@ -60,7 +60,13 @@ export type { Bm25Options, Bm25Result } from './search/bm25';
 export { VectorIndex } from './search/vectors';
 export { reciprocalRankFusion } from './search/rrf';
 export type { FusedResult } from './search/rrf';
-export { DEFAULT_RETRIEVAL, defaultMinSimilarity, loadIndex, retrieve } from './search/retrieve';
+export {
+  DEFAULT_RETRIEVAL,
+  defaultMinSimilarity,
+  gateHits,
+  loadIndex,
+  retrieve,
+} from './search/retrieve';
 export { buildLlmsFiles, markdownPath } from './llms';
 export type { LlmsFile, LlmsOutputs, LlmsPage, LlmsSite } from './llms';
 export { mcpInstallLinks, mcpServerName } from './mcp-install';
