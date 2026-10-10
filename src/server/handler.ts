@@ -19,13 +19,9 @@ import {
   type AskMetadata,
   type AskSource,
 } from '../protocol';
-import {
-  retrieve,
-  type LoadedIndex,
-  type RetrievalOptions,
-  type RetrievalResult,
-} from '../search/retrieve';
+import type { LoadedIndex, RetrievalResult } from '../search/retrieve';
 import { createBudget, type BudgetOptions } from './budget';
+import { retrieveWithHooks, type AskRetrievalOptions } from './retrieval';
 import {
   memoryAnswerCache,
   normalizeQuestion,
@@ -103,7 +99,13 @@ export interface AskHandlerOptions {
   siteName?: string;
   /** Replace the system instructions, or extend the defaults: `(defaults) => defaults + '…'`. */
   instructions?: string | ((defaults: string) => string);
-  retrieval?: RetrievalOptions;
+  /**
+   * How retrieval runs: `topK`, `candidates` and the relevance gate's thresholds, and two hooks.
+   * `rerank` puts the candidates in a new order (with the AI SDK's `rerank()`, or to boost
+   * sections), and `retrieve` finds them instead of the built-in retrieval, or around it. The
+   * relevance gate checks what the hooks return, so they cannot make an off-topic chunk count.
+   */
+  retrieval?: AskRetrievalOptions;
   /** Upper bound on source text sent to the model, in characters. Default 8000. */
   maxContextChars?: number;
   /** Longest accepted question, in characters. Default 500. */
@@ -625,7 +627,13 @@ export function createAskHandler(
       return misconfigured(error);
     }
 
-    const retrieval = retrieve(index, { text: searched, vector: queryVector }, options.retrieval);
+    const retrieval = await retrieveWithHooks(
+      index,
+      { text: searched, vector: queryVector },
+      options.retrieval,
+      { signal: request.signal, report: reportError },
+    );
+    if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
     const promptSources = buildSources(retrieval.hits, maxContextChars);
     const sources: AskSource[] = promptSources.map(({ id, url, title, heading }) => ({
       id,
@@ -818,6 +826,9 @@ function answerCache(
           instructions,
           options.noAnswerMessage ?? null,
           options.retrieval ?? null,
+          // The hooks, which JSON leaves out: a change to their code starts a fresh cache.
+          String(options.retrieval?.retrieve ?? ''),
+          String(options.retrieval?.rerank ?? ''),
           options.maxContextChars ?? null,
           options.generation?.maxOutputTokens ?? null,
         ]),

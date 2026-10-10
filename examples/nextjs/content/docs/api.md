@@ -44,6 +44,7 @@ const { hits, answerable, best } = retrieve(loaded, { text: question, vector });
 
 - **Loaders:** `fromHtml` (`root` picks the part of a page to read, as a selector such as `[data-pagefind-body]`, `ignore` what to leave out, and `markdown` keeps links and tables for a Markdown copy), `fromMarkdown` (`mdx`, `markdown`) and `fromDocuments`.
 - **The index file:** `chunkDocument`, `checkIndex`, `parseIndexFile`, `validateIndexFile` and `serializeIndexFile`.
+- **The relevance gate:** `gateHits`, which checks hits from anywhere (a reranker, a retriever of your own) against the index, as `createAskHandler` does after its [retrieval hooks](/docs/retrieval#rerank-or-retrieve-your-own-way).
 - **Text:** `tokenize`, and `createSlugger`, to use in your renderer so citations' anchors always match your headings.
 - **Search's building blocks:** `Bm25Index`, `VectorIndex`, `reciprocalRankFusion`, `quantizeInt8`, `encodeVector` and `decodeVector`.
 - **For agents:** `buildLlmsFiles` and `markdownPath`, which build `llms.txt`, `llms-full.txt` and the pages' `.md` copies from any list of pages, and `mcpInstallLinks`, the install links and commands for an MCP server's URL.

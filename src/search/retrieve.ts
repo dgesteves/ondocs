@@ -170,22 +170,12 @@ export function loadIndex(input: unknown): LoadedIndex {
   };
 }
 
-/**
- * Hybrid retrieval: BM25 and cosine similarity, fused with reciprocal rank fusion, behind a
- * relevance gate.
- *
- * A chunk is a candidate only if it clears `minSimilarity` or `minKeywordCoverage`. If none does,
- * the result is not `answerable` and has no hits, which is how the agent says "I don't know"
- * instead of answering from unrelated context.
- *
- * Pass `vector: null` (or use a keyword-only index) to retrieve with BM25 alone, e.g. when the
- * embedding provider is down.
- */
-export function retrieve(
+/** What a query scores on every chunk, and the relevance gate those scores decide. */
+function measure(
   index: LoadedIndex,
   query: { text: string; vector?: ArrayLike<number> | null },
-  options: RetrievalOptions = {},
-): RetrievalResult {
+  options: RetrievalOptions,
+) {
   const opts = {
     ...DEFAULT_RETRIEVAL,
     minSimilarity: defaultMinSimilarity(index.embedding?.model),
@@ -203,6 +193,47 @@ export function retrieve(
       (!needsKeyword || (keyword.coverage[i] ?? 0) > 0)) ||
     (keyword.coverage[i] ?? 0) >= opts.minKeywordCoverage;
 
+  let bestCoverage = 0;
+  for (const i of keyword.ranked) bestCoverage = Math.max(bestCoverage, keyword.coverage[i] ?? 0);
+
+  /** The hit for chunk `i`, with its signals, at `score`. */
+  const hitAt = (i: number, score: number): RetrievalHit | null => {
+    const chunk = index.chunks[i];
+    if (!chunk) return null;
+    return {
+      chunk,
+      score,
+      similarity: similarities ? (similarities[i] ?? 0) : null,
+      keywordScore: keyword.scores[i] ?? 0,
+      keywordCoverage: keyword.coverage[i] ?? 0,
+    };
+  };
+
+  return { opts, keyword, similarities, relevant, bestCoverage, hitAt };
+}
+
+/**
+ * Hybrid retrieval: BM25 and cosine similarity, fused with reciprocal rank fusion, behind a
+ * relevance gate.
+ *
+ * A chunk is a candidate only if it clears `minSimilarity` or `minKeywordCoverage`. If none does,
+ * the result is not `answerable` and has no hits, which is how the agent says "I don't know"
+ * instead of answering from unrelated context.
+ *
+ * Pass `vector: null` (or use a keyword-only index) to retrieve with BM25 alone, e.g. when the
+ * embedding provider is down.
+ */
+export function retrieve(
+  index: LoadedIndex,
+  query: { text: string; vector?: ArrayLike<number> | null },
+  options: RetrievalOptions = {},
+): RetrievalResult {
+  const { opts, keyword, similarities, relevant, bestCoverage, hitAt } = measure(
+    index,
+    query,
+    options,
+  );
+
   const keywordList = keyword.ranked.slice(0, opts.candidates).filter(relevant);
   const lists: number[][] = [keywordList];
   let bestSimilarity: number | null = null;
@@ -212,28 +243,60 @@ export function retrieve(
     lists.push(order.filter(relevant));
   }
 
-  let bestCoverage = 0;
-  for (const i of keyword.ranked) bestCoverage = Math.max(bestCoverage, keyword.coverage[i] ?? 0);
-
   const hits = reciprocalRankFusion(lists, opts.rrfK)
     .slice(0, opts.topK)
-    .flatMap(({ item, score }): RetrievalHit[] => {
-      const chunk = index.chunks[item];
-      if (!chunk) return [];
-      return [
-        {
-          chunk,
-          score,
-          similarity: similarities ? (similarities[item] ?? 0) : null,
-          keywordScore: keyword.scores[item] ?? 0,
-          keywordCoverage: keyword.coverage[item] ?? 0,
-        },
-      ];
-    });
+    .flatMap(({ item, score }) => hitAt(item, score) ?? []);
 
   return {
     hits,
     answerable: hits.length > 0,
+    mode: similarities ? 'hybrid' : 'keyword',
+    best: { similarity: bestSimilarity, keywordCoverage: bestCoverage },
+  };
+}
+
+/** Each loaded index's chunk positions, by chunk id. */
+const positions = new WeakMap<LoadedIndex, Map<string, number>>();
+
+/**
+ * The relevance gate, applied to hits that came from anywhere: a reranker, a retriever of your
+ * own. Each hit's chunk is looked up in the index by its id and its signals are measured again for
+ * the query, so a hit counts only if its chunk clears `minSimilarity` or `minKeywordCoverage`,
+ * whatever the hit says. Hits whose chunk is not in the index, and repeats, are dropped; the rest
+ * keep their order and scores, up to `topK`. `createAskHandler` applies it after its retrieval
+ * hooks.
+ */
+export function gateHits(
+  index: LoadedIndex,
+  query: { text: string; vector?: ArrayLike<number> | null },
+  hits: readonly RetrievalHit[],
+  options: RetrievalOptions = {},
+): RetrievalResult {
+  const { opts, similarities, relevant, bestCoverage, hitAt } = measure(index, query, options);
+  let byId = positions.get(index);
+  if (!byId) {
+    byId = new Map(index.chunks.map((chunk, i) => [chunk.id, i]));
+    positions.set(index, byId);
+  }
+  const seen = new Set<number>();
+  const gated: RetrievalHit[] = [];
+  for (const hit of hits) {
+    const i = byId.get(hit.chunk.id);
+    if (i === undefined || seen.has(i) || !relevant(i)) continue;
+    seen.add(i);
+    const measured = hitAt(i, hit.score);
+    if (measured) gated.push(measured);
+    if (gated.length >= opts.topK) break;
+  }
+  let bestSimilarity: number | null = null;
+  if (similarities) {
+    // As `retrieve` reports it: the closest chunk's similarity, which can be below zero.
+    bestSimilarity = similarities.length > 0 ? -Infinity : 0;
+    for (const similarity of similarities) bestSimilarity = Math.max(bestSimilarity, similarity);
+  }
+  return {
+    hits: gated,
+    answerable: gated.length > 0,
     mode: similarities ? 'hybrid' : 'keyword',
     best: { similarity: bestSimilarity, keywordCoverage: bestCoverage },
   };
