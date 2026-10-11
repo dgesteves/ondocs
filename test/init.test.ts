@@ -301,6 +301,53 @@ describe('ondocs init', () => {
     expect(await files(cwd)).toEqual(before);
   });
 
+  it('lists what a static site’s functions import, with npm init when it has no package.json', async () => {
+    const page = { 'public/index.html': '<!doctype html><title>Acme</title><main>Hi</main>' };
+    const step = (stdout: string) =>
+      stdout.split('\n').find((line) => /\b(?:npm|pnpm) (?:i|init|add)\b/.test(line));
+
+    // No package.json: the host installs the functions' packages from one, so make it first.
+    for (const host of ['vercel', 'netlify', 'cloudflare']) {
+      await rm(cwd, { recursive: true, force: true });
+      await mkdir(cwd, { recursive: true });
+      await site(page);
+      const result = await run(['--yes', '--dry-run', '--out', 'public', '--host', host]);
+      expect([host, result.code]).toEqual([host, 0]);
+      expect([host, step(result.stdout)]).toEqual([
+        host,
+        '  1. npm init -y && npm i ondocs ai @ai-sdk/openai (the functions import them, and the host installs them from package.json)',
+      ]);
+    }
+
+    // A package.json: what it lacks, with its package manager.
+    await rm(cwd, { recursive: true, force: true });
+    await mkdir(cwd, { recursive: true });
+    await site({
+      ...page,
+      'package.json': JSON.stringify({ name: 'acme', dependencies: { ai: '7' } }),
+      'pnpm-lock.yaml': '',
+    });
+    const withPackage = await run(['--yes', '--dry-run', '--out', 'public', '--host', 'vercel']);
+    expect(step(withPackage.stdout)).toBe('  1. pnpm add ondocs @ai-sdk/openai');
+
+    // On GitHub Pages the Worker has a package.json of its own, and the site needs nothing.
+    await rm(cwd, { recursive: true, force: true });
+    await mkdir(cwd, { recursive: true });
+    await site(page);
+    const pages = await run([
+      '--yes',
+      '--dry-run',
+      '--out',
+      'public',
+      '--host',
+      'github-pages',
+      '--site-url',
+      'https://acme.github.io/site',
+    ]);
+    expect(pages.code).toBe(0);
+    expect(step(pages.stdout)).toBeUndefined();
+  });
+
   it('needs the site URL for GitHub Pages, as the Worker reads the live index', async () => {
     await site({ 'docusaurus.config.ts': "export default { title: 'Acme' };\n" });
     const result = await run(['--host', 'github-pages']);

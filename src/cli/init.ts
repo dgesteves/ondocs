@@ -497,17 +497,23 @@ function install(p: Project, packages: string[], dev = false): string | null {
   return `${pm} ${missing.join(' ')}`;
 }
 
-/** The packages the site needs for the dialog and the endpoint it was given. */
-function sitePackages(site: Site, openai = true): string[] {
+/**
+ * The packages the site needs for the dialog and the endpoint it was given. `functions`: init
+ * writes the endpoint into the site's own project (not a standalone Worker), as functions that
+ * import ondocs/server and @ai-sdk/openai.
+ */
+function sitePackages(site: Site, openai = true, functions = false): string[] {
   const dialog =
     site.kind === 'starlight' || site.kind === 'astro' || site.kind === 'vitepress'
       ? ['react', 'react-dom', '@radix-ui/react-dialog', 'cmdk']
       : site.kind === 'static'
         ? []
         : ['@radix-ui/react-dialog', 'cmdk'];
-  // The plugins embed the pages with OpenAI when OPENAI_API_KEY is set as the site builds; a
-  // static site is indexed with npx, and the standalone Worker has a package.json of its own.
-  const models = site.kind === 'static' ? [] : openai ? ['ai', '@ai-sdk/openai'] : ['ai'];
+  // The plugins embed the pages with OpenAI when OPENAI_API_KEY is set as the site builds. A
+  // static site is indexed with npx, so it needs the models only for its functions; the
+  // standalone Worker has a package.json of its own.
+  const models =
+    site.kind === 'static' && !functions ? [] : openai ? ['ai', '@ai-sdk/openai'] : ['ai'];
   return ['ondocs', ...models, ...dialog];
 }
 
@@ -562,11 +568,19 @@ function planFor(
     site.kind === 'next' || site.kind === 'static' ? 'the index build' : 'the site\u2019s build';
   const keyless = 'without it there, the index is keyword-only, which works too';
   // A site whose Worker answers with Workers AI embeds with it too, or not at all.
-  const packages = install(
-    p,
-    sitePackages(site, !(host === 'github-pages' && provider === 'workers-ai')),
+  const needed = sitePackages(
+    site,
+    !(host === 'github-pages' && provider === 'workers-ai'),
+    host !== 'github-pages',
   );
+  const packages = install(p, needed);
   if (packages) next.push(packages);
+  else if (!p.pkg && site.kind === 'static' && host !== 'github-pages') {
+    // A static site with no package.json: the host installs the functions' packages from one.
+    next.push(
+      `npm init -y && npm i ${needed.join(' ')} (the functions import them, and the host installs them from package.json)`,
+    );
+  }
 
   const edit = (
     path: string,
