@@ -18,7 +18,8 @@ export async function generateMetadata(props: PageProps<'/docs/[slug]'>): Promis
   return {
     title: doc.title,
     description: doc.description,
-    alternates: { canonical: url },
+    // The page's Markdown copy, which `pnpm index` writes to public/docs/<slug>.md.
+    alternates: { canonical: url, types: { 'text/markdown': `${url}.md` } },
     openGraph: {
       type: 'article',
       siteName: 'ondocs',

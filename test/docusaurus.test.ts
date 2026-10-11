@@ -419,6 +419,64 @@ describe('ondocs/docusaurus', () => {
     );
   });
 
+  it('links each page to its .md copy in its <head>, under the base URL and locale', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const s = await site({ baseUrl: '/docs/', locale: 'fr' });
+    await ondocs(s.context, {
+      embeddingModel: mockEmbeddingModel(),
+      exclude: ['/changelog'],
+    }).postBuild(s);
+    const read = (file: string) => readFile(join(s.outDir, file), 'utf8');
+    const links = async (file: string) =>
+      [
+        ...(await read(file)).matchAll(
+          /<link rel="alternate" type="text\/markdown" href="([^"]*)">/g,
+        ),
+      ].map((match) => match[1]);
+    expect(await links('index.html')).toEqual(['/docs/fr/index.md']);
+    expect(await links('guides/setup/index.html')).toEqual(['/docs/fr/guides/setup.md']);
+    // Written as a file, as with trailingSlash: false.
+    expect(await links('guides/deploy.html')).toEqual(['/docs/fr/guides/deploy.md']);
+    expect(await links('blog/first-post/index.html')).toEqual(['/docs/fr/blog/first-post.md']);
+    expect(await links('about/index.html')).toEqual(['/docs/fr/about.md']);
+    // Each link is to a copy the build has.
+    expect(existsSync(join(s.outDir, 'guides/setup.md'))).toBe(true);
+    expect(await read('guides/setup/index.html')).toContain(
+      '<link rel="alternate" type="text/markdown" href="/docs/fr/guides/setup.md"></head>',
+    );
+    // Pages without a copy have no link: listings, generated indexes, React pages, excluded
+    // pages and the 404 page.
+    for (const file of [
+      'blog/index.html',
+      'tags/index.html',
+      'category/guides/index.html',
+      'landing/index.html',
+      'changelog/index.html',
+      '404.html',
+    ]) {
+      expect([file, await links(file)]).toEqual([file, []]);
+    }
+  });
+
+  it('links no page to a copy another plugin writes, or with llmsTxt: false', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const s = await site();
+    await ondocs(s.context, { embeddingModel: mockEmbeddingModel() }).postBuild({
+      ...s,
+      plugins: [{ name: 'docusaurus-plugin-llms', options: { generateMarkdownFiles: true } }],
+    });
+    expect(await readFile(join(s.outDir, 'guides/setup/index.html'), 'utf8')).not.toContain(
+      'text/markdown',
+    );
+    const off = await site({ locale: 'fr' });
+    await ondocs(off.context, { embeddingModel: mockEmbeddingModel(), llmsTxt: false }).postBuild(
+      off,
+    );
+    expect(await readFile(join(off.outDir, 'guides/setup/index.html'), 'utf8')).not.toContain(
+      'text/markdown',
+    );
+  });
+
   it('leaves the llms files to docusaurus-plugin-llms, and writes none with llmsTxt: false', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const s = await site();

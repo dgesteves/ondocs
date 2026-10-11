@@ -271,6 +271,25 @@ describe('a VitePress build', () => {
     expect(existsSync(join(outDir, 'fr/llms-full.txt'))).toBe(true);
   });
 
+  it('links each indexed page to its .md copy in its <head>, under base and per locale', () => {
+    const links = (file: string) =>
+      [...read(file).matchAll(/<link rel="alternate" type="text\/markdown" href="([^"]*)">/g)].map(
+        (match) => match[1],
+      );
+    expect(links('manual/index.html')).toEqual(['/docs/manual.md']);
+    expect(links('manual/setup.html')).toEqual(['/docs/manual/setup.md']);
+    expect(links('packages/foo.html')).toEqual(['/docs/packages/foo.md']);
+    expect(links('fr/index.html')).toEqual(['/docs/fr/index.md']);
+    expect(links('fr/guide/setup.html')).toEqual(['/docs/fr/guide/setup.md']);
+    expect(read('manual/setup.html')).toMatch(
+      /<link rel="alternate" type="text\/markdown" href="\/docs\/manual\/setup\.md"><\/head>/,
+    );
+    // The home page has no Markdown, about.md has search: false, manual/old is excluded.
+    for (const file of ['index.html', 'about.html', 'manual/old.html', '404.html']) {
+      expect([file, links(file)]).toEqual([file, []]);
+    }
+  });
+
   it('adds the launcher to every page, preloaded, and loads the dialog only when it is wanted', () => {
     const chunks = readdirSync(join(outDir, 'assets/chunks'));
     const launcher = chunks.find((file) =>

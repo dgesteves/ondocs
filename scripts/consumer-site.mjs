@@ -37,7 +37,8 @@ const PEERS = ['ai', '@ai-sdk/openai', '@radix-ui/react-dialog', 'cmdk'];
  * deliberate upgrade here rather than a surprise in an unrelated pull request.
  *
  * Some sites have more to check, such as where their pages are served (`check`, which returns the
- * problems it finds).
+ * problems it finds). The plugins' sites build their pages into `llms`, and each indexed page must
+ * link its `.md` copy from its `<head>` (`linked`).
  *
  * @type {Record<string, {
  *   create: (dir: string) => [string, string[], string?] | [string, string[], string?][],
@@ -47,6 +48,7 @@ const PEERS = ['ai', '@ai-sdk/openai', '@radix-ui/react-dialog', 'cmdk'];
  *   index: string,
  *   llms: string,
  *   dimensions: number,
+ *   linked?: boolean,
  *   package?: string,
  *   check?: (dir: string, index: { documents: { url: string }[] }) => string[],
  * }>}
@@ -185,6 +187,7 @@ export function Ask() {
     index: '.vitepress/dist/ask-index.json',
     llms: '.vitepress/dist',
     dimensions: 512,
+    linked: true,
     check: (dir, index) => {
       const out = join(dir, '.vitepress/dist');
       const problems = [];
@@ -234,6 +237,7 @@ function docusaurus(plugin) {
     llms: 'build',
     // The plugin's default model, at its default size.
     dimensions: 512,
+    linked: true,
   };
 }
 
@@ -262,7 +266,43 @@ function starlight(entry) {
     index: 'dist/ask-index.json',
     llms: 'dist',
     dimensions: 512,
+    linked: true,
   };
+}
+
+/**
+ * What is wrong with the links from the built pages to their `.md` copies: each indexed page,
+ * where the build wrote it, must have `<link rel="alternate" type="text/markdown">` in its
+ * `<head>`, to a copy that is in the build.
+ */
+function markdownLinks(out, index) {
+  const problems = [];
+  for (const { url } of index.documents) {
+    const path = decodeURI(new URL(url, 'http://site').pathname).replace(/^\//, '');
+    const clean = path.replace(/\/$/, '');
+    const files = /\.html$/.test(path)
+      ? [path]
+      : clean === ''
+        ? ['index.html']
+        : [`${clean}/index.html`, `${clean}.html`];
+    const file = files.find((candidate) => existsSync(join(out, candidate)));
+    if (!file) {
+      problems.push(`the index has ${url}, which the build did not write`);
+      continue;
+    }
+    const html = readFileSync(join(out, file), 'utf8');
+    const end = html.search(/<\/head>/i);
+    const head = end === -1 ? '' : html.slice(0, end);
+    const href = /<link rel="alternate" type="text\/markdown" href="([^"]+)">/.exec(head)?.[1];
+    if (!href) {
+      problems.push(`${file} does not link its .md copy`);
+      continue;
+    }
+    const copy = decodeURI(new URL(href, 'http://site').pathname).replace(/^\//, '');
+    if (!existsSync(join(out, copy)))
+      problems.push(`${file} links ${href}, which is not in the build`);
+  }
+  return problems;
 }
 
 function write(dir, file, content) {
@@ -367,6 +407,7 @@ for (const link of links) {
   const file = join(llmsDir, decodeURI(new URL(link, 'http://site').pathname).replace(/^\//, ''));
   if (!existsSync(file)) problems.push(`llms.txt links ${link}, which is not in ${site.llms}`);
 }
+if (site.linked) problems.push(...markdownLinks(llmsDir, index));
 problems.push(...(site.check?.(dir, index) ?? []));
 const strays = stub.requests.filter((request) => request !== 'POST /v1/embeddings');
 if (stub.requests.length === 0) problems.push('the stub received no embedding request');
@@ -376,5 +417,5 @@ if (problems.length > 0) {
   process.exit(1);
 }
 console.log(
-  `\n✓ ${name}: ${site.index} has ${String(index.documents.length)} pages and ${String(index.chunks.length)} chunks embedded with ${MODEL} at ${String(site.dimensions)} dimensions, from ${String(stub.requests.length)} requests to the stub; ${site.llms}/llms.txt links a .md copy of each.`,
+  `\n✓ ${name}: ${site.index} has ${String(index.documents.length)} pages and ${String(index.chunks.length)} chunks embedded with ${MODEL} at ${String(site.dimensions)} dimensions, from ${String(stub.requests.length)} requests to the stub; ${site.llms}/llms.txt links a .md copy of each${site.linked ? ', and so does each page' : ''}.`,
 );

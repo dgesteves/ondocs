@@ -362,6 +362,7 @@ describe('an integration for another framework, from ondocs/integration alone', 
       dir: outDir,
       label: 'dist',
       log,
+      linkPages: 'directory',
     });
   }
 
@@ -390,6 +391,10 @@ describe('an integration for another framework, from ondocs/integration alone', 
       '[Guide](https://docs.acme.dev/guide.md)',
     );
     expect(await readFile(join(outDir, 'guide.md'), 'utf8')).toContain('Install Acme.');
+    expect(await readFile(join(outDir, 'guide', 'index.html'), 'utf8')).toContain(
+      '<link rel="alternate" type="text/markdown" href="/guide.md"></head>',
+    );
+    expect(await readFile(join(outDir, 'about.html'), 'utf8')).not.toContain('text/markdown');
     expect(existsSync(join(outDir, 'llms-full.txt'))).toBe(true);
     expect(existsSync(join(site, 'node_modules/.cache/ondocs/framework.json'))).toBe(true);
     expect(log.warn).not.toHaveBeenCalled();

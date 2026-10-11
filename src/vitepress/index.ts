@@ -103,7 +103,8 @@ export interface OndocsOptions extends IndexOptions {
   /**
    * After the build, also write `llms.txt`, `llms-full.txt` and a Markdown copy of each indexed
    * page at its URL plus `.md` (`/guide/setup.md`), into the build output, per locale as the
-   * index is. On by default; `false` turns all three off, and `{ index: false }`,
+   * index is, and link each page to its copy with `<link rel="alternate" type="text/markdown">`.
+   * On by default; `false` turns all three off, and `{ index: false }`,
    * `{ full: false }` or `{ markdown: false }` one of them. A file the build already has (from
    * `public/` or another plugin) is left as it is, and what vitepress-plugin-llms writes is left
    * to it.
@@ -492,6 +493,8 @@ async function indexSite(
       dir,
       label: relative(process.cwd(), dir) || '.',
       log,
+      // VitePress writes guide/setup.md to guide/setup.html, whatever cleanUrls says.
+      linkPages: 'file',
     });
   }
 }
