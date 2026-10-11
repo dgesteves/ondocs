@@ -16,7 +16,7 @@ description: 'ask-my-site is now ondocs. What was renamed, what stays, and the c
 | Command                           | `npx ask-my-site index`, `init`, `dev`, `eval`                      | `npx ondocs index`, `init`, `dev`, `eval`                                |
 | Imports                           | `ask-my-site/server`, `/react`, `/docusaurus`, `/starlight`, …      | `ondocs/server`, `/react`, `/docusaurus`, `/starlight`, …                |
 | Stylesheets                       | `ask-my-site/react/styles.css`, `ask-my-site/embed/launcher.css`    | `ondocs/react/styles.css`, `ondocs/embed/launcher.css`                   |
-| Script tag                        | `https://cdn.jsdelivr.net/npm/ask-my-site@0.6/dist/embed.global.js` | `https://cdn.jsdelivr.net/npm/ondocs@0.7/dist/embed.global.js`           |
+| Script tag                        | `https://cdn.jsdelivr.net/npm/ask-my-site@0.6/dist/embed.global.js` | `https://cdn.jsdelivr.net/npm/ondocs@0.8/dist/embed.global.js`           |
 | Script tag's global               | `window.AskMySite.mount()`                                          | `window.Ondocs.mount()` (the old name still works)                       |
 | Docusaurus theme components       | `@theme/AskMySite`, `@theme/AskMySiteMcp`                           | `@theme/Ondocs`, `@theme/OndocsMcp` (the old names still work)           |
 | Docusaurus plugin's name          | `ask-my-site`                                                       | `ondocs`, as in `useAllPluginInstancesData('ondocs')`                    |
@@ -100,7 +100,7 @@ Point the tag at the new package:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.7/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.8/dist/embed.global.js"
   data-endpoint="/api/ask"
   defer
 ></script>

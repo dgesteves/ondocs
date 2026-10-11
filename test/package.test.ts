@@ -10,6 +10,7 @@ import type * as starlight from '../src/starlight';
 
 interface Manifest {
   name?: string;
+  version?: string;
   bin?: Record<string, string>;
   repository?: { url?: string };
   homepage?: string;
@@ -68,6 +69,25 @@ describe('package.json', () => {
     expect(manifest.unpkg).toBe('./dist/embed.global.js');
     expect(manifest.jsdelivr).toBe('./dist/embed.global.js');
     expect(manifest.files).toContain('dist');
+  });
+
+  it('points the script tag in the docs at the current minor version on jsDelivr', () => {
+    // A range like ondocs@0.8 follows patches, so it moves with each minor release.
+    const minor = /^(\d+\.\d+)\./.exec(manifest.version ?? '')?.[1];
+    const files = [
+      'README.md',
+      'examples/nextjs/app/page.tsx',
+      'examples/nextjs/content/docs/script-tag.md',
+      'examples/nextjs/content/docs/migrating.md',
+    ];
+    for (const file of files) {
+      const text = readFileSync(join(import.meta.dirname, '..', file), 'utf8');
+      const ranges = [...text.matchAll(/cdn\.jsdelivr\.net\/npm\/ondocs@([\d.]+)\/dist/g)].map(
+        (m) => m[1],
+      );
+      expect(ranges.length, file).toBeGreaterThan(0);
+      for (const range of ranges) expect(range, file).toBe(minor);
+    }
   });
 
   it('keeps the types’ names from before ondocs, as deprecated aliases', () => {
