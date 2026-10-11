@@ -17,6 +17,7 @@ const manifest = (file: string) =>
     dependencies: Record<string, string>;
     peerDependencies: Record<string, string>;
     files: string[];
+    homepage: string;
   };
 const main = manifest('package.json');
 
@@ -24,18 +25,20 @@ const PACKAGES = [
   {
     dir: 'packages/docusaurus-plugin-ondocs',
     entry: 'ondocs/docusaurus',
+    guide: 'docusaurus',
     keywords: ['docusaurus', 'docusaurus-plugin', 'ask-ai'],
   },
   {
     dir: 'packages/starlight-ondocs',
     entry: 'ondocs/starlight',
+    guide: 'astro',
     // The Astro integrations library finds packages by withastro or astro-integration, and files
     // them by keyword: utility is Utilities, ui is CSS + UI.
     keywords: ['starlight', 'starlight-plugin', 'withastro', 'astro-integration', 'utility', 'ui'],
   },
 ];
 
-describe.each(PACKAGES)('$dir', ({ dir, entry, keywords }) => {
+describe.each(PACKAGES)('$dir', ({ dir, entry, guide, keywords }) => {
   const pkg = manifest(`${dir}/package.json`);
 
   it('re-exports its entry of ondocs, default and named, in JavaScript and types', () => {
@@ -65,6 +68,10 @@ describe.each(PACKAGES)('$dir', ({ dir, entry, keywords }) => {
 
   it('has the keywords people search for', () => {
     expect(pkg.keywords).toEqual(expect.arrayContaining(keywords));
+  });
+
+  it('links its guide on the website from npm', () => {
+    expect(pkg.homepage).toBe(`https://ondocs.vercel.app/docs/${guide}`);
   });
 });
 
