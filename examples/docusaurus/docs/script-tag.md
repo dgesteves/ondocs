@@ -12,7 +12,7 @@ Add this tag to your base template, before `</body>` or in `<head>`:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.7/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.8/dist/embed.global.js"
   data-endpoint="/api/ask"
   defer
 ></script>
@@ -66,7 +66,7 @@ To try it first, run `npx ondocs dev` beside the index and set `data-endpoint="h
 With `data-manual`, the script waits for you to call `window.Ondocs.mount(options)`, which takes the same options as the attributes and returns `{ open, close, unmount }`. Use it to open the dialog from your own button:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/ondocs@0.7/dist/embed.global.js" data-manual></script>
+<script src="https://cdn.jsdelivr.net/npm/ondocs@0.8/dist/embed.global.js" data-manual></script>
 <script type="module">
   const ask = window.Ondocs.mount({ endpoint: '/api/ask', buttonLabel: false });
   document.querySelector('#ask-button').addEventListener('click', () => ask.open());
