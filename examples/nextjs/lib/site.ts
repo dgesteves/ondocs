@@ -1,6 +1,6 @@
 import pkg from 'ondocs/package.json';
 
-export const SITE_URL = 'https://ask-my-site-demo.vercel.app';
+export const SITE_URL = 'https://ondocs.vercel.app';
 /** The docs as an MCP server for agents: app/api/mcp/route.ts. */
 export const MCP_URL = `${SITE_URL}/api/mcp`;
 export const GITHUB_URL = 'https://github.com/dgesteves/ondocs';

@@ -8,13 +8,13 @@ description: 'Serve the same index to coding agents and AI apps as an MCP server
 
 The index that the Ask box answers from can also be served to agents, such as Claude Code, Cursor, VS Code, ChatGPT and Claude, as an MCP server. `createMcpHandler` from `ondocs/server` serves it with three read-only tools: `search`, `fetch` and `list_pages`. The agent brings its own model: the endpoint never calls a language model, and with no embedding model, it calls no model at all.
 
-This site serves its own docs this way, at `https://ask-my-site-demo.vercel.app/api/mcp`. To try it in Claude Code:
+This site serves its own docs this way, at `https://ondocs.vercel.app/api/mcp`. To try it in Claude Code:
 
 ```sh
-claude mcp add --transport http ondocs https://ask-my-site-demo.vercel.app/api/mcp
+claude mcp add --transport http ondocs https://ondocs.vercel.app/api/mcp
 ```
 
-Or add it to [Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=ondocs&config=eyJ1cmwiOiJodHRwczovL2Fzay1teS1zaXRlLWRlbW8udmVyY2VsLmFwcC9hcGkvbWNwIn0%3D), [VS Code](vscode:mcp/install?%7B%22name%22%3A%22ondocs%22%2C%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fask-my-site-demo.vercel.app%2Fapi%2Fmcp%22%7D) or [Claude](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=ondocs&connectorUrl=https%3A%2F%2Fask-my-site-demo.vercel.app%2Fapi%2Fmcp), or in ChatGPT, add a custom MCP server with that URL at chatgpt.com/plugins.
+Or add it to [Cursor](cursor://anysphere.cursor-deeplink/mcp/install?name=ondocs&config=eyJ1cmwiOiJodHRwczovL29uZG9jcy52ZXJjZWwuYXBwL2FwaS9tY3AifQ%3D%3D), [VS Code](vscode:mcp/install?%7B%22name%22%3A%22ondocs%22%2C%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fondocs.vercel.app%2Fapi%2Fmcp%22%7D) or [Claude](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=ondocs&connectorUrl=https%3A%2F%2Fondocs.vercel.app%2Fapi%2Fmcp), or in ChatGPT, add a custom MCP server with that URL at chatgpt.com/plugins.
 
 ## Mount the endpoint
 

@@ -25,7 +25,7 @@ export default defineConfig({
           ...(process.env.OPENAI_API_KEY ? {} : { embedding: 'mock' }),
           // The same docs, served to agents by the website's MCP endpoint; ai-tools.mdx shows how
           // to connect to it.
-          mcp: { url: 'https://ask-my-site-demo.vercel.app/api/mcp', name: 'ondocs' },
+          mcp: { url: 'https://ondocs.vercel.app/api/mcp', name: 'ondocs' },
           dialog: {
             suggestions: ['How do I add it to Starlight?', 'Do I need a vector database?'],
           },

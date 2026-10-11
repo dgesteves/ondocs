@@ -35,7 +35,7 @@ The site must serve its index at `SITE_URL/ask-index.json`. The Docusaurus and S
 - **It limits each visitor** to 10 questions a minute, and the Worker to 100 questions and 300,000 model tokens a day per instance, about the free allowance with the default model. On the Workers Free plan nothing is charged past the allowance; on Workers Paid, raise the budget in `src/index.ts` to what you will spend.
 - **It serves the same index to agents** at `/api/mcp`, keyword-only, calling no model.
 
-`CHAT_MODEL` in `wrangler.jsonc` picks the Workers AI model that writes the answers. [The Workers AI guide](https://ask-my-site-demo.vercel.app/docs/workers-ai) compares models by cost, and has the limits: how large an index fits in a Worker's memory, and the Free plan's CPU time.
+`CHAT_MODEL` in `wrangler.jsonc` picks the Workers AI model that writes the answers. [The Workers AI guide](https://ondocs.vercel.app/docs/workers-ai) compares models by cost, and has the limits: how large an index fits in a Worker's memory, and the Free plan's CPU time.
 
 ## Test it
 

@@ -18,8 +18,8 @@ const shared = {
     title: 'ondocs',
     description:
       'Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor.',
-    siteUrl: 'https://ask-my-site-demo.vercel.app',
-    mcp: 'https://ask-my-site-demo.vercel.app/api/mcp',
+    siteUrl: 'https://ondocs.vercel.app',
+    mcp: 'https://ondocs.vercel.app/api/mcp',
   },
 };
 

@@ -76,7 +76,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
           color: COLORS.subtle,
         }}
       >
-        <span>ask-my-site-demo.vercel.app/docs/{doc?.slug ?? ''}</span>
+        <span>ondocs.vercel.app/docs/{doc?.slug ?? ''}</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 10, color: COLORS.soft }}>
           <Spark size={20} />
           Ask these docs

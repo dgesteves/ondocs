@@ -1,6 +1,6 @@
 # The ondocs site
 
-The site at [ask-my-site-demo.vercel.app](https://ask-my-site-demo.vercel.app): a landing page and the docs, which index their own pages at build time and answer questions about them with ⌘K. The docs are about ondocs itself, so you can ask it how it works.
+The site at [ondocs.vercel.app](https://ondocs.vercel.app): a landing page and the docs, which index their own pages at build time and answer questions about them with ⌘K. The docs are about ondocs itself, so you can ask it how it works.
 
 ## Run it
 
