@@ -22,13 +22,6 @@ const shots = [
     // Tight around the dialog so its text stays legible at README width, with page context.
     clip: { x: 150, y: 0, width: 980, height: 640 },
   },
-  {
-    file: 'refusal.png',
-    page: '/docs/introduction',
-    question: 'Who won the 1998 World Cup?',
-    viewport: { width: 1280, height: 330 },
-    clip: { x: 150, y: 0, width: 980, height: 300 },
-  },
 ];
 
 const browser = await chromium.launch({ channel: 'chrome' });
