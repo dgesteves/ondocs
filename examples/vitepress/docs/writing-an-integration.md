@@ -13,7 +13,7 @@ The Docusaurus plugin, the Astro integration, and the Starlight and VitePress pl
 An integration has two jobs, at two moments of the framework's build:
 
 1. **While the framework loads its config**, check the options, so a mistake fails before anything is built, and add the launcher and its stylesheets to every page, pointed at the endpoint.
-2. **After the framework has written the site**, read each page it built, at the URL it is served from, and write `ask-index.json`, `llms.txt`, `llms-full.txt` and the pages' `.md` copies into the build output.
+2. **After the framework has written the site**, read each page it built, at the URL it is served from, and write `ask-index.json`, `llms.txt`, `llms-full.txt` and the pages' `.md` copies into the build output, linking each page to its copy.
 
 Indexing the built pages, rather than the Markdown sources, means the index has what readers see: the URLs the site serves, with its base path, its rewrites and its trailing slashes, and the pages' text after components and includes have rendered.
 
@@ -89,6 +89,8 @@ export default function ondocs(options: OndocsOptions = {}) {
         dir: outDir,
         label: 'dist',
         log,
+        // Link each page to its .md copy, in the HTML the framework wrote as guide/index.html.
+        linkPages: 'directory',
       });
     },
   };
@@ -121,6 +123,8 @@ A site with locales gets an index per locale: group the pages by their locale's 
 ## Write llms.txt and the Markdown pages
 
 `llmsOutputs(options.llmsTxt)` reads the plugins' `llmsTxt` option: all three files by default, none for `false`, and `{ full: false }` to turn one off. `writeLlmsFiles` writes them into `dir`, the build output for `site.base`, from the pages `loadBuiltPage` returned. It never replaces a file the build already has, from the site's static files or another plugin, and says so. Pass `owners` to leave a file to another plugin that writes it, by name: the Docusaurus plugin leaves `llms.txt` to docusaurus-plugin-llms when the site has it.
+
+With `linkPages`, it also links each page to its copy, with `<link rel="alternate" type="text/markdown">` in the `<head>` of the page's HTML in `dir`. Set it to how the framework writes pages, as `readBuiltHtml` reads them: `'directory'` for `guide/index.html`, `'file'` for `guide.html`. A URL ending in `/` or `.html` names its file itself. The page's HTML is replaced in one step, so another plugin reading it at the same time reads all of it.
 
 ## Add the launcher
 

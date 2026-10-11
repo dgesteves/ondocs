@@ -18,6 +18,14 @@ This site serves its own: [/llms.txt](https://ondocs.vercel.app/llms.txt), [/llm
 
 The plugins write all three after the build, into the build output next to `ask-index.json`, with nothing to set: `build/` for Docusaurus, `dist/` for Astro (`dist/client/` with an adapter) and `.vitepress/dist/` for VitePress. Each locale gets its own, as the index does. `llms.txt` takes its title and summary from the site's title and its tagline (Docusaurus) or description (Starlight and VitePress), and links absolutely when the site has a URL: `url` in Docusaurus, `site` in Astro, `sitemap.hostname` in VitePress.
 
+Each page with a copy also links to it from its `<head>`, so an agent that fetches the page finds the Markdown without guessing the URL:
+
+```html
+<link rel="alternate" type="text/markdown" href="/docs/intro.md" />
+```
+
+The plugins add the link to the HTML they built, after the build, with the site's base path and the page's locale; it goes away with the copies. A page whose head already links a Markdown copy keeps its own, and when another plugin writes the copies, linking them is left to it. The link is in the HTML each page is served with, which is what an agent that fetches the page reads. Docusaurus and VitePress change pages in the browser without loading them, and there the head keeps the link of the page that was loaded.
+
 Turn them off with `llmsTxt: false`, or one at a time:
 
 ```ts
@@ -51,6 +59,16 @@ npx ondocs index content/docs --base-url /docs --llms-txt public \
 
 `--no-llms-index`, `--no-llms-full` and `--no-llms-markdown` leave one out, and a config module can set the same under `llmsTxt`. From Markdown sources, a copy keeps the Markdown as written, links and images included, without MDX imports and components. This site runs it with `--no-llms-index`, because it curates its own `llms.txt` in its sidebar's order.
 
+The CLI does not change your pages, so link each one to its copy from the page itself. In Next.js, that is `alternates.types` in the page's metadata:
+
+```ts
+// app/docs/[slug]/page.tsx
+export async function generateMetadata(props: PageProps<'/docs/[slug]'>): Promise<Metadata> {
+  const { slug } = await props.params;
+  return { alternates: { types: { 'text/markdown': `/docs/${slug}.md` } } };
+}
+```
+
 ## Serving them
 
-Static hosts serve `.md` files as they are; check that yours sends them as `text/markdown` or `text/plain` rather than as a download. A site whose pages each have a Markdown copy can also tell agents with a `Link` header or `<link rel="alternate" type="text/markdown" href="/docs/intro.md">`, which the plugins do not add.
+Static hosts serve `.md` files as they are; check that yours sends them as `text/markdown` or `text/plain` rather than as a download. Besides the `<link>` in each page, a host can send the same as a `Link` header, `Link: </docs/intro.md>; rel="alternate"; type="text/markdown"`, which the plugins do not set.

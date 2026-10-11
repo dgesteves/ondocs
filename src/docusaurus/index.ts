@@ -82,7 +82,8 @@ export type OndocsOptions = IndexOptions & {
   mcp?: McpOption;
   /**
    * After the build, also write `llms.txt`, `llms-full.txt` and a Markdown copy of each indexed
-   * page at its URL plus `.md` (`/docs/intro.md`), into the build output. On by default; `false`
+   * page at its URL plus `.md` (`/docs/intro.md`), into the build output, and link each page to
+   * its copy with `<link rel="alternate" type="text/markdown">`. On by default; `false`
    * turns all three off, and `{ index: false }`, `{ full: false }` or `{ markdown: false }` one
    * of them. A file the build already has (from `static/` or another plugin) is left as it is,
    * and what docusaurus-plugin-llms or docusaurus-plugin-llms-txt writes is left to them.
@@ -208,6 +209,9 @@ export default function ondocs(context: LoadContext, options: OndocsOptions = {}
           dir: outDir,
           label: 'the build',
           log,
+          // Docusaurus writes /guides/setup to guides/setup/index.html, or with trailingSlash:
+          // false, guides/setup.html, which is tried next.
+          linkPages: 'directory',
         });
       }
     },

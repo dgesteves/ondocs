@@ -362,6 +362,56 @@ describe('ondocs/starlight', () => {
     expect(logger.info).toHaveBeenCalledWith('Wrote llms.txt, llms-full.txt, 3 .md pages → dist');
   });
 
+  it('links each page to its .md copy, with base, trailingSlash, build.format and locales', async () => {
+    const pages = {
+      ...STARLIGHT_PAGES,
+      fr: starlightPage('Introduction', '<p>Bienvenue.</p>', { lang: 'fr' }),
+      'fr/guides/setup': starlightPage('Installation', '<p>Installez-le.</p>', { lang: 'fr' }),
+    };
+    const config = {
+      locales: { root: { label: 'English', lang: 'en' }, fr: { label: 'Français' } },
+    };
+    const cases: [SiteOptions, Record<string, string | null>][] = [
+      [
+        { format: 'directory', base: '/docs' },
+        {
+          'index.html': '/docs/index.md',
+          'guides/setup/index.html': '/docs/guides/setup.md',
+          'fr/index.html': '/docs/fr/index.md',
+          'fr/guides/setup/index.html': '/docs/fr/guides/setup.md',
+          // pagefind: false, so not indexed and no copy.
+          'changelog/index.html': null,
+          '404.html': null,
+        },
+      ],
+      [
+        { format: 'file', trailingSlash: 'always', base: '/docs/' },
+        {
+          'index.html': '/docs/index.md',
+          'guides/setup.html': '/docs/guides/setup.md',
+          'fr/guides/setup.html': '/docs/fr/guides/setup.md',
+          'changelog.html': null,
+        },
+      ],
+      [
+        { format: 'directory', trailingSlash: 'never' },
+        { 'index.html': '/index.md', 'reference/api/index.html': '/reference/api.md' },
+      ],
+    ];
+    for (const [options, expected] of cases) {
+      await rm(join(root, 'dist'), { recursive: true, force: true });
+      const { outDir } = await build(starlightIntegration({}, config), pages, options);
+      for (const [file, href] of Object.entries(expected)) {
+        const html = await readFile(join(outDir, file), 'utf8');
+        const links = [
+          ...html.matchAll(/<link rel="alternate" type="text\/markdown" href="([^"]*)">/g),
+        ].map((match) => match[1]);
+        expect([options, file, links]).toEqual([options, file, href ? [href] : []]);
+        if (href) expect(existsSync(join(outDir, href.replace(/^\/docs\//, '/')))).toBe(true);
+      }
+    }
+  });
+
   it('leaves llms files to starlight-llms-txt and starlight-page-actions, and keeps public/ files', async () => {
     const plugin = (name: string) => ({ name, hooks: {} });
     const { outDir, logger } = await build(
@@ -379,6 +429,10 @@ describe('ondocs/starlight', () => {
     });
     expect(existsSync(join(second.outDir, 'guides/setup.md'))).toBe(false);
     expect(existsSync(join(second.outDir, 'llms.txt'))).toBe(true);
+    // Its copies are its own to link.
+    expect(await readFile(join(second.outDir, 'guides/setup/index.html'), 'utf8')).not.toContain(
+      'text/markdown',
+    );
   });
 
   it('gives McpInstall.astro the MCP endpoint, resolved against site', async () => {
@@ -516,6 +570,27 @@ describe('ondocs/astro', () => {
     );
     expect(existsSync(join(outDir, 'en', 'ask-index.json'))).toBe(true);
     expect(existsSync(join(outDir, 'ask-index.json'))).toBe(false);
+    expect(await readFile(join(outDir, 'en/start/index.html'), 'utf8')).toContain(
+      '<link rel="alternate" type="text/markdown" href="/en/start.md"></head>',
+    );
+  });
+
+  it('links each indexed page to its .md copy, and no other page', async () => {
+    const { outDir } = await build(ondocs({ embeddingModel: mockEmbeddingModel() }), PAGES, {
+      base: '/docs',
+    });
+    const read = (file: string) => readFile(join(outDir, file), 'utf8');
+    expect(await read('guides/setup/index.html')).toBe(
+      (PAGES['guides/setup'] ?? '').replace(
+        '</head>',
+        '<link rel="alternate" type="text/markdown" href="/docs/guides/setup.md"></head>',
+      ),
+    );
+    expect(await read('landing/index.html')).toContain('href="/docs/landing.md"');
+    // noindex, 404 and 500 pages have no copy.
+    for (const file of ['hidden/index.html', '404.html', '500.html']) {
+      expect([file, (await read(file)).includes('text/markdown')]).toEqual([file, false]);
+    }
   });
 
   it('posts to ASK_ENDPOINT when set, and says how to get answers in astro dev', async () => {

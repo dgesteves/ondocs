@@ -67,6 +67,16 @@ export interface LlmsFile {
  * `null` for a URL on another site.
  */
 export function markdownPath(url: string, base = '/'): string | null {
+  const path = pathUnder(url, base);
+  if (path === null) return null;
+  return `${decoded(path.replace(/(?:\/index)?\.html?$/i, '').replace(/^\/+|\/+$/g, '')) || 'index'}.md`;
+}
+
+/**
+ * The path of `url` under `base`, as it is written (not decoded), without a query or a hash:
+ * `/docs/intro/` under `/docs/` is `/intro/`. `null` for a URL that cannot be parsed.
+ */
+export function pathUnder(url: string, base = '/'): string | null {
   let path = url;
   if (/^https?:\/\//i.test(url)) {
     try {
@@ -79,19 +89,44 @@ export function markdownPath(url: string, base = '/'): string | null {
   const prefix = base.replace(/\/+$/, '');
   if (prefix && (path === prefix || path.startsWith(`${prefix}/`)))
     path = path.slice(prefix.length);
-  path = path.replace(/(?:\/index)?\.html?$/i, '').replace(/^\/+|\/+$/g, '');
+  return path;
+}
+
+/** `path` decoded, as a file is named, or as it is when it does not decode. */
+export function decoded(path: string): string {
   try {
-    path = decodeURI(path);
+    return decodeURI(path);
   } catch {
-    // Keep it encoded.
+    return path;
   }
-  return `${path || 'index'}.md`;
+}
+
+/**
+ * The path of each page's Markdown copy, relative to the output folder for `base`, as
+ * `markdownPath` has it: pages in order, leaving out a page on another site and one whose copy
+ * an earlier page already has.
+ */
+export function markdownCopies(pages: readonly LlmsPage[], base = '/'): Map<LlmsPage, string> {
+  const copies = new Map<LlmsPage, string>();
+  const taken = new Set<string>();
+  for (const page of pages) {
+    const path = markdownPath(page.url, base);
+    if (!path || taken.has(path)) continue;
+    taken.add(path);
+    copies.set(page, path);
+  }
+  return copies;
+}
+
+/** `path` (relative to `base`) from the site's root: `/docs/` and `intro.md` → `/docs/intro.md`. */
+export function rootedPath(path: string, base = '/'): string {
+  const prefix = `/${base.replace(/^\/+|\/+$/g, '')}/`.replace(/^\/\/$/, '/');
+  return `${prefix}${path}`;
 }
 
 /** `path` (relative to `base`) as a URL on the site: absolute with `site.url`, else root-relative. */
 function siteHref(path: string, site: LlmsSite): string {
-  const base = `/${(site.base ?? '/').replace(/^\/+|\/+$/g, '')}/`.replace(/^\/\/$/, '/');
-  const rooted = `${base}${path}`;
+  const rooted = rootedPath(path, site.base);
   return site.url ? new URL(rooted, site.url).href : rooted;
 }
 
@@ -182,22 +217,15 @@ export function buildLlmsFiles(
   const llmsTxt = siteHref('llms.txt', site);
   const fullTxt = siteHref('llms-full.txt', site);
 
-  const copies = new Map<LlmsPage, string>();
-  if (markdown) {
-    const taken = new Set<string>();
-    for (const page of pages) {
-      const path = markdownPath(page.url, site.base);
-      if (!path || taken.has(path)) continue;
-      taken.add(path);
-      copies.set(page, path);
-      const pointer = index
-        ? `> From ${oneLine(site.title)}. Every page, as Markdown: ${llmsTxt}\n\n`
-        : '';
-      files.push({
-        path,
-        content: `${pointer}# ${oneLine(page.title)}\n\n${splitTitle(page)}`.trimEnd() + '\n',
-      });
-    }
+  const copies = markdown ? markdownCopies(pages, site.base) : new Map<LlmsPage, string>();
+  for (const [page, path] of copies) {
+    const pointer = index
+      ? `> From ${oneLine(site.title)}. Every page, as Markdown: ${llmsTxt}\n\n`
+      : '';
+    files.push({
+      path,
+      content: `${pointer}# ${oneLine(page.title)}\n\n${splitTitle(page)}`.trimEnd() + '\n',
+    });
   }
 
   if (index) {

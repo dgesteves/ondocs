@@ -131,7 +131,8 @@ export interface OndocsOptions extends IndexOptions {
   /**
    * After the build, also write `llms.txt`, `llms-full.txt` and a Markdown copy of each indexed
    * page at its URL plus `.md` (`/guides/setup.md`), into the build output, per locale as the
-   * index is. On by default; `false` turns all three off, and `{ index: false }`,
+   * index is, and link each page to its copy with `<link rel="alternate" type="text/markdown">`.
+   * On by default; `false` turns all three off, and `{ index: false }`,
    * `{ full: false }` or `{ markdown: false }` one of them. A file the build already has (from
    * `public/` or another integration) is left as it is, and what starlight-llms-txt,
    * starlight-page-actions or starlight-llm-actions writes is left to them.
@@ -371,6 +372,7 @@ export function createIntegration(
             dir: join(outDir, locale),
             label: relative(fileURLToPath(config.root), join(outDir, locale)) || 'dist',
             log: logger,
+            linkPages: config.build.format === 'file' ? 'file' : 'directory',
           });
         }
       },

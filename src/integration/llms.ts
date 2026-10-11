@@ -1,10 +1,20 @@
-// Writing llms.txt, llms-full.txt and the pages' .md copies into a build: what the plugins and the
-// CLI share. Node.js only.
-import { existsSync } from 'node:fs';
+// Writing llms.txt, llms-full.txt and the pages' .md copies into a build, and linking each page
+// to its copy: what the plugins and the CLI share. Node.js only.
+import { randomBytes } from 'node:crypto';
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-import { buildLlmsFiles, type LlmsOutputs, type LlmsPage, type LlmsSite } from '../llms';
+import {
+  buildLlmsFiles,
+  decoded,
+  markdownCopies,
+  pathUnder,
+  rootedPath,
+  type LlmsOutputs,
+  type LlmsPage,
+  type LlmsSite,
+} from '../llms';
 import type { Logger } from './build';
 
 /**
@@ -18,7 +28,10 @@ export type LlmsTxtOption =
       index?: boolean;
       /** `llms-full.txt`: every page in one file. Default `true`. */
       full?: boolean;
-      /** A Markdown copy of each page, at its URL plus `.md`. Default `true`. */
+      /**
+       * A Markdown copy of each page, at its URL plus `.md`, which the plugins link from the
+       * page's `<head>`. Default `true`.
+       */
       markdown?: boolean;
       /** The H1 of `llms.txt`. Default: the site's title. */
       title?: string;
@@ -61,6 +74,14 @@ export interface WriteLlmsFilesOptions {
   log: Logger;
   /** Replace files that are there, as the CLI does in the folder it is told to write to. */
   overwrite?: boolean;
+  /**
+   * Link each page to its `.md` copy: a `<link rel="alternate" type="text/markdown">` in the
+   * `<head>` of the page's HTML in `dir`, which agents follow to the copy. The value is how the
+   * framework writes pages, as `readBuiltHtml` takes it: `'directory'` (`guide/index.html`) or
+   * `'file'` (`guide.html`). A URL ending in `/` or `.html` says which itself. Default: no links,
+   * as the CLI writes the files for pages it did not build.
+   */
+  linkPages?: 'directory' | 'file';
 }
 
 /**
@@ -77,6 +98,7 @@ export async function writeLlmsFiles({
   label,
   log,
   overwrite = false,
+  linkPages,
 }: WriteLlmsFilesOptions): Promise<void> {
   const enabled = {
     index: outputs.index && !owners.has('index'),
@@ -119,5 +141,82 @@ export async function writeLlmsFiles({
       `Left ${sample}${more} as they were: the build already has them, from the site's static ` +
         'files or another plugin. Set llmsTxt: false (or turn off that file) to stop this warning.',
     );
+  }
+  // Every copy is in `dir` now, written or already there.
+  if (enabled.markdown && linkPages) {
+    for (const [page, copy] of markdownCopies(pages, site.base)) {
+      const html = builtHtmlFile(dir, page.url, site.base, linkPages);
+      const href = rootedPath(copy.split('/').map(encodeURIComponent).join('/'), site.base);
+      if (html) rewrite(html, (text) => withMarkdownLink(text, href));
+    }
+  }
+}
+
+/**
+ * The HTML file the build wrote for the page at `url`, in `dir`, the output folder for `base`:
+ * the one a URL ending in `.html` names, `guide/index.html` for one ending in `/`, and else as
+ * `layout` has it, trying the other layout second, as `readBuiltHtml` does. `undefined` when
+ * there is none.
+ */
+function builtHtmlFile(
+  dir: string,
+  url: string,
+  base: string | undefined,
+  layout: 'directory' | 'file',
+): string | undefined {
+  const under = pathUnder(url, base);
+  if (under === null) return undefined;
+  const path = decoded(under).replace(/^\/+/, '');
+  const clean = path.replace(/\/+$/, '');
+  const candidates = /\.html?$/i.test(path)
+    ? [path]
+    : clean === ''
+      ? ['index.html']
+      : path.endsWith('/') || layout === 'directory'
+        ? [`${clean}/index.html`, `${clean}.html`]
+        : [`${clean}.html`, `${clean}/index.html`];
+  return candidates.map((file) => join(dir, ...file.split('/'))).find((file) => existsSync(file));
+}
+
+const HEAD_END =
+  /<!--[\s\S]*?-->|<(script|style|template|title|noscript)\b[\s\S]*?<\/\1\s*>|<\/head\s*>/gi;
+
+/**
+ * `html` with `<link rel="alternate" type="text/markdown" href="…">` to `href` at the end of its
+ * `<head>`. `null` when its head links a Markdown copy already, or it has no `</head>`.
+ */
+export function withMarkdownLink(html: string, href: string): string | null {
+  // The first </head> that is not text in a comment, a script or the like.
+  let end: number | undefined;
+  for (const match of html.matchAll(HEAD_END)) {
+    if (!/^<\/head/i.test(match[0])) continue;
+    end = match.index;
+    break;
+  }
+  if (end === undefined) return null;
+  const head = html.slice(0, end);
+  const links = head.match(/<link\b[^>]*>/gi) ?? [];
+  if (links.some((link) => /\btype\s*=\s*["']?text\/markdown["'\s/>]/i.test(link))) return null;
+  const tag = `<link rel="alternate" type="text/markdown" href="${href.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">`;
+  return `${head}${tag}${html.slice(end)}`;
+}
+
+/**
+ * Changes a file in one step: read, changed, and written to a file beside it that then takes its
+ * place, so a plugin that reads it at the same time (Docusaurus runs every plugin's `postBuild`
+ * at once) reads it whole, before or after, and none of its own changes in between are lost.
+ * Nothing is written when `change` returns `null`.
+ */
+function rewrite(file: string, change: (text: string) => string | null): void {
+  const changed = change(readFileSync(file, 'utf8'));
+  if (changed === null) return;
+  const temporary = `${file}.${randomBytes(6).toString('hex')}.tmp`;
+  writeFileSync(temporary, changed, 'utf8');
+  try {
+    renameSync(temporary, file);
+  } catch {
+    // Windows refuses to replace a file another process has open: write it in place.
+    rmSync(temporary, { force: true });
+    writeFileSync(file, changed, 'utf8');
   }
 }
