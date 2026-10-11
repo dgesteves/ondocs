@@ -21,7 +21,7 @@
     "ui",
     "utility"
   ],
-  "homepage": "https://github.com/dgesteves/ondocs#readme",
+  "homepage": "https://ondocs.vercel.app/docs/astro",
   "bugs": "https://github.com/dgesteves/ondocs/issues",
   "repository": {
     "type": "git",

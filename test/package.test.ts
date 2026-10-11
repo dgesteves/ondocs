@@ -60,7 +60,8 @@ describe('package.json', () => {
     expect(manifest.name).toBe('ondocs');
     expect(manifest.bin).toEqual({ ondocs: 'dist/cli.js' });
     expect(manifest.repository?.url).toBe('git+https://github.com/dgesteves/ondocs.git');
-    expect(manifest.homepage).toBe('https://github.com/dgesteves/ondocs#readme');
+    // npm's page links the website, where the docs are.
+    expect(manifest.homepage).toBe('https://ondocs.vercel.app');
     expect(manifest.bugs).toBe('https://github.com/dgesteves/ondocs/issues');
   });
 
