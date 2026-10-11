@@ -70,6 +70,21 @@ describe('what the README claims', () => {
     }
   });
 
+  it('compares it only with tools that exist, in terms it can back', () => {
+    for (const file of [
+      'README.md',
+      'examples/nextjs/app/page.tsx',
+      'examples/nextjs/content/docs/introduction.md',
+      'examples/nextjs/content/docs/faq.md',
+    ]) {
+      const text = read(file);
+      // markprompt.com is gone.
+      expect([file, text.includes('Markprompt')]).toEqual([file, false]);
+      // Algolia's pricing for open source, and Ask AI in VitePress (a 2.0 alpha), are not ours to state.
+      expect([file, /Ask AI\*\* is free|free for open-source/i.test(text)]).toEqual([file, false]);
+    }
+  });
+
   it('says the integration needs a deployed endpoint and a rate limit, not five lines alone', () => {
     expect(readme).not.toContain('That is the whole integration');
     const setup = readme.slice(

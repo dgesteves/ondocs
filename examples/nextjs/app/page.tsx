@@ -423,7 +423,7 @@ export default async function Home() {
                   <td />
                   <th scope="col">
                     Hosted assistants
-                    <span>Kapa, Inkeep, Algolia Ask AI, Biel.ai, Markprompt</span>
+                    <span>Kapa, Inkeep, Algolia Ask AI, Biel.ai</span>
                   </th>
                   <th scope="col" className="compare-ours">
                     ondocs

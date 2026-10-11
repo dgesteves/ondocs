@@ -28,7 +28,7 @@ There is no vector database, no ingestion pipeline to keep in sync, and no accou
 
 ## How it compares
 
-Hosted assistants such as Kapa, Inkeep, Algolia Ask AI, Biel.ai and Markprompt ingest your docs into their platform and answer from there. Search-only tools such as Pagefind and Orama's local index need no server, but they return links, not answers. ondocs sits between the two: a local index like Pagefind's, plus cited answers from a model you pick, with no cloud account. The [FAQ](/reference/faq/#how-is-it-different-from-kapa-inkeep-or-algolia-ask-ai) has the longer comparison.
+Hosted assistants such as Kapa, Inkeep, Algolia Ask AI and Biel.ai ingest your docs into their platform and answer from there. Search-only tools such as Pagefind and Orama's local index need no server, but they return links, not answers. ondocs sits between the two: a local index like Pagefind's, plus cited answers from a model you pick, with no cloud account. The [FAQ](/reference/faq/#how-is-it-different-from-kapa-inkeep-or-algolia-ask-ai) has the longer comparison.
 
 ## When it fits
 
