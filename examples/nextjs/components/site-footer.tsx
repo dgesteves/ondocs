@@ -12,7 +12,7 @@ const MORE = [
   {
     name: 'signoff-ui',
     href: 'https://signoff-ui.vercel.app',
-    description: 'React components to review what an agent changed and control what it may do.',
+    description: 'Review what your agent changed and approve what it may do.',
   },
 ];
 
