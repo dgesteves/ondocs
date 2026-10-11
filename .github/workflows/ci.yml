@@ -85,6 +85,8 @@ jobs:
         run: pnpm exec playwright-core install --with-deps --only-shell chromium
       - name: JavaScript per page and the dialog's focus, in a browser
         run: node scripts/js-weight.mjs docusaurus starlight vitepress next embed --check
+      - name: Every page of the website fits a 390px screen, without scrolling sideways
+        run: node scripts/mobile-width.mjs
 
   # A site made the way a new user makes one, with the scaffolder's defaults, and ondocs
   # installed from the packed tarball rather than linked from the workspace. The index is built

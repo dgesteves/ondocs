@@ -252,6 +252,8 @@
 .prose :not(pre) > code {
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
+  /* A long call or URL in a sentence breaks rather than widen the page on a phone. */
+  overflow-wrap: anywhere;
   padding: 0.1em 0.35em;
   font-size: 0.88em;
   color: var(--fg);
@@ -297,6 +299,11 @@
 
 .prose td:first-child code {
   white-space: nowrap;
+}
+
+/* In a table, which scrolls sideways on its own, code keeps its words whole. */
+.prose td code {
+  overflow-wrap: normal;
 }
 
 /* Previous and next */
