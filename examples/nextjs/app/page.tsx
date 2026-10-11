@@ -10,6 +10,7 @@ import { mode } from '../lib/ai';
 import { codeBlock } from '../lib/highlight';
 import { sampleAnswer } from '../lib/sample-answer';
 import { GITHUB_URL, INSTALL, SUGGESTIONS, VERSION } from '../lib/site';
+import { gzippedSize } from '../lib/sizes';
 
 import './landing.css';
 
@@ -147,7 +148,8 @@ const NUMBERS = [
     note: 'On docusaurus.io’s own docs, keyword-only: no model call. Checked in CI.',
   },
   {
-    value: '2.4 KB',
+    // Measured from the package as the site builds.
+    value: gzippedSize('embed.global.js'),
     label: 'script tag on each page, gzipped',
     note: 'The button and shortcut. The dialog loads the first time it is wanted.',
   },

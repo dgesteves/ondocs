@@ -36,8 +36,8 @@ jobs:
       - run: pnpm build
       - name: Check the published package (publint, are-the-types-wrong)
         run: pnpm check:package
-      - name: Check the script embed's size (the launcher, and the dialog it loads)
-        run: node -e "for(const[f,kb]of[['dist/embed.global.js',4],['dist/embed-dialog.global.js',110]]){const s=require('zlib').gzipSync(require('fs').readFileSync(f)).length;console.log(f+':',(s/1024).toFixed(1),'KB gzipped, budget',kb);if(s>kb*1024)throw new Error(f+' is over its '+kb+' KB budget')}"
+      - name: Check the script embed's size (the launcher, and the dialog it loads), and that the docs give it
+        run: node scripts/embed-size.mjs
       - name: The Docusaurus and Starlight docs match the website's
         run: pnpm examples:check
       - name: The Cloudflare Worker template is what ondocs init writes
