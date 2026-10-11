@@ -33,6 +33,22 @@ describe('what the README claims', () => {
     }
   });
 
+  it('does not call the answers single-turn: the dialog and the endpoint take follow-ups', () => {
+    for (const file of [
+      'README.md',
+      'examples/nextjs/app/page.tsx',
+      'examples/nextjs/content/docs/introduction.md',
+      'examples/nextjs/content/docs/faq.md',
+      'examples/nextjs/content/docs/limits.md',
+    ]) {
+      const text = read(file);
+      expect([file, /single-turn|each answer stands on its own/i.test(text)]).toEqual([
+        file,
+        false,
+      ]);
+    }
+  });
+
   it('calls the benchmark’s memory figure heap, next to what the process grows by', () => {
     // The README no longer has the table; the benchmarks page does, and must say it right.
     const files = ['README.md', 'examples/nextjs/content/docs/benchmarks.md'];

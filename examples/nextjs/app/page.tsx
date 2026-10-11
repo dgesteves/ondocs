@@ -203,9 +203,9 @@ const COMPARISON: { label: string; hosted: Cell; ours: Cell; search: Cell }[] = 
     search: 'No',
   },
   {
-    label: 'Dashboards and multi-turn chat',
+    label: 'Follow-up questions and dashboards',
     hosted: 'Typically included',
-    ours: 'No. Single-turn answers; log questions with onFinish',
+    ours: 'Follow-ups, yes. No dashboard: log questions with onFinish',
     search: 'No',
   },
 ];
