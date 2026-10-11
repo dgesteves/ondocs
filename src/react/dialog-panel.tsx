@@ -17,6 +17,7 @@ import {
 import { AskAnswer, citedSourceIds, safeHref, type AnswerLinks } from './answer';
 import type { AskDialogProps, AskDialogSlot } from './ask-dialog';
 import { fill, resolveLabels, type ResolvedLabels } from './labels';
+import { turnstileWidget, type TurnstileWidget } from './turnstile';
 import { useAsk, type AskError, type AskState } from './use-ask';
 
 /** What `AskDialog` hands the dialog: its props, with the open state it keeps. */
@@ -178,6 +179,8 @@ export function errorText(error: AskError | null, labels: ResolvedLabels): strin
       error.message
     );
   }
+  if (error.code === 'challenge_required') return labels.challengeRequired;
+  if (error.code === 'challenge_failed') return labels.challengeFailed;
   switch (error.reason) {
     case 'unavailable':
       return labels.errorUnavailable;
@@ -230,6 +233,7 @@ export function DialogPanel({
   classNames = {},
   footer,
   links = 'all',
+  challenge,
   ...askOptions
 }: DialogPanelProps): ReactNode {
   const labels = resolveLabels(given);
@@ -238,7 +242,26 @@ export function DialogPanel({
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState('');
-  const state = useAsk(askOptions);
+
+  // The bot check: a Turnstile widget in the dialog while it is open, rendered as it opens so a
+  // token is solved before the first question, and the next one after each question takes one.
+  const siteKey = challenge?.turnstile;
+  const [challengeElement, setChallengeElement] = useState<HTMLDivElement | null>(null);
+  const widgetRef = useRef<TurnstileWidget | null>(null);
+  useEffect(() => {
+    if (!siteKey || !challengeElement) return;
+    const widget = turnstileWidget(challengeElement, siteKey, {
+      theme: theme === 'system' ? 'auto' : theme,
+    });
+    widgetRef.current = widget;
+    return () => {
+      widget.remove();
+      if (widgetRef.current === widget) widgetRef.current = null;
+    };
+  }, [siteKey, challengeElement, theme]);
+  const state = useAsk(
+    siteKey ? { ...askOptions, challengeToken: () => widgetRef.current?.token() } : askOptions,
+  );
   const descriptionId = useId();
 
   // Closing the dialog, however it happens, cancels the answer in flight: nobody is reading it,
@@ -389,6 +412,9 @@ export function DialogPanel({
               />
             ) : null}
           </Command>
+
+          {/* Turnstile's widget, shown only when it asks the visitor to click. */}
+          {siteKey ? <div ref={setChallengeElement} className="ask-challenge" /> : null}
 
           <p role="status" className="ask-sr-only">
             {statusMessage(state, labels)}

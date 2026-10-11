@@ -76,6 +76,13 @@ export interface AskDialogLabels {
   errorInterrupted: string;
   /** The answer's stream ended without finishing. */
   errorCutOff: string;
+  /**
+   * The endpoint checks for bots, and the question went without a token: the check could not
+   * run, as when the page blocks Turnstile's script.
+   */
+  challengeRequired: string;
+  /** The endpoint's bot check failed. */
+  challengeFailed: string;
   /** Any other error the dialog has no words for. */
   errorUnknown: string;
   /**
@@ -138,6 +145,8 @@ export const DEFAULT_LABELS: Readonly<DefaultLabels> = {
   errorNoBody: 'The response had no body.',
   errorInterrupted: 'The answer was interrupted. Please try again.',
   errorCutOff: 'The answer was cut off. Please try again.',
+  challengeRequired: 'The check that you’re not a bot didn’t load. Reload the page and try again.',
+  challengeFailed: 'The check that you’re not a bot failed. Please try again.',
   errorUnknown: 'Something went wrong.',
 };
 

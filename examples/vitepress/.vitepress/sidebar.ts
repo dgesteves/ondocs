@@ -31,6 +31,7 @@ export const sidebar: DefaultTheme.Sidebar = [
       { text: 'Deploying', link: '/deployment' },
       { text: 'Workers AI, without an API key', link: '/workers-ai' },
       { text: 'Rate limits and security', link: '/security' },
+      { text: 'Bot check with Turnstile', link: '/bot-challenge' },
       { text: 'How retrieval works', link: '/retrieval' },
       { text: 'Measure and improve answers', link: '/quality' },
     ],

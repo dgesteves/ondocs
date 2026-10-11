@@ -43,6 +43,10 @@ export const SOURCE_METADATA_KEY = 'askMySite';
 /** Body of a request to the handler. `{ messages }` from `useChat` is also accepted. */
 export interface AskRequestBody {
   question: string;
+  /** The page's locale, for an endpoint with an index per locale. */
+  locale?: string;
+  /** The bot check's token, for an endpoint with `challenge` set: a fresh one per question. */
+  challenge?: string;
 }
 
 /** Body of a rating of an answer, posted to the same endpoint. */
@@ -72,6 +76,10 @@ export interface AskErrorBody {
       | 'rate_limited'
       /** The handler's daily `budget` is spent; `Retry-After` says when it resets. */
       | 'budget_exceeded'
+      /** The handler checks for bots (`challenge`), and the question came without a token. */
+      | 'challenge_required'
+      /** The bot check's token was bad, expired or used before. */
+      | 'challenge_failed'
       | 'internal_error'
       | 'service_unavailable';
     message: string;

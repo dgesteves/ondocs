@@ -46,21 +46,22 @@ To try it first, run `npx ondocs dev` beside the index and set `data-endpoint="h
 
 ## Script tag attributes
 
-| Attribute           | Default            | What it does                                                                          |
-| ------------------- | ------------------ | ------------------------------------------------------------------------------------- |
-| `data-endpoint`     | `/api/ask`         | Where the dialog posts questions.                                                     |
-| `data-title`        | "Ask this site"    | The dialog's accessible name.                                                         |
-| `data-placeholder`  | "Ask a question…"  | The input's placeholder.                                                              |
-| `data-suggestions`  | none               | A JSON array, as in `data-suggestions='["How do I install it?"]'`.                    |
-| `data-shortcut`     | `i`                | The key used with ⌘ or Ctrl; `"false"` turns it off.                                  |
-| `data-button-label` | "Ask AI"           | The floating button's label; `"false"` hides the button.                              |
-| `data-theme`        | `auto`             | `auto` follows `data-theme` on `<html>`, then the system; or `light` or `dark`.       |
-| `data-links`        | `all`              | `sources` keeps only the answer's links to its source pages.                          |
-| `data-labels`       | English            | The dialog's words, as a JSON object, as in `data-labels='{"launcher":"Demander"}'`.  |
-| `data-label-<name>` | English            | One label, as in `data-label-new-question="Nouvelle question"`; over `data-labels`.   |
-| `data-locale`       | none               | The page's locale, sent with each question, for an endpoint with an index per locale. |
-| `data-manual`       | off                | Don't mount; wait for `window.Ondocs.mount()`.                                        |
-| `data-dialog-src`   | next to the script | Where `embed-dialog.global.js` is, for a copy hosted elsewhere.                       |
+| Attribute                 | Default            | What it does                                                                          |
+| ------------------------- | ------------------ | ------------------------------------------------------------------------------------- |
+| `data-endpoint`           | `/api/ask`         | Where the dialog posts questions.                                                     |
+| `data-title`              | "Ask this site"    | The dialog's accessible name.                                                         |
+| `data-placeholder`        | "Ask a question…"  | The input's placeholder.                                                              |
+| `data-suggestions`        | none               | A JSON array, as in `data-suggestions='["How do I install it?"]'`.                    |
+| `data-shortcut`           | `i`                | The key used with ⌘ or Ctrl; `"false"` turns it off.                                  |
+| `data-button-label`       | "Ask AI"           | The floating button's label; `"false"` hides the button.                              |
+| `data-theme`              | `auto`             | `auto` follows `data-theme` on `<html>`, then the system; or `light` or `dark`.       |
+| `data-links`              | `all`              | `sources` keeps only the answer's links to its source pages.                          |
+| `data-labels`             | English            | The dialog's words, as a JSON object, as in `data-labels='{"launcher":"Demander"}'`.  |
+| `data-label-<name>`       | English            | One label, as in `data-label-new-question="Nouvelle question"`; over `data-labels`.   |
+| `data-locale`             | none               | The page's locale, sent with each question, for an endpoint with an index per locale. |
+| `data-turnstile-site-key` | none               | A Turnstile site key: solve a [bot check](/bot-challenge) before each question.       |
+| `data-manual`             | off                | Don't mount; wait for `window.Ondocs.mount()`.                                        |
+| `data-dialog-src`         | next to the script | Where `embed-dialog.global.js` is, for a copy hosted elsewhere.                       |
 
 ## Open it from your own search box
 

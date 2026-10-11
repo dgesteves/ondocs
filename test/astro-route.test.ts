@@ -134,6 +134,14 @@ describe('ondocs/astro with an SSR adapter', () => {
     ]);
   });
 
+  it('checks Turnstile tokens on the route it serves when the dialog solves them', () => {
+    const challenge = { turnstile: '1x00000000000000000000BB' };
+    const result = setup(integration({ dialog: { challenge } }));
+    expect(result.module).toContain('"answerCache":true,"turnstile":true}');
+    expect(result.script).toContain('"challenge":{"turnstile":"1x00000000000000000000BB"}');
+    expect(setup(integration()).module).not.toContain('turnstile');
+  });
+
   it('rejects a model it cannot make', () => {
     expect(() => ondocs({ route: { model: 'gpt-5' } })).toThrow(
       "route.model must be openai:<model>, an AI Gateway id <provider>/<model>, or mock (got 'gpt-5')",
@@ -172,7 +180,7 @@ describe('the module generated for the routes', () => {
 });
 
 describe('the injected routes', () => {
-  async function routes(limit = 10) {
+  async function routes(limit = 10, overrides: Partial<RouteModule['settings']> = {}) {
     const { index } = await buildIndex({ documents: corpus, embeddingModel: mockEmbeddingModel() });
     const text = serializeIndexFile(index);
     const fetched: string[] = [];
@@ -184,6 +192,7 @@ describe('the injected routes', () => {
         mcpRateLimit: false,
         budget: false,
         answerCache: false,
+        ...overrides,
       },
       chatModel: () => mockLanguageModel({ initialDelayMs: 0, wordDelayMs: 0 }),
       openaiEmbedding: null,
@@ -277,5 +286,71 @@ describe('the injected routes', () => {
       context('/api/ask', { question: 'What does it cost?' }),
     );
     expect(second.status).toBe(200);
+  });
+
+  it('check the bot check’s token on questions, with TURNSTILE_SECRET_KEY, and not on MCP', async () => {
+    const { module } = await routes(10, { turnstile: true });
+    const secrets: string[] = [];
+    const handlers = routeHandlers({
+      ...module,
+      secret: (name) => {
+        secrets.push(name);
+        return name === 'TURNSTILE_SECRET_KEY' ? '1x0000000000000000000000000000000AA' : undefined;
+      },
+    });
+    // Turnstile's siteverify, as Cloudflare's always-pass test secret answers it.
+    const siteverify = vi.fn((_url: string, init?: RequestInit) => {
+      const { response } = JSON.parse(init?.body as string) as { response: string };
+      return Promise.resolve(Response.json({ success: response === 'XXXX.DUMMY.TOKEN.XXXX' }));
+    });
+    vi.stubGlobal('fetch', siteverify);
+    try {
+      const ask = (body: object) => serve(handlers, 'ask', context('/docs/api/ask', body));
+      const question = 'How do I rate limit with Upstash?';
+      const refused = await ask({ question });
+      expect(refused.status).toBe(403);
+      expect(await refused.json()).toMatchObject({ error: { code: 'challenge_required' } });
+      const answered = await ask({ question, challenge: 'XXXX.DUMMY.TOKEN.XXXX' });
+      expect(answered.status).toBe(200);
+      expect(await answered.text()).toContain('"url":"/docs/rate-limits#upstash"');
+      expect(secrets).toContain('TURNSTILE_SECRET_KEY');
+      const search = await serve(
+        handlers,
+        'mcp',
+        context('/docs/api/mcp', {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'search', arguments: { query: 'quantization int8' } },
+        }),
+      );
+      expect(await search.text()).toContain('/docs/quantization');
+      expect(siteverify).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('answer 503 to questions without TURNSTILE_SECRET_KEY, saying why, and MCP still', async () => {
+    const { handlers } = await routes(10, { turnstile: true });
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const response = await serve(
+      handlers,
+      'ask',
+      context('/api/ask', { question: 'What does it cost?', challenge: 'XXXX.DUMMY.TOKEN.XXXX' }),
+    );
+    expect(response.status).toBe(503);
+    expect(String(error.mock.calls[0]?.[1])).toContain('needs the widget');
+    const search = await serve(
+      handlers,
+      'mcp',
+      context('/api/mcp', {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'list_pages', arguments: {} },
+      }),
+    );
+    expect(search.status).toBe(200);
   });
 });

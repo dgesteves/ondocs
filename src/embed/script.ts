@@ -35,8 +35,8 @@ function scriptLabels(data: DOMStringMap): Partial<AskDialogLabels> | undefined 
  * The `mountAskDialog` options a `<script>` tag's `data-*` attributes describe: `data-endpoint`,
  * `data-title`, `data-placeholder`, `data-suggestions` (a JSON array of strings),
  * `data-shortcut` and `data-button-label` (`"false"` turns either off), `data-theme`,
- * `data-links` (`all` or `sources`), `data-locale`, and the labels, `data-labels` (a JSON
- * object) and `data-label-<name>`.
+ * `data-links` (`all` or `sources`), `data-locale`, `data-turnstile-site-key` (the bot check's
+ * Turnstile site key), and the labels, `data-labels` (a JSON object) and `data-label-<name>`.
  */
 export function scriptOptions(data: DOMStringMap): MountAskDialogOptions {
   const options: MountAskDialogOptions = {};
@@ -70,5 +70,6 @@ export function scriptOptions(data: DOMStringMap): MountAskDialogOptions {
     options.theme = data.theme;
   }
   if (data.links === 'all' || data.links === 'sources') options.links = data.links;
+  if (data.turnstileSiteKey) options.challenge = { turnstile: data.turnstileSiteKey };
   return options;
 }

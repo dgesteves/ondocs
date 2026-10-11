@@ -13,12 +13,13 @@ description: 'createAskHandler options, the request and response, errors and the
 1. The body must be JSON (`content-type: application/json`); anything else gets a 415.
 2. The rate limiter runs: 10 questions a minute per client IP unless you pass your own, or `false`.
 3. The body is validated: `{ "question": string }` of up to 500 characters, or the conversation as `{ messages }`, in at most 64 KiB.
-4. A follow-up that does not stand on its own is rewritten into a question that does, with one short model call, and counts against the `budget` first. Everything after works from the rewritten question.
-5. With `answerCache`, a question asked before is answered from the cache, and nothing else runs.
-6. With `budget`, the question counts against the day's questions.
-7. The question is embedded, and hybrid retrieval runs over the in-memory index.
-8. If nothing clears the relevance gate, the "I don't know" message streams back and the model is never called.
-9. Otherwise the top sources are numbered and, if the answer's worst case fits in the day's token `budget`, sent to the model with grounding instructions, and the answer streams back with its citations.
+4. With `challenge`, the question's [bot check](/bot-challenge) token is checked with Turnstile, and a question without a good one gets a 403.
+5. A follow-up that does not stand on its own is rewritten into a question that does, with one short model call, and counts against the `budget` first. Everything after works from the rewritten question.
+6. With `answerCache`, a question asked before is answered from the cache, and nothing else runs.
+7. With `budget`, the question counts against the day's questions.
+8. The question is embedded, and hybrid retrieval runs over the in-memory index.
+9. If nothing clears the relevance gate, the "I don't know" message streams back and the model is never called.
+10. Otherwise the top sources are numbered and, if the answer's worst case fits in the day's token `budget`, sent to the model with grounding instructions, and the answer streams back with its citations.
 
 ## Handler options
 
@@ -38,6 +39,7 @@ description: 'createAskHandler options, the request and response, errors and the
 | `noAnswerMessage`          | "I don't know. I couldn't…" | Streamed when nothing is relevant.                                                                                                                                                |
 | `rateLimit`                | 10 a minute per IP          | `memoryRateLimit()`; any `(request) => { success, … }` replaces it, and `false` turns it off.                                                                                     |
 | `rateLimitFailure`         | `"closed"`                  | When `rateLimit` throws: `"closed"` answers 503, `"open"` answers anyway.                                                                                                         |
+| `challenge`                | none                        | `turnstile({ secretKey })`: a [bot check](/bot-challenge) on each question, before anything is spent on it. A 403 without a good token.                                           |
 | `generation`               | `{ maxOutputTokens: 800 }`  | Passed to `streamText`: `temperature`, `providerOptions`, `timeout`, `telemetry`…                                                                                                 |
 | `budget`                   | none                        | `{ requestsPerDay, tokensPerDay, store }`: a daily cap, then a 429 with code `budget_exceeded`.                                                                                   |
 | `answerCache`              | off                         | `true`, or `{ store, ttlSeconds }`: repeated questions are answered from the cache.                                                                                               |
@@ -57,7 +59,7 @@ With `onFeedback`, the stream's metadata says `feedback: true`, and the dialog o
 
 ## Request body
 
-Send `{ "question": "…" }` as `application/json` for a question on its own, or the conversation as `{ messages }`, as the dialog and the AI SDK's `useChat` send it: the last user message is the question, and the messages before it are the conversation. Either can carry the page's `locale`, which the plugins and the dialog send on a page in a locale other than the default: the handler answers it from `indexes[locale]`, and from `index` for a locale it has no index for.
+Send `{ "question": "…" }` as `application/json` for a question on its own, or the conversation as `{ messages }`, as the dialog and the AI SDK's `useChat` send it: the last user message is the question, and the messages before it are the conversation. Either can carry the page's `locale`, which the plugins and the dialog send on a page in a locale other than the default: the handler answers it from `indexes[locale]`, and from `index` for a locale it has no index for. With `challenge`, either must also carry the [bot check](/bot-challenge)'s token as `challenge`.
 
 ## Follow-up questions
 
@@ -69,7 +71,7 @@ The rewrite counts against the `budget`: the question is admitted before it, and
 
 ## Errors
 
-Errors are JSON, `{ "error": { "code", "message" } }`, with status 400 (invalid body or question), 405 (not a POST), 413 (body too large), 415 (not JSON), 429 (rate limited, or the daily `budget` spent, with `Retry-After`), 500 (misconfigured, such as an embedding model that does not match the index) or 503 (the rate limiter or the budget store failed). A client that disconnects before the answer starts gets a bare 499 and is not reported as an error. Model errors during an answer are masked in the stream, so provider details never reach the browser.
+Errors are JSON, `{ "error": { "code", "message" } }`, with status 400 (invalid body or question), 403 (the bot check's token is missing, code `challenge_required`, or rejected, code `challenge_failed`), 405 (not a POST), 413 (body too large), 415 (not JSON), 429 (rate limited, or the daily `budget` spent, with `Retry-After`), 500 (misconfigured, such as an embedding model that does not match the index) or 503 (the rate limiter, the budget store or the bot check failed). A client that disconnects before the answer starts gets a bare 499 and is not reported as an error. Model errors during an answer are masked in the stream, so provider details never reach the browser.
 
 ## Streaming protocol
 

@@ -63,7 +63,7 @@ Embeddings work as in the Docusaurus plugin. OpenAI's `text-embedding-3-small` a
 
 ## Deploy the endpoint for Astro
 
-With an SSR adapter, there is nothing to deploy apart from the site: the integration serves `POST /api/ask` and `/api/mcp` itself, from the index it builds, and the dialog posts there. Set `OPENAI_API_KEY` where the site builds and where it runs. `route` changes the model and the limits, and `route: false` turns the routes off; see [Astro with an adapter](/deployment#astro-with-an-adapter).
+With an SSR adapter, there is nothing to deploy apart from the site: the integration serves `POST /api/ask` and `/api/mcp` itself, from the index it builds, and the dialog posts there. Set `OPENAI_API_KEY` where the site builds and where it runs. `route` changes the model and the limits, and `route: false` turns the routes off; see [Astro with an adapter](/deployment#astro-with-an-adapter). With `dialog.challenge.turnstile`, the ask route checks each question's [bot check](/bot-challenge) token, with the secret in `TURNSTILE_SECRET_KEY`.
 
 A static site, without an adapter, needs the endpoint as a function on its host. Write it with `npx ondocs init`, which reads `dist/ask-index.json` on Vercel, Netlify or Cloudflare, or writes a Cloudflare Worker for GitHub Pages; see [Deploying](/deployment). Astro writes `base` into URLs, not folders, so with `base: '/docs'` the file is still `dist/ask-index.json` and is served at `/docs/ask-index.json`.
 

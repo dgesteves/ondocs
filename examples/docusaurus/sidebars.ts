@@ -34,6 +34,7 @@ const sidebars: SidebarsConfig = {
         'deployment',
         'workers-ai',
         'security',
+        'bot-challenge',
         'retrieval',
         'quality',
       ],

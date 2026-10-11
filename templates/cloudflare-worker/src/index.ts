@@ -16,6 +16,7 @@ import {
   createMcpHandler,
   memoryRateLimit,
   remoteIndex,
+  turnstile,
 } from 'ondocs/server';
 import { createWorkersAI } from 'workers-ai-provider';
 
@@ -25,6 +26,8 @@ interface Env {
   /** The Workers AI model that writes the answers. */
   CHAT_MODEL: string;
   AI: Ai;
+  /** A Turnstile widget's secret key, for a bot check on each question. */
+  TURNSTILE_SECRET_KEY?: string;
 }
 
 type Handler = (request: Request) => Promise<Response>;
@@ -72,6 +75,11 @@ async function create(env: Env) {
       budget: { requestsPerDay: 100, tokensPerDay: 300_000 },
       // A question asked again is answered from memory, without a model call.
       answerCache: true,
+      // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret
+      // key. Give the dialog the widget's site key as challenge.turnstile.
+      ...(env.TURNSTILE_SECRET_KEY
+        ? { challenge: turnstile({ secretKey: env.TURNSTILE_SECRET_KEY }) }
+        : {}),
       // The site's pages post here from their own origin.
       headers: cors,
     }),

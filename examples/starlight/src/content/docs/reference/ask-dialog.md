@@ -28,6 +28,7 @@ sidebar:
 | `labels`                              | English                         | Every string the dialog and its button show or announce; see [Labels and languages](#labels-and-languages). |
 | `locale`                              | none                            | The page's locale, sent with each question, for an endpoint with an index per locale.                       |
 | `followUps`                           | `true`                          | Send the thread with each question, so the endpoint can answer follow-ups; `false` asks each alone.         |
+| `challenge`                           | none                            | `{ turnstile: '<site key>' }`: solve a [bot check](/guides/bot-challenge/) before each question.            |
 
 ## Opening the dialog
 
@@ -117,6 +118,8 @@ The endpoint's own words, its "I don't know" answer, its rate limit and budget m
 | `errorNoBody`        | The response had no body.                                                                    |
 | `errorInterrupted`   | The answer was interrupted. Please try again.                                                |
 | `errorCutOff`        | The answer was cut off. Please try again.                                                    |
+| `challengeRequired`  | The check that you’re not a bot didn’t load. Reload the page and try again.                  |
+| `challengeFailed`    | The check that you’re not a bot failed. Please try again.                                    |
 | `errorUnknown`       | Something went wrong.                                                                        |
 | `noAnswer`           | the endpoint's own words                                                                     |
 | `rateLimited`        | the endpoint's own words                                                                     |

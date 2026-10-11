@@ -19,7 +19,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { openai } from '@ai-sdk/openai';
-import { createAskHandler, memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 export default createAskHandler({
   index: () => readFile(join(process.cwd(), 'build/ask-index.json'), 'utf8'),
@@ -41,6 +41,11 @@ export default createAskHandler({
   budget: { requestsPerDay: 500, tokensPerDay: 1_500_000 },
   // A question asked again is answered from memory, without a model call.
   answerCache: true,
+  // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret key.
+  // Give the dialog the widget's site key as challenge.turnstile.
+  ...(process.env.TURNSTILE_SECRET_KEY
+    ? { challenge: turnstile({ secretKey: process.env.TURNSTILE_SECRET_KEY }) }
+    : {}),
 });
 
 export const config = { path: '/api/ask' };
@@ -95,10 +100,12 @@ exports[`ondocs init: what it writes per host > Docusaurus on Cloudflare Pages, 
 // (Settings, Variables and Secrets) or with \`npx wrangler pages secret put OPENAI_API_KEY\`. Set it
 // as a build variable too: the build embeds the pages with it.
 import { createOpenAI } from '@ai-sdk/openai';
-import { createAskHandler, memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 interface Env {
   OPENAI_API_KEY: string;
+  /** A Turnstile widget's secret key, for a bot check on each question. */
+  TURNSTILE_SECRET_KEY?: string;
   ASSETS: { fetch: (request: Request) => Promise<Response> };
 }
 
@@ -125,6 +132,11 @@ function create(request: Request, env: Env) {
     budget: { requestsPerDay: 500, tokensPerDay: 1_500_000 },
     // A question asked again is answered from memory, without a model call.
     answerCache: true,
+    // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret
+    // key. Give the dialog the widget's site key as challenge.turnstile.
+    ...(env.TURNSTILE_SECRET_KEY
+      ? { challenge: turnstile({ secretKey: env.TURNSTILE_SECRET_KEY }) }
+      : {}),
   });
 }
 
@@ -225,6 +237,7 @@ import {
   createMcpHandler,
   memoryRateLimit,
   remoteIndex,
+  turnstile,
 } from 'ondocs/server';
 import { createWorkersAI } from 'workers-ai-provider';
 
@@ -234,6 +247,8 @@ interface Env {
   /** The Workers AI model that writes the answers. */
   CHAT_MODEL: string;
   AI: Ai;
+  /** A Turnstile widget's secret key, for a bot check on each question. */
+  TURNSTILE_SECRET_KEY?: string;
 }
 
 type Handler = (request: Request) => Promise<Response>;
@@ -281,6 +296,11 @@ async function create(env: Env) {
       budget: { requestsPerDay: 100, tokensPerDay: 300_000 },
       // A question asked again is answered from memory, without a model call.
       answerCache: true,
+      // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret
+      // key. Give the dialog the widget's site key as challenge.turnstile.
+      ...(env.TURNSTILE_SECRET_KEY
+        ? { challenge: turnstile({ secretKey: env.TURNSTILE_SECRET_KEY }) }
+        : {}),
       // The site's pages post here from their own origin.
       headers: cors,
     }),
@@ -400,7 +420,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { openai } from '@ai-sdk/openai';
-import { createAskHandler, memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 export default createAskHandler({
   index: () => readFile(join(process.cwd(), 'build/ask-index.json'), 'utf8'),
@@ -417,6 +437,11 @@ export default createAskHandler({
   budget: { requestsPerDay: 500, tokensPerDay: 1_500_000 },
   // A question asked again is answered from memory, without a model call.
   answerCache: true,
+  // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret key.
+  // Give the dialog the widget's site key as challenge.turnstile.
+  ...(process.env.TURNSTILE_SECRET_KEY
+    ? { challenge: turnstile({ secretKey: process.env.TURNSTILE_SECRET_KEY }) }
+    : {}),
 });
 
 export const config = { path: '/api/ask' };
@@ -472,7 +497,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { openai } from '@ai-sdk/openai';
-import { createAskHandler, memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 const handler = createAskHandler({
   index: () => readFile(join(process.cwd(), 'build/ask-index.json'), 'utf8'),
@@ -489,6 +514,11 @@ const handler = createAskHandler({
   budget: { requestsPerDay: 500, tokensPerDay: 1_500_000 },
   // A question asked again is answered from memory, without a model call.
   answerCache: true,
+  // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret key.
+  // Give the dialog the widget's site key as challenge.turnstile.
+  ...(process.env.TURNSTILE_SECRET_KEY
+    ? { challenge: turnstile({ secretKey: process.env.TURNSTILE_SECRET_KEY }) }
+    : {}),
 });
 
 export const POST = handler;
@@ -561,10 +591,12 @@ exports[`ondocs init: what it writes per host > Docusaurus on a Cloudflare Worke
 // A Worker that has its own entry point already can call \`ondocs(request, env)\` from it: it answers
 // the endpoints' paths and returns null for every other request.
 import { createOpenAI } from '@ai-sdk/openai';
-import { createAskHandler, createMcpHandler, memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, createMcpHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 interface Env {
   OPENAI_API_KEY: string;
+  /** A Turnstile widget's secret key, for a bot check on each question. */
+  TURNSTILE_SECRET_KEY?: string;
   ASSETS: { fetch: (request: Request) => Promise<Response> };
 }
 
@@ -600,6 +632,11 @@ function create(request: Request, env: Env) {
       budget: { requestsPerDay: 500, tokensPerDay: 1_500_000 },
       // A question asked again is answered from memory, without a model call.
       answerCache: true,
+      // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret
+      // key. Give the dialog the widget's site key as challenge.turnstile.
+      ...(env.TURNSTILE_SECRET_KEY
+        ? { challenge: turnstile({ secretKey: env.TURNSTILE_SECRET_KEY }) }
+        : {}),
     }),
     mcp: createMcpHandler({
       index,
@@ -697,6 +734,7 @@ import {
   createMcpHandler,
   memoryRateLimit,
   remoteIndex,
+  turnstile,
 } from 'ondocs/server';
 import { createWorkersAI } from 'workers-ai-provider';
 
@@ -706,6 +744,8 @@ interface Env {
   /** The Workers AI model that writes the answers. */
   CHAT_MODEL: string;
   AI: Ai;
+  /** A Turnstile widget's secret key, for a bot check on each question. */
+  TURNSTILE_SECRET_KEY?: string;
 }
 
 type Handler = (request: Request) => Promise<Response>;
@@ -753,6 +793,11 @@ async function create(env: Env) {
       budget: { requestsPerDay: 100, tokensPerDay: 300_000 },
       // A question asked again is answered from memory, without a model call.
       answerCache: true,
+      // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret
+      // key. Give the dialog the widget's site key as challenge.turnstile.
+      ...(env.TURNSTILE_SECRET_KEY
+        ? { challenge: turnstile({ secretKey: env.TURNSTILE_SECRET_KEY }) }
+        : {}),
       // The site's pages post here from their own origin.
       headers: cors,
     }),
@@ -858,7 +903,7 @@ exports[`ondocs init: what it writes per host > Next.js on Netlify 1`] = `
 // It answers from ask-index.json, which \`ondocs index\` writes before the build, imported so it is
 // bundled with the route. Set OPENAI_API_KEY where the app builds and runs.
 import { openai } from '@ai-sdk/openai';
-import { createAskHandler, memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 import index from '../../../../ask-index.json';
 
@@ -877,6 +922,11 @@ const handler = createAskHandler({
   budget: { requestsPerDay: 500, tokensPerDay: 1_500_000 },
   // A question asked again is answered from memory, without a model call.
   answerCache: true,
+  // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret key.
+  // Give the dialog the widget's site key as challenge.turnstile.
+  ...(process.env.TURNSTILE_SECRET_KEY
+    ? { challenge: turnstile({ secretKey: process.env.TURNSTILE_SECRET_KEY }) }
+    : {}),
 });
 
 export { handler as OPTIONS, handler as POST };
@@ -931,10 +981,12 @@ exports[`ondocs init: what it writes per host > Starlight in two locales on a Cl
 // A Worker that has its own entry point already can call \`ondocs(request, env)\` from it: it answers
 // the endpoints' paths and returns null for every other request.
 import { createOpenAI } from '@ai-sdk/openai';
-import { createAskHandler, createMcpHandler, memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, createMcpHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 interface Env {
   OPENAI_API_KEY: string;
+  /** A Turnstile widget's secret key, for a bot check on each question. */
+  TURNSTILE_SECRET_KEY?: string;
   ASSETS: { fetch: (request: Request) => Promise<Response> };
 }
 
@@ -980,6 +1032,11 @@ function create(request: Request, env: Env) {
       budget: { requestsPerDay: 500, tokensPerDay: 1_500_000 },
       // A question asked again is answered from memory, without a model call.
       answerCache: true,
+      // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret
+      // key. Give the dialog the widget's site key as challenge.turnstile.
+      ...(env.TURNSTILE_SECRET_KEY
+        ? { challenge: turnstile({ secretKey: env.TURNSTILE_SECRET_KEY }) }
+        : {}),
     }),
     mcp: createMcpHandler({
       index,
@@ -1042,7 +1099,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { openai } from '@ai-sdk/openai';
-import { createAskHandler, memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 const handler = createAskHandler({
   index: () => readFile(join(process.cwd(), 'dist/ask-index.json'), 'utf8'),
@@ -1059,6 +1116,11 @@ const handler = createAskHandler({
   budget: { requestsPerDay: 500, tokensPerDay: 1_500_000 },
   // A question asked again is answered from memory, without a model call.
   answerCache: true,
+  // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret key.
+  // Give the dialog the widget's site key as challenge.turnstile.
+  ...(process.env.TURNSTILE_SECRET_KEY
+    ? { challenge: turnstile({ secretKey: process.env.TURNSTILE_SECRET_KEY }) }
+    : {}),
 });
 
 export const POST = handler;
@@ -1130,7 +1192,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { openai } from '@ai-sdk/openai';
-import { createAskHandler, memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 const handler = createAskHandler({
   index: () => readFile(join(process.cwd(), 'docs/.vitepress/dist/ask-index.json'), 'utf8'),
@@ -1151,6 +1213,11 @@ const handler = createAskHandler({
   budget: { requestsPerDay: 500, tokensPerDay: 1_500_000 },
   // A question asked again is answered from memory, without a model call.
   answerCache: true,
+  // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret key.
+  // Give the dialog the widget's site key as challenge.turnstile.
+  ...(process.env.TURNSTILE_SECRET_KEY
+    ? { challenge: turnstile({ secretKey: process.env.TURNSTILE_SECRET_KEY }) }
+    : {}),
 });
 
 export const POST = handler;
@@ -1257,6 +1324,7 @@ import {
   createMcpHandler,
   memoryRateLimit,
   remoteIndex,
+  turnstile,
 } from 'ondocs/server';
 import { createWorkersAI } from 'workers-ai-provider';
 
@@ -1266,6 +1334,8 @@ interface Env {
   /** The Workers AI model that writes the answers. */
   CHAT_MODEL: string;
   AI: Ai;
+  /** A Turnstile widget's secret key, for a bot check on each question. */
+  TURNSTILE_SECRET_KEY?: string;
 }
 
 type Handler = (request: Request) => Promise<Response>;
@@ -1313,6 +1383,11 @@ async function create(env: Env) {
       budget: { requestsPerDay: 100, tokensPerDay: 300_000 },
       // A question asked again is answered from memory, without a model call.
       answerCache: true,
+      // A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret
+      // key. Give the dialog the widget's site key as challenge.turnstile.
+      ...(env.TURNSTILE_SECRET_KEY
+        ? { challenge: turnstile({ secretKey: env.TURNSTILE_SECRET_KEY }) }
+        : {}),
       // The site's pages post here from their own origin.
       headers: cors,
     }),
