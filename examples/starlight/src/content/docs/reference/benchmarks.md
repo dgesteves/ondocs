@@ -19,7 +19,7 @@ Size and load, per server instance:
 | Chunks |   Index |    gzip | As float JSON | Cold load | Heap retained | Process memory (peak) |
 | -----: | ------: | ------: | ------------: | --------: | ------------: | --------------------: |
 |  1,000 |  1.6 MB |  0.9 MB |        7.5 MB |     32 ms |        3.2 MB |       +23 MB (+31 MB) |
-| 10,000 | 15.7 MB |  8.5 MB |       75.4 MB |    339 ms |       25.2 MB |     +238 MB (+294 MB) |
+| 10,000 | 15.7 MB |  8.5 MB |       75.4 MB |    339 ms |       32.8 MB |     +238 MB (+294 MB) |
 | 50,000 | 78.7 MB | 42.6 MB |      377.1 MB |    1.72 s |      123.9 MB |   +759 MB (+1,130 MB) |
 
 Query latency and recall:
@@ -40,13 +40,13 @@ In a real request, retrieval is the small part: nearly all of the time goes to t
 
 ## Bundle size
 
-Each page carries only the dialog's button and shortcut; the dialog loads the first time it is wanted (see [when the dialog's code loads](/reference/ask-dialog/#when-the-dialogs-code-loads)). Measured in headless Chrome on the example sites, as the JavaScript a docs page loads before any interaction, gzipped:
+Each page carries only the dialog's button and shortcut; the dialog loads the first time it is wanted (see [when the dialog's code loads](/reference/ask-dialog/#when-the-dialogs-code-loads)). Measured in headless Chrome on the example sites with `node scripts/js-weight.mjs`, as the JavaScript a docs page loads before any interaction, gzipped at level 9, in KB of 1,024 bytes:
 
 | Site                       | The site on its own | With ondocs | When the dialog opens |
 | -------------------------- | ------------------: | ----------: | --------------------: |
-| Docusaurus 3.10            |            170.4 KB |    173.2 KB |              +21.2 KB |
-| Starlight 0.42             |             33.7 KB |     35.1 KB |              +87.2 KB |
-| Script tag on a plain page |                   0 |      2.4 KB |              +91.2 KB |
+| Docusaurus 3.10            |            171.9 KB |    174.7 KB |              +24.0 KB |
+| Starlight 0.42             |             33.7 KB |     35.1 KB |              +90.0 KB |
+| Script tag on a plain page |                   0 |      2.7 KB |              +94.0 KB |
 
 Starlight's dialog brings its own React, as the script tag's does; Docusaurus's shares the site's. Before the dialog loaded on demand, these pages carried 192.7 KB, 121.2 KB and 91.2 KB. CI measures the example sites the same way, with `node scripts/js-weight.mjs --check`, and fails a change that goes over each site's budget, or that stops a shortcut pressed while the dialog loads from opening it with focus in its input, or focus from coming back when it closes. The handler adds no client code at all.
 

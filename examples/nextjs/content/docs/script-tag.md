@@ -23,7 +23,7 @@ The script mounts itself once the page has loaded. It opens the dialog from a fl
 
 ## Script size
 
-The embed script, `embed.global.js`, is 2.4 KB gzipped: the button, the shortcut and their styles. The dialog, with React and its styles, is a second file next to it, `embed-dialog.global.js` (91 KB gzipped), which the script loads the first time the dialog is wanted: a pointer over or focus on the button, the shortcut, or `open()`. A shortcut pressed while it loads still opens the dialog once it arrives. The page needs nothing else, and `defer` loads the script without blocking the page.
+The embed script, `embed.global.js`, is 2.7 KB gzipped: the button, the shortcut and their styles. The dialog, with React and its styles, is a second file next to it, `embed-dialog.global.js` (94 KB gzipped), which the script loads the first time the dialog is wanted: a pointer over or focus on the button, the shortcut, or `open()`. A shortcut pressed while it loads still opens the dialog once it arrives. The page needs nothing else, and `defer` loads the script without blocking the page.
 
 If you host the script yourself, copy both files to the same folder, or point at the dialog's file with `data-dialog-src`.
 

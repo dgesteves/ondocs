@@ -30,7 +30,7 @@ There is no vector database, no ingestion pipeline to keep in sync, and no accou
 
 ## How it compares
 
-Hosted assistants such as Kapa, Inkeep, Algolia Ask AI, Biel.ai and Markprompt ingest your docs into their platform and answer from there. Search-only tools such as Pagefind and Orama's local index need no server, but they return links, not answers. ondocs sits between the two: a local index like Pagefind's, plus cited answers from a model you pick, with no cloud account. The [FAQ](/faq#how-is-it-different-from-kapa-inkeep-or-algolia-ask-ai) has the longer comparison.
+Hosted assistants such as Kapa, Inkeep, Algolia Ask AI and Biel.ai ingest your docs into their platform and answer from there. Search-only tools such as Pagefind and Orama's local index need no server, but they return links, not answers. ondocs sits between the two: a local index like Pagefind's, plus cited answers from a model you pick, with no cloud account. The [FAQ](/faq#how-is-it-different-from-kapa-inkeep-or-algolia-ask-ai) has the longer comparison.
 
 ## When it fits
 
@@ -38,4 +38,4 @@ ondocs fits documentation sites, product sites, blogs and changelogs: content of
 
 ## When it is the wrong tool
 
-It is the wrong tool for content that changes per user or per request, for corpora much larger than 50,000 chunks, and for multi-turn chat: each answer stands on its own. If you want search results without running any server code, use Pagefind. [Limits and trade-offs](/limits) has the details.
+It is the wrong tool for content that changes per user or per request, for corpora much larger than 50,000 chunks, and for open-ended chat: it answers questions from your pages, and a follow-up leans on the last three questions and their answers, nothing older. If you want search results without running any server code, use Pagefind. [Limits and trade-offs](/limits) has the details.

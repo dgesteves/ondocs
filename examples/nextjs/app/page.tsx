@@ -10,6 +10,7 @@ import { mode } from '../lib/ai';
 import { codeBlock } from '../lib/highlight';
 import { sampleAnswer } from '../lib/sample-answer';
 import { GITHUB_URL, INSTALL, SUGGESTIONS, VERSION } from '../lib/site';
+import { gzippedSize } from '../lib/sizes';
 
 import './landing.css';
 
@@ -147,14 +148,15 @@ const NUMBERS = [
     note: 'On docusaurus.io’s own docs, keyword-only: no model call. Checked in CI.',
   },
   {
-    value: '2.4 KB',
+    // Measured from the package as the site builds.
+    value: gzippedSize('embed.global.js'),
     label: 'script tag on each page, gzipped',
     note: 'The button and shortcut. The dialog loads the first time it is wanted.',
   },
   {
     value: '0',
-    label: 'model calls for a question the docs don’t cover',
-    note: 'The relevance gate answers “I don’t know” before the model is reached.',
+    label: 'model calls to answer what the docs don’t cover',
+    note: 'The gate says “I don’t know” before the model is reached; a follow-up may cost a short rewrite first.',
   },
   {
     value: '≤ 800',
@@ -203,9 +205,9 @@ const COMPARISON: { label: string; hosted: Cell; ours: Cell; search: Cell }[] = 
     search: 'No',
   },
   {
-    label: 'Dashboards and multi-turn chat',
+    label: 'Follow-up questions and dashboards',
     hosted: 'Typically included',
-    ours: 'No. Single-turn answers; log questions with onFinish',
+    ours: 'Follow-ups, yes. No dashboard: log questions with onFinish',
     search: 'No',
   },
 ];
@@ -421,7 +423,7 @@ export default async function Home() {
                   <td />
                   <th scope="col">
                     Hosted assistants
-                    <span>Kapa, Inkeep, Algolia Ask AI, Biel.ai, Markprompt</span>
+                    <span>Kapa, Inkeep, Algolia Ask AI, Biel.ai</span>
                   </th>
                   <th scope="col" className="compare-ours">
                     ondocs

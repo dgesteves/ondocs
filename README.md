@@ -116,7 +116,7 @@ See [MCP server](https://ondocs.vercel.app/docs/mcp) and [llms.txt and Markdown 
 
 ## How it compares
 
-- **Algolia DocSearch Ask AI** is free for open-source and technical docs, with your own model key and one config line in Docusaurus and VitePress. Choose it if you already use DocSearch and are fine with an Algolia account and its crawler.
+- **Algolia DocSearch Ask AI** adds answers to DocSearch's search box. Choose it if you already use DocSearch and are fine with an Algolia account and its crawler.
 - **Kapa.ai and Inkeep** are hosted. They take more sources than your docs (forums, issues, chat) and come with analytics dashboards and support tooling. ondocs gives you `ondocs eval` for CI, readers' ratings and a log of unanswered questions you wire yourself, not a dashboard.
 - **Fumadocs** has first-party AI chat and an MCP route. On a Fumadocs site, they fit its framework natively.
 - **docusaurus-plugin-mcp-server** builds the same kind of index for an MCP endpoint, more widely used today, with no Ask box for people.
