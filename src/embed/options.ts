@@ -22,6 +22,13 @@ export interface OndocsDialogOptions {
    * link. Citations link to their sources either way.
    */
   links?: 'all' | 'sources';
+  /**
+   * A bot check before each question, for an endpoint with `challenge` set:
+   * `{ turnstile: '<site key>' }`, a Cloudflare Turnstile widget's site key. The dialog loads
+   * Turnstile's script from challenges.cloudflare.com when it opens, and sends a fresh token with
+   * each question. Off by default.
+   */
+  challenge?: { turnstile: string };
 }
 
 /**

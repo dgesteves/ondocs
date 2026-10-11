@@ -122,8 +122,30 @@ function limiterComment(host: Host, what: string): string {
     : `// ${what} per client, keyed on the client IP Vercel sets in X-Forwarded-For.`;
 }
 
+/**
+ * The bot check, on once TURNSTILE_SECRET_KEY is set where the endpoint runs (`secret` reads it),
+ * indented by `pad`.
+ */
+function challengeOption(secret: string, pad: string): string {
+  return [
+    comment(
+      "A bot check on each question, once TURNSTILE_SECRET_KEY holds a Turnstile widget's secret key. Give the dialog the widget's site key as challenge.turnstile.",
+      pad,
+    ),
+    `${pad}...(${secret}`,
+    `${pad}  ? { challenge: turnstile({ secretKey: ${secret} }) }`,
+    `${pad}  : {}),`,
+  ].join('\n');
+}
+
 /** The options both kinds of ask endpoint share, after `index`, indented by `pad`. */
-function askOptions(site: TemplateSite, host: Host, pad: string, openai = 'openai'): string {
+function askOptions(
+  site: TemplateSite,
+  host: Host,
+  pad: string,
+  openai = 'openai',
+  secret = 'process.env.TURNSTILE_SECRET_KEY',
+): string {
   return [
     `model: ${openai}('${MODEL}'),`,
     '// The model the plugins and the CLI embed pages with when OPENAI_API_KEY is set as the site',
@@ -140,6 +162,7 @@ function askOptions(site: TemplateSite, host: Host, pad: string, openai = 'opena
     'answerCache: true,',
   ]
     .map((line) => `${pad}${line}`)
+    .concat(challengeOption(secret, pad))
     .join('\n');
 }
 
@@ -176,7 +199,7 @@ export function vercelFiles(site: TemplateSite, mcp: boolean): GeneratedFile[] {
       path: 'api/ask.ts',
       description: 'POST /api/ask: answers questions from the index',
       content: `${HEADER('The ask endpoint, POST /api/ask, as a Vercel Function.', `It answers from ${site.indexFile}, which the build writes and vercel.json bundles with this function. Set OPENAI_API_KEY in the project's environment variables: the build embeds the pages with it, and this function embeds questions and calls the model.`)}
-${imports('createAskHandler, memoryRateLimit')}
+${imports('createAskHandler, memoryRateLimit, turnstile')}
 
 const handler = createAskHandler({
   index: ${readIndex(site)},
@@ -264,7 +287,7 @@ export function netlifyFiles(site: TemplateSite, mcp: boolean): GeneratedFile[] 
       path: 'netlify/functions/ask.mts',
       description: 'POST /api/ask: answers questions from the index',
       content: `${HEADER('The ask endpoint, POST /api/ask, as a Netlify Function.', `It answers from ${site.indexFile}, which the build writes and netlify.toml bundles with this function. Set OPENAI_API_KEY in the site's environment variables: the build embeds the pages with it, and this function embeds questions and calls the model.`)}
-${imports('createAskHandler, memoryRateLimit')}
+${imports('createAskHandler, memoryRateLimit, turnstile')}
 
 export default createAskHandler({
   index: ${readIndex(site)},
@@ -366,7 +389,13 @@ export function cloudflarePagesFiles(site: TemplateSite, mcp: boolean): Generate
   const envType = (secret: boolean) =>
     [
       'interface Env {',
-      ...(secret ? ['  OPENAI_API_KEY: string;'] : []),
+      ...(secret
+        ? [
+            '  OPENAI_API_KEY: string;',
+            "  /** A Turnstile widget's secret key, for a bot check on each question. */",
+            '  TURNSTILE_SECRET_KEY?: string;',
+          ]
+        : []),
       '  ASSETS: { fetch: (request: Request) => Promise<Response> };',
       '}',
     ].join('\n');
@@ -376,7 +405,7 @@ export function cloudflarePagesFiles(site: TemplateSite, mcp: boolean): Generate
       description: 'POST /api/ask: answers questions from the index',
       content: `${HEADER('The ask endpoint, POST /api/ask, as a Cloudflare Pages Function.', `It answers from ${site.indexPath}, which the build writes into the site's files, read through the ASSETS binding. Set OPENAI_API_KEY as a secret, for production and previews: in the dashboard (Settings, Variables and Secrets) or with \`npx wrangler pages secret put OPENAI_API_KEY\`. Set it as a build variable too: the build embeds the pages with it.`)}
 import { createOpenAI } from '@ai-sdk/openai';
-import { createAskHandler, memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 ${envType(true)}
 
@@ -386,7 +415,7 @@ function create(request: Request, env: Env) {
   const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
 ${assetHelper(site, '  ')}  return createAskHandler({
     index: ${assetsIndex(site, '    ')}
-${indexesOption(site, '    ', (locale) => `asset(${quote(localePath(site, locale))})`)}${askOptions(site, 'cloudflare', '    ')}
+${indexesOption(site, '    ', (locale) => `asset(${quote(localePath(site, locale))})`)}${askOptions(site, 'cloudflare', '    ', 'openai', 'env.TURNSTILE_SECRET_KEY')}
   });
 }
 
@@ -431,10 +460,12 @@ export function cloudflareWorkerFiles(site: TemplateSite, mcp: boolean): Generat
       description: `the Worker: POST /api/ask${mcp ? ' and /api/mcp' : ''}; other requests get the static files`,
       content: `${HEADER("The Worker's entry point: the ask endpoint and the MCP endpoint, then the site's files.", `It answers from ${site.indexPath}, which the build writes into the static assets, read through the ASSETS binding. Set OPENAI_API_KEY with \`npx wrangler secret put OPENAI_API_KEY\`, and in the build's environment: the build embeds the pages with it.`, `A Worker that has its own entry point already can call \`ondocs(request, env)\` from it: it answers the endpoints' paths and returns null for every other request.`)}
 import { createOpenAI } from '@ai-sdk/openai';
-import { createAskHandler, ${mcp ? 'createMcpHandler, ' : ''}memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, ${mcp ? 'createMcpHandler, ' : ''}memoryRateLimit, turnstile } from 'ondocs/server';
 
 interface Env {
   OPENAI_API_KEY: string;
+  /** A Turnstile widget's secret key, for a bot check on each question. */
+  TURNSTILE_SECRET_KEY?: string;
   ASSETS: { fetch: (request: Request) => Promise<Response> };
 }
 
@@ -457,7 +488,7 @@ function create(request: Request, env: Env) {
 ${assetHelper(site, '  ')}  return {
     ask: createAskHandler({
       index,
-${indexesOption(site, '      ', (locale) => `asset(${quote(localePath(site, locale))})`)}${askOptions(site, 'cloudflare', '      ')}
+${indexesOption(site, '      ', (locale) => `asset(${quote(localePath(site, locale))})`)}${askOptions(site, 'cloudflare', '      ', 'openai', 'env.TURNSTILE_SECRET_KEY')}
     }),${
       mcp
         ? `
@@ -692,6 +723,7 @@ import {
   createAskHandler,${mcp ? '\n  createMcpHandler,' : ''}
   memoryRateLimit,
   remoteIndex,
+  turnstile,
 } from 'ondocs/server';
 import { createWorkersAI } from 'workers-ai-provider';
 
@@ -701,6 +733,8 @@ interface Env {
   /** The Workers AI model that writes the answers. */
   CHAT_MODEL: string;
   AI: Ai;
+  /** A Turnstile widget's secret key, for a bot check on each question. */
+  TURNSTILE_SECRET_KEY?: string;
 }
 
 type Handler = (request: Request) => Promise<Response>;
@@ -736,6 +770,7 @@ ${comment("A daily cap, counted per instance: about Workers AI's free allowance 
       budget: { requestsPerDay: 100, tokensPerDay: 300_000 },
       // A question asked again is answered from memory, without a model call.
       answerCache: true,
+${challengeOption('env.TURNSTILE_SECRET_KEY', '      ')}
 ${CORS}
     }),${mcpEntry(site, mcp)}
   };
@@ -756,12 +791,15 @@ import {
   createAskHandler,${mcp ? '\n  createMcpHandler,' : ''}
   memoryRateLimit,
   remoteIndex,
+  turnstile,
 } from 'ondocs/server';
 
 interface Env {
   /** The site's URL, with its base path. */
   SITE_URL: string;
   OPENAI_API_KEY: string;
+  /** A Turnstile widget's secret key, for a bot check on each question. */
+  TURNSTILE_SECRET_KEY?: string;
 }
 
 type Handler = (request: Request) => Promise<Response>;
@@ -798,6 +836,7 @@ ${indexesOption(site, '      ', (locale) => `remoteIndex(new URL(${quote(localeP
       budget: { requestsPerDay: 500, tokensPerDay: 1_500_000 },
       // A question asked again is answered from memory, without a model call.
       answerCache: true,
+${challengeOption('env.TURNSTILE_SECRET_KEY', '      ')}
 ${CORS}
     }),${mcpEntry(site, mcp)}
   };
@@ -821,7 +860,7 @@ export function nextFiles(
       description: 'POST /api/ask: answers questions from the index',
       content: `${HEADER('The ask endpoint, POST /api/ask, as a Next.js route handler.', `It answers from ${site.indexFile}, which \`ondocs index\` writes before the build, imported so it is bundled with the route. Set OPENAI_API_KEY where the app builds and runs.`)}
 import { openai } from '@ai-sdk/openai';
-import { createAskHandler, memoryRateLimit } from 'ondocs/server';
+import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 import index from '${importPath}';
 

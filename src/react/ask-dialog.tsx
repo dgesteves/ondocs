@@ -65,6 +65,13 @@ export interface AskDialogProps extends Omit<UseAskOptions, 'onFinish'> {
    * pages the answer's sources are on. See `AskAnswer`.
    */
   links?: AnswerLinks;
+  /**
+   * A bot check before each question, for an endpoint with `challenge` set:
+   * `{ turnstile: '<site key>' }`, a Cloudflare Turnstile widget's site key. When the dialog opens
+   * it loads Turnstile's script from challenges.cloudflare.com and solves a token, invisibly
+   * unless Turnstile asks the visitor to click, and it sends a fresh token with each question.
+   */
+  challenge?: { turnstile: string };
   onFinish?: (state: AskState) => void;
 }
 

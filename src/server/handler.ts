@@ -21,6 +21,7 @@ import {
 } from '../protocol';
 import type { LoadedIndex, RetrievalResult } from '../search/retrieve';
 import { createBudget, type BudgetOptions } from './budget';
+import type { ChallengeVerifier } from './challenge';
 import { retrieveWithHooks, type AskRetrievalOptions } from './retrieval';
 import {
   memoryAnswerCache,
@@ -134,6 +135,15 @@ export interface AskHandlerOptions {
    * the same way.
    */
   rateLimitFailure?: 'closed' | 'open';
+  /**
+   * A bot check on every question: `turnstile({ secretKey })` checks the Cloudflare Turnstile
+   * token the dialog sends with each question (its `challenge: { turnstile: '<site key>' }`
+   * option) before anything is spent on it. A question without a token gets a 403 with code
+   * `challenge_required`, and one with a bad or used token a 403 with `challenge_failed`. When the
+   * check cannot be made (Turnstile is down), the request is handled as `rateLimitFailure` says:
+   * a 503 by default. Feedback posts are not checked. Off by default.
+   */
+  challenge?: ChallengeVerifier;
   generation?: GenerationOptions;
   /**
    * A daily cap on spend: `{ requestsPerDay, tokensPerDay }`, counted in `store` (memory, per
@@ -236,8 +246,11 @@ function citesSources(text: string, sources: readonly AskSource[]): boolean {
 /** A locale as the dialog sends it: `fr`, `pt-br`, `zh-Hans`. Only the keys of `indexes` are used. */
 const localeSchema = z.string().max(35).optional();
 
+/** The bot check's token, from the dialog. Turnstile's are at most 2,048 characters. */
+const challengeSchema = z.string().max(4096).optional();
+
 const requestSchema = z.union([
-  z.object({ question: z.string(), locale: localeSchema }),
+  z.object({ question: z.string(), locale: localeSchema, challenge: challengeSchema }),
   // `useChat` from @ai-sdk/react posts the conversation; the latest user message is the question.
   z.object({
     messages: z
@@ -252,6 +265,7 @@ const requestSchema = z.union([
       )
       .min(1),
     locale: localeSchema,
+    challenge: challengeSchema,
   }),
 ]);
 
@@ -531,6 +545,37 @@ export function createAskHandler(
           message: `Questions are limited to ${String(maxQuestionLength)} characters.`,
         },
       });
+    }
+
+    // The bot check, before anything is spent on the question: the cache, the embedding, the model.
+    if (options.challenge) {
+      const token = parsed.success ? parsed.data.challenge : undefined;
+      if (!token) {
+        return json(403, {
+          error: {
+            code: 'challenge_required',
+            message: 'Send the bot check’s token as `challenge` with the question.',
+          },
+        });
+      }
+      let passed: boolean;
+      try {
+        passed = (await options.challenge(token, request)).success;
+      } catch (error) {
+        if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
+        // As for the rate limiter: failing closed by default, so an outage cannot switch it off.
+        reportError(error);
+        if (options.rateLimitFailure !== 'open') return unavailable();
+        passed = true;
+      }
+      if (!passed) {
+        return json(403, {
+          error: {
+            code: 'challenge_failed',
+            message: 'The bot check failed, or its token was used before. Ask again.',
+          },
+        });
+      }
     }
 
     // A client that hung up while the index loaded or the question was embedded is not an error

@@ -85,6 +85,12 @@ export interface UseAskOptions {
    * `false` asks every question on its own, as `{ question }`.
    */
   followUps?: boolean;
+  /**
+   * For an endpoint that checks for bots (`challenge` on `createAskHandler`): returns a fresh
+   * token before each question, sent as `challenge` with it. A token is used once. `AskDialog`
+   * sets it from its `challenge` option; set it yourself with your own Turnstile widget.
+   */
+  challengeToken?: () => Promise<string | undefined> | string | undefined;
 }
 
 export interface UseAsk extends AskState {
@@ -120,13 +126,17 @@ const INITIAL: AskState = {
   rating: null,
 };
 
-/** The request body: the thread as `useChat` sends it, or the question alone, and the locale. */
+/**
+ * The request body: the thread as `useChat` sends it, or the question alone, with the locale and
+ * the bot check's token.
+ */
 function requestBody(
   question: string,
   turns: readonly AskTurn[],
   locale: string | undefined,
+  challenge: string | undefined,
 ): string {
-  const where = locale ? { locale } : {};
+  const where = { ...(locale ? { locale } : {}), ...(challenge ? { challenge } : {}) };
   if (turns.length === 0) return JSON.stringify({ question, ...where });
   const text = (value: string) => [{ type: 'text', text: value }];
   return JSON.stringify({
@@ -270,6 +280,7 @@ export function useAsk(options: UseAskOptions = {}): UseAsk {
       onFinish,
       followUps = true,
       locale,
+      challengeToken,
     } = optionsRef.current;
 
     // The answer on screen joins the thread, if it is one: complete, or stopped with some text.
@@ -301,12 +312,23 @@ export function useAsk(options: UseAskOptions = {}): UseAsk {
     };
     commit({});
 
+    // The bot check's token, when the endpoint wants one. Without one, the endpoint says so.
+    let challenge: string | undefined;
+    if (challengeToken) {
+      try {
+        challenge = await challengeToken();
+      } catch {
+        challenge = undefined;
+      }
+      if (controller.signal.aborted) return;
+    }
+
     let response: Response;
     try {
       response = await fetcher(endpoint, {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...headers },
-        body: requestBody(question, turns, locale),
+        body: requestBody(question, turns, locale, challenge),
         signal: controller.signal,
       });
     } catch (error) {

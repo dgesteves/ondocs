@@ -11,6 +11,8 @@ export type {
   IndexSource,
 } from './handler';
 export type { FollowUpOptions } from './follow-up';
+export { turnstile } from './challenge';
+export type { ChallengeResult, ChallengeVerifier, TurnstileOptions } from './challenge';
 export type {
   AskRetrievalOptions,
   RetrievalHookContext,

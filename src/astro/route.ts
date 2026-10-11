@@ -5,6 +5,7 @@
 import type { EmbeddingModel, LanguageModel } from 'ai';
 
 import type { RetrievalOptions } from '../search/retrieve';
+import { turnstile, type ChallengeVerifier } from '../server/challenge';
 import { createAskHandler } from '../server/handler';
 import { createMcpHandler } from '../server/mcp';
 import { memoryRateLimit, type RateLimiter } from '../server/rate-limit';
@@ -25,6 +26,11 @@ export interface RouteSettings {
   mcpRateLimit: { limit: number; windowMs: number } | false;
   budget: { requestsPerDay?: number; tokensPerDay?: number } | false;
   answerCache: boolean;
+  /**
+   * The dialog has `challenge.turnstile`: check each question's token with Turnstile, with the
+   * secret in `TURNSTILE_SECRET_KEY`.
+   */
+  turnstile?: true;
 }
 
 /** The virtual module's exports: the settings, and the models, made where the site's packages are. */
@@ -109,6 +115,22 @@ interface Handlers {
 }
 
 /**
+ * The ask route's bot check, for a dialog with `challenge.turnstile`: Turnstile, with the secret
+ * from the adapter's environment. Without the secret, every question gets a 503 and the log says
+ * why; the MCP route, which is not checked, answers as before.
+ */
+function turnstileChallenge(module: RouteModule): ChallengeVerifier {
+  const secretKey = module.secret('TURNSTILE_SECRET_KEY');
+  if (secretKey) return turnstile({ secretKey });
+  return () =>
+    Promise.reject(
+      new Error(
+        "ondocs: the dialog has challenge.turnstile, so the ask route checks a Turnstile token with each question, and needs the widget's secret key in TURNSTILE_SECRET_KEY.",
+      ),
+    );
+}
+
+/**
  * The two handlers, made on the first request, once the index has been fetched, so questions are
  * embedded with the model it records. Shared by both routes, so they share one copy of the index.
  */
@@ -148,6 +170,7 @@ export function routeHandlers(module: RouteModule): (context: RouteContext) => P
         rateLimit: askLimit,
         ...(settings.budget ? { budget: settings.budget } : {}),
         answerCache: settings.answerCache,
+        ...(settings.turnstile ? { challenge: turnstileChallenge(module) } : {}),
       }),
       mcp: createMcpHandler({
         index,

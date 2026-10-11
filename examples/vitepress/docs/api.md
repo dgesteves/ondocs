@@ -48,4 +48,5 @@ const { hits, answerable, best } = retrieve(loaded, { text: question, vector });
 - **The relevance gate:** `gateHits`, which checks hits from anywhere (a reranker, a retriever of your own) against the index, as `createAskHandler` does after its [retrieval hooks](/retrieval#rerank-or-retrieve-your-own-way).
 - **Text:** `tokenize`, and `createSlugger`, to use in your renderer so citations' anchors always match your headings.
 - **Search's building blocks:** `Bm25Index`, `VectorIndex`, `reciprocalRankFusion`, `quantizeInt8`, `encodeVector` and `decodeVector`.
+- **Bot check:** `turnstile` from `ondocs/server`, for the ask endpoint's `challenge`: see [Bot check with Turnstile](/bot-challenge).
 - **For agents:** `buildLlmsFiles` and `markdownPath`, which build `llms.txt`, `llms-full.txt` and the pages' `.md` copies from any list of pages, and `mcpInstallLinks`, the install links and commands for an MCP server's URL.

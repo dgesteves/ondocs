@@ -225,7 +225,7 @@ describe('ondocs init', () => {
     expect(result.stdout).toMatch(/would create {2}api\/ask\.ts/);
     expect(result.stdout).toContain('--- api/ask.ts');
     expect(result.stdout).toContain(
-      "import { createAskHandler, memoryRateLimit } from 'ondocs/server';",
+      "import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';",
     );
     expect(existsSync(join(cwd, 'api'))).toBe(false);
     expect(await readFile(join(cwd, 'vercel.json'), 'utf8')).toBe('{}');

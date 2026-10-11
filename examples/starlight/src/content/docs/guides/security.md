@@ -63,6 +63,10 @@ export const POST = createAskHandler({
 
 The counts are kept in memory by default, so on a serverless platform each instance has its own budget. For one budget shared by every instance, pass `store: upstashBudgetStore(Redis.fromEnv())` with `@upstash/redis`. Either way, also set a monthly spend limit with your model provider: it is the only hard cap.
 
+## Check for bots
+
+A fleet of addresses gets past a per-client rate limit, and can use up the day's budget before your readers ask anything. `challenge: turnstile({ secretKey })` has each question carry a Cloudflare Turnstile token, which the dialog solves, invisibly for most visitors, and the endpoint checks before it spends anything. See [Bot check with Turnstile](/guides/bot-challenge/).
+
 ## Cache repeated questions
 
 `answerCache: true` answers a question asked again from memory, without embedding it or calling the model, so the questions everyone asks cost nothing after the first time. Questions match when they are the same apart from case, spacing and trailing punctuation, and the cache starts fresh when the index is rebuilt. `{ store: upstashAnswerCache(Redis.fromEnv()) }` shares it between instances.

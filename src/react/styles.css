@@ -604,6 +604,13 @@
   color: var(--ask-subtle);
 }
 
+/* Turnstile's widget: empty unless Turnstile asks the visitor to click. */
+.ask-challenge {
+  display: flex;
+  flex: none;
+  justify-content: center;
+}
+
 .ask-footer {
   display: flex;
   flex: none;

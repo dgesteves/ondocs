@@ -552,6 +552,16 @@ describe('ondocs/docusaurus', () => {
     expect(() => ondocs(context, { mcp: '/api/mcp' })).toThrow(/needed to make it absolute/);
   });
 
+  it('hands the dialog the bot check’s site key', async () => {
+    const { context } = await site();
+    const setGlobalData = vi.fn();
+    ondocs(context, {
+      dialog: { challenge: { turnstile: '1x00000000000000000000BB' } },
+    }).contentLoaded({ actions: { setGlobalData } });
+    const data = setGlobalData.mock.calls[0]?.[0] as { dialog: { challenge?: unknown } };
+    expect(data.dialog.challenge).toEqual({ turnstile: '1x00000000000000000000BB' });
+  });
+
   it('hands the dialog its settings, and points Docusaurus at files that exist', async () => {
     const { context } = await site();
     const plugin = ondocs(context, {

@@ -99,7 +99,9 @@ export interface OndocsOptions extends IndexOptions {
    * On a site with an SSR adapter (Node, Vercel, Netlify, Cloudflare), the integration serves the
    * ask endpoint at `endpoint` and an MCP endpoint at `/api/mcp` itself, so there is no route
    * file to write. An object sets the model and the limits; `false` turns it off, for a route of
-   * your own. A route file the site already has at either path is left to answer instead.
+   * your own. A route file the site already has at either path is left to answer instead. With
+   * `dialog.challenge.turnstile`, the ask endpoint checks each question's Turnstile token, with
+   * the secret in `TURNSTILE_SECRET_KEY`.
    */
   route?: OndocsRouteOptions | false;
   /**
@@ -235,6 +237,8 @@ export function createIntegration(
               mcpRateLimit: perMinute(routeOptions?.mcpRateLimit, 60),
               budget: routeOptions?.budget ?? DEFAULT_ROUTE_BUDGET,
               answerCache: routeOptions?.answerCache ?? true,
+              // The dialog solves a Turnstile challenge: the route checks it.
+              ...(options.dialog?.challenge?.turnstile ? { turnstile: true as const } : {}),
             },
             model,
             hasPackage('@ai-sdk/openai', astro.root),
