@@ -5,22 +5,22 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/dgesteves/ondocs/ci.yml?branch=main&label=CI&style=flat-square&labelColor=181c22)](https://github.com/dgesteves/ondocs/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ondocs?style=flat-square&labelColor=181c22&color=22d3ee)](https://www.npmjs.com/package/ondocs)
 [![License: MIT](https://img.shields.io/badge/license-MIT-22d3ee?style=flat-square&labelColor=181c22)](./LICENSE)
-[![Types](https://img.shields.io/badge/types-included-22d3ee?style=flat-square&labelColor=181c22)](https://ask-my-site-demo.vercel.app/docs/api)
+[![Types](https://img.shields.io/badge/types-included-22d3ee?style=flat-square&labelColor=181c22)](https://ondocs.vercel.app/docs/api)
 
-**Website: [ask-my-site-demo.vercel.app](https://ask-my-site-demo.vercel.app)**, whose [docs](https://ask-my-site-demo.vercel.app/docs) answer questions about this library with OpenAI, under a rate limit and a daily budget, and serve agents at `/api/mcp`. Formerly `ask-my-site` ([what changed](https://ask-my-site-demo.vercel.app/docs/migrating)).
+**Website: [ondocs.vercel.app](https://ondocs.vercel.app)**, whose [docs](https://ondocs.vercel.app/docs) answer questions about this library with OpenAI, under a rate limit and a daily budget, and serve agents at `/api/mcp`. Formerly `ask-my-site` ([what changed](https://ondocs.vercel.app/docs/migrating)).
 
 <!-- npm-readme:video -->
 
 https://github.com/user-attachments/assets/a6cc9565-cdee-4654-8616-be30ae4d7a8b
 
-<sub>The <a href="https://ask-my-site-demo.vercel.app">live demo</a>: a question, a streamed answer with citations, and a citation opening the section it came from. On that docs page, the Ask button answers a setup question with the exact config. Then the one-line setup for Docusaurus, Starlight and any other site.</sub>
+<sub>The <a href="https://ondocs.vercel.app">live demo</a>: a question, a streamed answer with citations, and a citation opening the section it came from. On that docs page, the Ask button answers a setup question with the exact config. Then the one-line setup for Docusaurus, Starlight and any other site.</sub>
 
 <!-- npm-readme:image
 <p align="center">
-  <a href="https://ask-my-site-demo.vercel.app"><img src=".github/assets/demo.webp" width="100%" alt="The live demo: a question about the docs, a streamed answer with numbered citations, a citation opening the exact section of the FAQ page, then the Ask button on that page answering how to add it to Starlight with the exact config. Last, the one-line setup for Docusaurus, Starlight and any other site."></a>
+  <a href="https://ondocs.vercel.app"><img src=".github/assets/demo.webp" width="100%" alt="The live demo: a question about the docs, a streamed answer with numbered citations, a citation opening the exact section of the FAQ page, then the Ask button on that page answering how to add it to Starlight with the exact config. Last, the one-line setup for Docusaurus, Starlight and any other site."></a>
 </p>
 
-<sub>The <a href="https://ask-my-site-demo.vercel.app">live demo</a>: a question, a streamed answer with citations, and a citation opening the section it came from. On that docs page, the Ask button answers a setup question with the exact config. Then the one-line setup for Docusaurus, Starlight and any other site.</sub>
+<sub>The <a href="https://ondocs.vercel.app">live demo</a>: a question, a streamed answer with citations, and a citation opening the section it came from. On that docs page, the Ask button answers a setup question with the exact config. Then the one-line setup for Docusaurus, Starlight and any other site.</sub>
 -->
 
 ## What you get
@@ -35,15 +35,15 @@ Search runs in memory inside one function you deploy: BM25 and vectors, merged w
 
 ## Pick your setup
 
-| Your site                          | What you add                | Guide                                                                 |
-| ---------------------------------- | --------------------------- | --------------------------------------------------------------------- |
-| Docusaurus 3                       | A plugin                    | [Docusaurus](https://ask-my-site-demo.vercel.app/docs/docusaurus)     |
-| Starlight, or any Astro site       | A plugin, or an integration | [Astro and Starlight](https://ask-my-site-demo.vercel.app/docs/astro) |
-| VitePress                          | One wrapper in its config   | [VitePress](https://ask-my-site-demo.vercel.app/docs/vitepress)       |
-| Next.js or another React app       | A route and a component     | [Next.js and React](https://ask-my-site-demo.vercel.app/docs/nextjs)  |
-| Hugo, Jekyll, MkDocs or plain HTML | One script tag              | [Script tag](https://ask-my-site-demo.vercel.app/docs/script-tag)     |
+| Your site                          | What you add                | Guide                                                       |
+| ---------------------------------- | --------------------------- | ----------------------------------------------------------- |
+| Docusaurus 3                       | A plugin                    | [Docusaurus](https://ondocs.vercel.app/docs/docusaurus)     |
+| Starlight, or any Astro site       | A plugin, or an integration | [Astro and Starlight](https://ondocs.vercel.app/docs/astro) |
+| VitePress                          | One wrapper in its config   | [VitePress](https://ondocs.vercel.app/docs/vitepress)       |
+| Next.js or another React app       | A route and a component     | [Next.js and React](https://ondocs.vercel.app/docs/nextjs)  |
+| Hugo, Jekyll, MkDocs or plain HTML | One script tag              | [Script tag](https://ondocs.vercel.app/docs/script-tag)     |
 
-Each answers from an endpoint you deploy as one function next to the site, rate-limited by default. `npx ondocs init` writes it for Vercel, Netlify, Cloudflare or GitHub Pages (as a Cloudflare Worker of its own, answering with Workers AI and no API key), and an Astro site with an SSR adapter needs none: see [Deploying](https://ask-my-site-demo.vercel.app/docs/deployment).
+Each answers from an endpoint you deploy as one function next to the site, rate-limited by default. `npx ondocs init` writes it for Vercel, Netlify, Cloudflare or GitHub Pages (as a Cloudflare Worker of its own, answering with Workers AI and no API key), and an Astro site with an SSR adapter needs none: see [Deploying](https://ondocs.vercel.app/docs/deployment).
 
 **Docusaurus.** `npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk`, then:
 
@@ -80,7 +80,7 @@ and render `<AskDialog launcher />` from `ondocs/react` in your layout.
 <script src="https://cdn.jsdelivr.net/npm/ondocs@0.7/dist/embed.global.js" defer></script>
 ```
 
-**Try it without a key.** `npx ondocs index ./docs -e mock`, then `npx ondocs dev`, serves the ask endpoint and the MCP server on localhost, with offline embeddings and a mock model that quotes your docs. See [Try it locally](https://ask-my-site-demo.vercel.app/docs/local-development).
+**Try it without a key.** `npx ondocs index ./docs -e mock`, then `npx ondocs dev`, serves the ask endpoint and the MCP server on localhost, with offline embeddings and a mock model that quotes your docs. See [Try it locally](https://ondocs.vercel.app/docs/local-development).
 
 ## For agents
 
@@ -102,7 +102,7 @@ claude mcp add --transport http acme-docs https://docs.acme.dev/api/mcp
 - **On your docs.** With the plugins' `mcp` option, a page can show an "Add to Cursor / VS Code / Claude" block.
 - **llms.txt.** The plugins write it by default, the CLI with `--llms-txt <dir>`, and they leave alone what another llms plugin already writes.
 
-See [MCP server](https://ask-my-site-demo.vercel.app/docs/mcp) and [llms.txt and Markdown pages](https://ask-my-site-demo.vercel.app/docs/llms-txt).
+See [MCP server](https://ondocs.vercel.app/docs/mcp) and [llms.txt and Markdown pages](https://ondocs.vercel.app/docs/llms-txt).
 
 ## Cost and safety defaults
 
@@ -112,7 +112,7 @@ See [MCP server](https://ask-my-site-demo.vercel.app/docs/mcp) and [llms.txt and
 - **`budget`** caps questions and model tokens per UTC day for the whole endpoint, and **`answerCache`** answers repeated questions without a model call.
 - **Requests** must be JSON, which forces a CORS preflight, and bodies are capped. Model errors are masked.
 - **Answers render as text,** never HTML, with links allow-listed. `links: 'sources'` keeps only links to the pages cited.
-- **Set a spend limit with your model provider.** It is the only hard cap. See [Rate limits and security](https://ask-my-site-demo.vercel.app/docs/security).
+- **Set a spend limit with your model provider.** It is the only hard cap. See [Rate limits and security](https://ondocs.vercel.app/docs/security).
 
 ## How it compares
 
@@ -122,11 +122,11 @@ See [MCP server](https://ask-my-site-demo.vercel.app/docs/mcp) and [llms.txt and
 - **docusaurus-plugin-mcp-server** builds the same kind of index for an MCP endpoint, more widely used today, with no Ask box for people.
 - **The llms.txt plugins** (docusaurus-plugin-llms, @signalwire/docusaurus-plugin-llms-txt, starlight-llms-txt, vitepress-plugin-llms) have more output options, such as custom sets and versions. ondocs writes the basics, and steps aside when one of them is installed.
 
-What ondocs adds is one index you host serving both people and agents, on Docusaurus, Starlight, VitePress, Next.js or any static site, with no vendor account. See [Limits and trade-offs](https://ask-my-site-demo.vercel.app/docs/limits) for where it is the wrong tool.
+What ondocs adds is one index you host serving both people and agents, on Docusaurus, Starlight, VitePress, Next.js or any static site, with no vendor account. See [Limits and trade-offs](https://ondocs.vercel.app/docs/limits) for where it is the wrong tool.
 
 ## Links
 
-- [Getting started](https://ask-my-site-demo.vercel.app/docs/getting-started), [Deploying](https://ask-my-site-demo.vercel.app/docs/deployment), [API](https://ask-my-site-demo.vercel.app/docs/api), [CLI](https://ask-my-site-demo.vercel.app/docs/cli), [Benchmarks](https://ask-my-site-demo.vercel.app/docs/benchmarks) and [FAQ](https://ask-my-site-demo.vercel.app/docs/faq)
+- [Getting started](https://ondocs.vercel.app/docs/getting-started), [Deploying](https://ondocs.vercel.app/docs/deployment), [API](https://ondocs.vercel.app/docs/api), [CLI](https://ondocs.vercel.app/docs/cli), [Benchmarks](https://ondocs.vercel.app/docs/benchmarks) and [FAQ](https://ondocs.vercel.app/docs/faq)
 - [Changelog](./CHANGELOG.md), [Contributing](./CONTRIBUTING.md), [Security](./SECURITY.md)
 
 Requires Node.js 22.12 or later, and any AI SDK provider. [MIT](./LICENSE) © Diogo Esteves

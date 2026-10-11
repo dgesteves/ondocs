@@ -12,7 +12,7 @@ Agents read docs as Markdown. With the same pages it indexes, ondocs writes thre
 
 The pages are the ones in the index, so `exclude` leaves a page out of both. Built from the HTML the site serves, a copy keeps the page's links, emphasis, code blocks with their language, numbered and nested lists, tables and quotes. The index itself is unchanged: it holds the text it always did.
 
-This site serves its own: [/llms.txt](https://ask-my-site-demo.vercel.app/llms.txt), [/llms-full.txt](https://ask-my-site-demo.vercel.app/llms-full.txt), and every page plus `.md`, as [/docs/mcp.md](https://ask-my-site-demo.vercel.app/docs/mcp.md).
+This site serves its own: [/llms.txt](https://ondocs.vercel.app/llms.txt), [/llms-full.txt](https://ondocs.vercel.app/llms-full.txt), and every page plus `.md`, as [/docs/mcp.md](https://ondocs.vercel.app/docs/mcp.md).
 
 ## In Docusaurus, Astro, Starlight and VitePress
 

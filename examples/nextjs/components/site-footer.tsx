@@ -6,12 +6,12 @@ import { Spark } from './icons';
 const MORE = [
   {
     name: 'onsystem',
-    href: 'https://design-system-mcp-demo.vercel.app',
+    href: 'https://onsystem.vercel.app',
     description: 'Keeps coding agents on your design system.',
   },
   {
     name: 'signoff-ui',
-    href: 'https://agent-ui-kit-demo.vercel.app',
+    href: 'https://signoff-ui.vercel.app',
     description: 'React components to review what an agent changed and control what it may do.',
   },
 ];

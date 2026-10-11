@@ -304,7 +304,7 @@ export default async function Home() {
             className="agents-code"
             dangerouslySetInnerHTML={{
               __html: await codeBlock(
-                'claude mcp add --transport http ondocs https://ask-my-site-demo.vercel.app/api/mcp',
+                'claude mcp add --transport http ondocs https://ondocs.vercel.app/api/mcp',
                 'sh',
               ),
             }}
