@@ -14,7 +14,7 @@ Yes. ondocs is free and open source under the MIT license, with no paid tier and
 
 ## How much does it cost to run?
 
-An answered question costs one embedding call and one model call, with at most 8,000 characters of sources in and 800 tokens out by default, and a follow-up that needs rewriting one more short call. A question the docs can't answer costs the embedding call only, because the model is never called. Hosting is one function and one static file. See [cost](./deployment.md#cost).
+An answered question costs one embedding call and one model call, with at most 8,000 characters of sources in and 800 tokens out by default, and a follow-up that needs rewriting one more short call. A question the docs can't answer costs the embedding call only: the model is never asked to answer it. A follow-up that needs rewriting costs the short rewrite call as well. Hosting is one function and one static file. See [cost](./deployment.md#cost).
 
 ## Do I need a vector database?
 

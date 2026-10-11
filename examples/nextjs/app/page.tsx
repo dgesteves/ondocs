@@ -155,8 +155,8 @@ const NUMBERS = [
   },
   {
     value: '0',
-    label: 'model calls for a question the docs don’t cover',
-    note: 'The relevance gate answers “I don’t know” before the model is reached.',
+    label: 'model calls to answer what the docs don’t cover',
+    note: 'The gate says “I don’t know” before the model is reached; a follow-up may cost a short rewrite first.',
   },
   {
     value: '≤ 800',

@@ -19,7 +19,7 @@ Size and load, per server instance:
 | Chunks |   Index |    gzip | As float JSON | Cold load | Heap retained | Process memory (peak) |
 | -----: | ------: | ------: | ------------: | --------: | ------------: | --------------------: |
 |  1,000 |  1.6 MB |  0.9 MB |        7.5 MB |     32 ms |        3.2 MB |       +23 MB (+31 MB) |
-| 10,000 | 15.7 MB |  8.5 MB |       75.4 MB |    339 ms |       25.2 MB |     +238 MB (+294 MB) |
+| 10,000 | 15.7 MB |  8.5 MB |       75.4 MB |    339 ms |       32.8 MB |     +238 MB (+294 MB) |
 | 50,000 | 78.7 MB | 42.6 MB |      377.1 MB |    1.72 s |      123.9 MB |   +759 MB (+1,130 MB) |
 
 Query latency and recall:

@@ -61,7 +61,7 @@ Deploy it with `cd ondocs-worker && npm install && npx wrangler deploy`, then se
 
 The Worker uses `remoteIndex` from `ondocs/server`, which any endpoint deployed apart from its site can use: `createAskHandler({ index: remoteIndex('https://acme.github.io/docs/ask-index.json'), … })`. A check that fails keeps the index it has; only the first fetch's failure fails a request.
 
-The first request in each Worker instance loads the index: 11 ms for this site's docs (229 chunks) and 38 ms for 1,000 chunks, in a fresh Node.js process on an Apple M1 Max. The Workers Free plan gives a request 10 ms of CPU time, with what Cloudflare calls "some built-in flexibility" for a Worker that "infrequently runs over" it, so a small site fits; a large one needs the Workers Paid plan, which allows 30 seconds by default.
+The first request in each Worker instance loads the index: 16 ms for this site's docs (316 chunks) and 38 ms for 1,000 chunks, in a fresh Node.js process on an Apple M1 Max. The Workers Free plan gives a request 10 ms of CPU time, with what Cloudflare calls "some built-in flexibility" for a Worker that "infrequently runs over" it, so a small site fits; a large one needs the Workers Paid plan, which allows 30 seconds by default.
 
 ## Runtimes
 
