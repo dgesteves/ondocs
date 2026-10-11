@@ -34,7 +34,7 @@ jobs:
         run: node scripts/corpus.mjs
       - run: pnpm test
       - run: pnpm build
-      - name: Check the published package (publint, are-the-types-wrong)
+      - name: Check the published packages, ondocs and packages/ (publint, are-the-types-wrong)
         run: pnpm check:package
       - name: Check the script embed's size (the launcher, and the dialog it loads), and that the docs give it
         run: node scripts/embed-size.mjs
