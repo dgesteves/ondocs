@@ -2,6 +2,32 @@
 
 Until 0.6.0 this package was published as `ask-my-site`. Its entries below keep the links and names of that time.
 
+## 0.8.0
+
+### Minor Changes
+
+- [#69](https://github.com/dgesteves/ondocs/pull/69) [`bbe0f87`](https://github.com/dgesteves/ondocs/commit/bbe0f8723f357f6cb2b92841b94fdb875148624c) Thanks [@dgesteves](https://github.com/dgesteves)! - New entry, `ondocs/integration`: the build helpers the Docusaurus, Astro and Starlight plugins are made of, for a plugin for another framework. It reads the pages a build wrote (`readBuiltHtml`, `loadBuiltPage`), builds the embedding model (`buildEmbedding`), writes the index with the previous build's vectors (`writeSiteIndex`, `indexCache`) and the llms files (`writeLlmsFiles`), and adds the launcher to every page (`launcherScript`, `LAUNCHER_STYLESHEETS`). The plugins now build with it alone. See "Writing an integration" in the docs.
+
+- [#73](https://github.com/dgesteves/ondocs/pull/73) [`4daccdf`](https://github.com/dgesteves/ondocs/commit/4daccdf03da0f215d69ce82abfd05e25d6e20c65) Thanks [@dgesteves](https://github.com/dgesteves)! - The Docusaurus, Astro, Starlight and VitePress plugins link each page to its Markdown copy. After the build, every page that has a `.md` copy gets `<link rel="alternate" type="text/markdown" href="…">` in its `<head>`, with the site's base path and the page's locale, so an agent that fetches the page finds the copy. A page whose head already links a Markdown copy keeps its own, and no page is linked when `llmsTxt` turns the copies off or another plugin writes them. Each page's HTML is replaced in one step, so a Docusaurus plugin reading it in its own `postBuild` at the same time reads all of it. In `ondocs/integration`, `writeLlmsFiles` takes `linkPages` to do the same for another framework.
+
+- [#71](https://github.com/dgesteves/ondocs/pull/71) [`d8a3e65`](https://github.com/dgesteves/ondocs/commit/d8a3e653e685582c73d4e183caf4fe4ac59c598d) Thanks [@dgesteves](https://github.com/dgesteves)! - `createAskHandler` takes two retrieval hooks. `retrieval.rerank(question, hits, { signal, index })` puts the candidates in a new order before `topK` is applied, with the AI SDK's `rerank()` and a reranking model, or to boost sections. `retrieval.retrieve(query, search, context)` finds the candidates instead of the built-in retrieval, with `search` to call it. The relevance gate decides after both: each hit's chunk is measured again against the question, so a hook cannot make an off-topic page count. A hook that throws is reported to `onError` and skipped. Without hooks, retrieval is unchanged. `gateHits`, the gate on hits from anywhere, is exported from `ondocs`.
+
+- [#74](https://github.com/dgesteves/ondocs/pull/74) [`55772ba`](https://github.com/dgesteves/ondocs/commit/55772bad6aaa6d9a91586d184304aa4e9029ae42) Thanks [@dgesteves](https://github.com/dgesteves)! - An optional bot check for the ask endpoint, with Cloudflare Turnstile, off by default. `createAskHandler` takes `challenge: turnstile({ secretKey })`, with `turnstile` from `ondocs/server`. Each question must then carry a Turnstile token as `challenge` in its body, which the endpoint checks with Turnstile's siteverify after the rate limit and before the answer cache, the embedding and the model. A question without a token gets a 403 with code `challenge_required`, and one with a bad or used token a 403 with `challenge_failed`. When Turnstile cannot be reached, the endpoint answers 503, or answers anyway with `rateLimitFailure: 'open'`. Feedback posts and the MCP endpoint are not checked.
+  
+  The dialog solves the check with `challenge: { turnstile: '<site key>' }`: on `AskDialog`, `mountAskDialog`, and the `dialog` options of the Docusaurus, Astro, Starlight and VitePress plugins, or with `data-turnstile-site-key` on the script tag. When the dialog opens, it loads Turnstile's script from challenges.cloudflare.com and solves a token, invisibly unless Turnstile asks the visitor to click, and it sends a fresh token with each question. Pages load nothing of Turnstile until then. Two new labels, `challengeRequired` and `challengeFailed`, say when the check did not load or failed. `useAsk` takes `challengeToken`, for a widget of your own.
+  
+  The Astro integration's own ask route checks tokens when `dialog.challenge.turnstile` is set, with the secret in `TURNSTILE_SECRET_KEY`. The endpoints `ondocs init` writes, and the Cloudflare Worker template, turn the check on once `TURNSTILE_SECRET_KEY` is set.
+
+- [#70](https://github.com/dgesteves/ondocs/pull/70) [`4773192`](https://github.com/dgesteves/ondocs/commit/4773192edf52134bb4edb5cf60fc2f92f322bbf5) Thanks [@dgesteves](https://github.com/dgesteves)! - New VitePress plugin, `ondocs/vitepress`: wrap the config in `withOndocs(defineConfig({ ... }))` and, after `vitepress build`, it indexes the pages at the URLs VitePress serves (with `base`, `cleanUrls`, `rewrites`, `srcExclude`, dynamic routes and an index per locale, leaving out pages with `search: false`), writes `llms.txt`, `llms-full.txt` and a Markdown copy of each page, and adds the "Ask AI" button and ⌘I to every page: about 2 KB of JavaScript, in VitePress's colors and dark mode, with the dialog loaded the first time it is wanted. No theme file is needed. `npx ondocs init` now recognizes VitePress sites and writes their endpoint for the index the plugin builds, and `ondocs dev` finds `.vitepress/dist/ask-index.json`.
+  
+  `ondocs/integration` adds `quietUseClient`, and `launcherScript` takes `spa: true` for a site that moves between pages without loading them.
+
+### Patch Changes
+
+- [#67](https://github.com/dgesteves/ondocs/pull/67) [`98d1021`](https://github.com/dgesteves/ondocs/commit/98d10215b7b852ab598b9416b2e11b6bda61e8d3) Thanks [@dgesteves](https://github.com/dgesteves)! - The Cloudflare Worker that `ondocs init` writes, and `templates/cloudflare-worker`, now allow the install scripts of esbuild and workerd in `package.json` (`allowScripts`) and decline fsevents. npm 12 runs no install scripts unless they are allowed, so a fresh install no longer warns that Wrangler's binaries were blocked.
+
+- [#72](https://github.com/dgesteves/ondocs/pull/72) [`5dbe809`](https://github.com/dgesteves/ondocs/commit/5dbe809ca1c47bf4bb4097749c243e856c1c840c) Thanks [@dgesteves](https://github.com/dgesteves)! - The website moved to ondocs.vercel.app, and the README links point there. The old address redirects, so links in earlier versions keep working.
+
 ## 0.7.0
 
 ### Minor Changes
