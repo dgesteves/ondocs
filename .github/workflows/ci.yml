@@ -47,6 +47,9 @@ jobs:
           node dist/cli.js index examples/nextjs/content/docs --base-url /docs -e mock -o "$RUNNER_TEMP/ask-index.json" --llms-txt "$RUNNER_TEMP/llms"
           node dist/cli.js index examples/nextjs/content/docs --base-url /docs -e mock -o "$RUNNER_TEMP/ask-index.json" --check
           test -s "$RUNNER_TEMP/llms/llms.txt" && test -s "$RUNNER_TEMP/llms/llms-full.txt" && test -s "$RUNNER_TEMP/llms/docs/mcp.md"
+      # retrieval-eval.yml runs this with OpenAI, by hand; here the local stub answers, with no key.
+      - name: The retrieval eval's steps, against the local OpenAI stub
+        run: node scripts/retrieval-eval.mjs --stub --out "$RUNNER_TEMP/retrieval-eval"
       - name: Build the example app (mock mode, no API key); each docs page links its .md copy
         run: |
           # Re-link the workspace now that dist/cli.js exists, so the example gets its bin.
