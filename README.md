@@ -9,6 +9,14 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-0e7490?style=flat-square&labelColor=181c22)](./LICENSE)
 [![Types](https://img.shields.io/badge/types-included-0e7490?style=flat-square&labelColor=181c22)](https://ondocs.vercel.app/docs/api)
 
+**Answers with**
+[![OpenAI](https://img.shields.io/badge/OpenAI-181c22?style=flat-square)](https://ondocs.vercel.app/docs/model-providers#openai)
+[![Anthropic](https://img.shields.io/badge/Anthropic-181c22?style=flat-square&logo=anthropic&logoColor=white)](https://ondocs.vercel.app/docs/model-providers#anthropic-and-claude)
+[![Google Gemini](https://img.shields.io/badge/Google_Gemini-181c22?style=flat-square&logo=googlegemini&logoColor=white)](https://ondocs.vercel.app/docs/model-providers#google-gemini)
+[![xAI Grok](https://img.shields.io/badge/xAI_Grok-181c22?style=flat-square)](https://ondocs.vercel.app/docs/model-providers#xai-and-grok)
+[![Workers AI](https://img.shields.io/badge/Workers_AI-181c22?style=flat-square&logo=cloudflare&logoColor=white)](https://ondocs.vercel.app/docs/model-providers#workers-ai)
+[![any AI SDK provider](https://img.shields.io/badge/any_AI_SDK_provider-181c22?style=flat-square)](https://ondocs.vercel.app/docs/model-providers#any-other-ai-sdk-provider)
+
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dgesteves/ondocs/tree/main/templates/cloudflare-worker)
 
 **Ask these docs from your editor**, through the MCP server this site runs on ondocs:

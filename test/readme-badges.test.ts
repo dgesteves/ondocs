@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import GithubSlugger from 'github-slugger';
 import { describe, expect, it } from 'vitest';
 
 import { mcpInstallLinks } from '../src/mcp-install';
@@ -32,6 +33,17 @@ describe("the README's badges", () => {
     expect(top).toContain(`](${site.claude})`);
     expect(top).toContain('](https://ondocs.vercel.app/docs/mcp)');
     expect(read('examples/nextjs/content/docs/mcp.md')).toContain(site.claudeCode);
+  });
+
+  it('link each model provider to its section of the model providers page', () => {
+    const slugger = new GithubSlugger();
+    const page = read('examples/nextjs/content/docs/model-providers.md');
+    const ids = new Set([...page.matchAll(/^#{2,3} (.+)$/gm)].map((m) => slugger.slug(m[1] ?? '')));
+    const anchors = [
+      ...top.matchAll(/\]\(https:\/\/ondocs\.vercel\.app\/docs\/model-providers#([\w-]+)\)/g),
+    ].map((m) => m[1]);
+    expect(anchors.length).toBeGreaterThan(4);
+    for (const anchor of anchors) expect(ids, anchor).toContain(anchor);
   });
 
   it('deploy the Worker template that is in the repository', () => {
