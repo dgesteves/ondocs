@@ -48,7 +48,24 @@ export function SiteFooter() {
               <a href={`${GITHUB_URL}/releases`}>Releases</a>
             </li>
             <li>
+              <a href={`${GITHUB_URL}/blob/main/CHANGELOG.md`}>Changelog</a>
+            </li>
+            <li>
               <a href={`${GITHUB_URL}/issues`}>Issues</a>
+            </li>
+          </ul>
+        </nav>
+        <nav aria-label="For agents" className="footer-column">
+          <p className="footer-heading">For agents</p>
+          <ul>
+            <li>
+              <a href="/llms.txt">llms.txt</a>
+            </li>
+            <li>
+              <a href="/llms-full.txt">llms-full.txt</a>
+            </li>
+            <li>
+              <Link href="/docs/mcp">MCP server</Link>
             </li>
           </ul>
         </nav>

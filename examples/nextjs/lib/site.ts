@@ -7,6 +7,9 @@ export const GITHUB_URL = 'https://github.com/dgesteves/ondocs';
 export const NPM_URL = 'https://www.npmjs.com/package/ondocs';
 export const VERSION: string = pkg.version;
 export const INSTALL = 'npm i ondocs';
+/** The docs home's description, in its metadata and on its share card. */
+export const DOCS_DESCRIPTION =
+  'Set up ondocs with Docusaurus, Astro, Starlight, VitePress, Next.js or a script tag, deploy the endpoint, serve the same index to agents over MCP and llms.txt, and tune retrieval.';
 
 /**
  * Questions offered in the dialog and on the home page. Each one is checked against the mock

@@ -70,3 +70,87 @@ export function Brand({ suffix }: { suffix?: string }) {
     </div>
   );
 }
+
+/** A docs card: the section, title and description, and the page's address. */
+export function DocCard({
+  section,
+  title,
+  description,
+  path,
+}: {
+  section: string;
+  title: string;
+  description: string;
+  path: string;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        height: '100%',
+        padding: '64px 72px',
+        fontFamily: 'Geist',
+        color: COLORS.fg,
+        background: `radial-gradient(900px 520px at 90% 0%, rgba(34, 211, 238, 0.14), rgba(13, 15, 18, 0) 70%), ${COLORS.ink}`,
+      }}
+    >
+      <Brand suffix="docs" />
+      <div
+        style={{
+          display: 'flex',
+          marginTop: 72,
+          fontFamily: 'Geist Mono',
+          fontSize: 22,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          color: COLORS.cyan,
+        }}
+      >
+        {section}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          marginTop: 18,
+          fontSize: 76,
+          fontWeight: 600,
+          lineHeight: 1.05,
+          letterSpacing: '-0.035em',
+        }}
+      >
+        {title}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          maxWidth: 940,
+          marginTop: 24,
+          fontSize: 30,
+          lineHeight: 1.4,
+          color: COLORS.muted,
+        }}
+      >
+        {description}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginTop: 'auto',
+          fontFamily: 'Geist Mono',
+          fontSize: 20,
+          color: COLORS.subtle,
+        }}
+      >
+        <span>ondocs.vercel.app{path}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10, color: COLORS.soft }}>
+          <Spark size={20} />
+          Ask these docs
+        </span>
+      </div>
+    </div>
+  );
+}

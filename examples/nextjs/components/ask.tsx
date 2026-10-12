@@ -18,18 +18,21 @@ export function openAsk(): void {
 }
 
 // The dialog's code (Radix, cmdk, the dialog itself) loads once the page is idle, or on the first
-// ⌘K or click, so it never competes with the first paint.
+// ⌘K, ⌘I or click, so it never competes with the first paint.
 const SiteAskDialog = dynamic(() => import('./ask-dialog').then((m) => m.SiteAskDialog), {
   ssr: false,
 });
 
-/** Text fields and editors keep ⌘K, as the dialog's own shortcut does. */
+/** ⌘K, as the dialog is this site's only search, and ⌘I, its shortcut in the plugins. */
+const SHORTCUT_KEYS = new Set(['k', 'i']);
+
+/** Text fields and editors keep ⌘K and ⌘I, as the dialog's own shortcut does. */
 const isEditable = (target: EventTarget | null): boolean =>
   target instanceof Element &&
   target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') !==
     null;
 
-/** The ask dialog, mounted once in the root layout and opened by ⌘K or any `AskButton`. */
+/** The ask dialog, mounted once in the root layout and opened by ⌘K, ⌘I or any `AskButton`. */
 export function Ask({ mode }: { mode: 'openai' | 'mock' }) {
   const [open, setOpenState] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -47,10 +50,11 @@ export function Ask({ mode }: { mode: 'openai' | 'mock' }) {
       load();
       setOpen(true);
     };
-    // ⌘K is handled here rather than by the dialog, so it works before the dialog has loaded.
-    // As in the dialog: a text field keeps it, except the dialog's own input, which closes it.
+    // The shortcuts are handled here rather than by the dialog, so they work before the dialog
+    // has loaded. As in the dialog: a text field keeps them, except the dialog's own input, which
+    // closes it.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return;
+      if (!(event.metaKey || event.ctrlKey) || !SHORTCUT_KEYS.has(event.key.toLowerCase())) return;
       if (!openRef.current && isEditable(event.target)) return;
       event.preventDefault();
       load();
@@ -101,7 +105,7 @@ export function AskButton({
       type="button"
       className={className}
       onClick={openAsk}
-      aria-keyshortcuts="Meta+K Control+K"
+      aria-keyshortcuts="Meta+K Control+K Meta+I Control+I"
     >
       <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" className="spark">
         <path

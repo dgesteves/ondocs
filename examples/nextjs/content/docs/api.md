@@ -21,7 +21,7 @@ The package has one CLI and these imports. Each is tree-shakeable, and only `ond
 | `ondocs/vitepress`              | The [VitePress plugin](/docs/vitepress): `withOndocs`                                                           |
 | `ondocs/astro/McpInstall.astro` | The "Add to Cursor / VS Code / Claude" block for an Astro or Starlight page                                     |
 | `ondocs/mock`                   | `mockEmbeddingModel` and `mockLanguageModel`, for tests and offline demos                                       |
-| `ondocs` (bin)                  | [`ondocs index`, `init` and `dev`](/docs/cli)                                                                   |
+| `ondocs` (bin)                  | [`ondocs index`, `init`, `dev` and `eval`](/docs/cli)                                                           |
 
 The handlers are documented in [The ask endpoint](/docs/ask-endpoint) and [MCP server](/docs/mcp), and the React components in [The ask dialog](/docs/ask-dialog).
 

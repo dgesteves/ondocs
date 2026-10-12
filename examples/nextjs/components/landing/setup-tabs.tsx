@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
 import { ArrowRight } from '../icons';
 
@@ -9,7 +9,7 @@ export interface SetupStep {
   title: string;
   /** Highlighted code block HTML, built on the server. */
   code?: string;
-  text?: string;
+  text?: ReactNode;
   link?: { href: string; label: string };
 }
 
@@ -25,7 +25,25 @@ export interface SetupTab {
 export function SetupTabs({ tabs }: { tabs: SetupTab[] }) {
   const [selected, setSelected] = useState(0);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const list = useRef<HTMLDivElement>(null);
+  const [more, setMore] = useState(false);
   const base = useId();
+
+  // The row fades at its end only while tabs are hidden past it, as on a phone.
+  useEffect(() => {
+    const element = list.current;
+    if (!element) return;
+    const update = () => {
+      setMore(element.scrollWidth - element.clientWidth - element.scrollLeft > 1);
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    element.addEventListener('scroll', update, { passive: true });
+    return () => {
+      observer.disconnect();
+      element.removeEventListener('scroll', update);
+    };
+  }, []);
 
   const select = (index: number) => {
     const next = (index + tabs.length) % tabs.length;
@@ -48,9 +66,11 @@ export function SetupTabs({ tabs }: { tabs: SetupTab[] }) {
   return (
     <div className="setup">
       <div
+        ref={list}
         role="tablist"
         aria-label="Setup for your stack"
         className="setup-tabs"
+        data-more={more ? '' : undefined}
         onKeyDown={onKeyDown}
       >
         {tabs.map((tab, i) => (

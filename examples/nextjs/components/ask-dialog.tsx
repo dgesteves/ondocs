@@ -21,7 +21,7 @@ export function SiteAskDialog({
       endpoint="/api/ask"
       open={open}
       onOpenChange={onOpenChange}
-      // The site handles ⌘K itself, so it works before this component has loaded.
+      // The site handles ⌘K and ⌘I itself, so they work before this component has loaded.
       shortcut={false}
       theme="dark"
       title="Ask the ondocs documentation"
@@ -41,8 +41,9 @@ export function SiteAskDialog({
               ? 'Mock mode: offline embeddings, answers quoted from these docs.'
               : 'Answers are generated from these docs and can be wrong. Check the sources.'}
           </span>
+          {/* The input row shows esc already. */}
           <span className="ask-footer-keys" aria-hidden="true">
-            <kbd className="ask-kbd">↵</kbd> ask <kbd className="ask-kbd">esc</kbd> close
+            <kbd className="ask-kbd">↵</kbd> ask
           </span>
         </div>
       }

@@ -30,8 +30,12 @@ export function HeroDemo({ suggestions, initial, mode }: HeroDemoProps) {
   const sources: readonly AskSource[] = live ? ask.sources : (initial?.sources ?? []);
   const refused = live && ask.refused;
   const busy = ask.status === 'loading' || ask.status === 'streaming';
+  // Every source shows, numbered as the answer cites them. Once the answer is complete, those it
+  // doesn't cite are dimmed, and an answer that cites none shows none.
+  const complete = !live || ask.status === 'done';
   const cited = citedSourceIds(answer);
-  const shown = sources.filter((source) => cited.has(source.id));
+  const showSources =
+    sources.length > 0 && !refused && !(complete && !sources.some((s) => cited.has(s.id)));
 
   const submit = (text: string) => {
     const trimmed = text.trim();
@@ -110,7 +114,10 @@ export function HeroDemo({ suggestions, initial, mode }: HeroDemoProps) {
           {ask.status === 'loading' ? (
             <p className="demo-status">Searching the index…</p>
           ) : answer ? (
-            <div className={refused ? 'demo-refused' : undefined}>
+            <div
+              className={refused ? 'demo-text demo-refused' : 'demo-text'}
+              data-streaming={ask.status === 'streaming' ? '' : undefined}
+            >
               <AskAnswer
                 text={answer}
                 sources={sources}
@@ -130,14 +137,15 @@ export function HeroDemo({ suggestions, initial, mode }: HeroDemoProps) {
             </p>
           ) : null}
         </div>
-        {shown.length > 0 && !refused ? (
+        {showSources ? (
           <div className="demo-sources">
             <p className="demo-label">Sources</p>
             <ol>
-              {shown.map((source) => (
+              {sources.map((source) => (
                 <li key={source.id}>
                   <a
                     href={source.url}
+                    data-cited={complete ? cited.has(source.id) : undefined}
                     onClick={(event) => {
                       navigate(source.url, event);
                     }}
