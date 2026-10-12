@@ -49,8 +49,18 @@ export interface RetrievalHooks {
   ) => RetrievalHit[] | Promise<RetrievalHit[]>;
 }
 
-/** `createAskHandler`'s `retrieval` option: the retrieval settings, and the hooks. */
-export type AskRetrievalOptions = RetrievalOptions & RetrievalHooks;
+/**
+ * `createAskHandler`'s `retrieval` option: the retrieval settings, how much of what they find
+ * reaches the model, and the hooks.
+ */
+export type AskRetrievalOptions = RetrievalOptions &
+  RetrievalHooks & {
+    /**
+     * Upper bound on the source text sent to the model, in characters. The `topK` chunks go in
+     * best first until the next one would pass it; the first always goes in. Default 8000.
+     */
+    maxContextChars?: number;
+  };
 
 /**
  * Retrieves the sources for a question. Without hooks, this is `retrieve` itself. With them, the

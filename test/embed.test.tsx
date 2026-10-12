@@ -59,7 +59,7 @@ describe('scriptOptions', () => {
           'data-placeholder': 'Ask away…',
           'data-suggestions': '["How do I install it?", "Is it free?"]',
           'data-shortcut': 'j',
-          'data-button-label': 'Ask',
+          'data-launcher': 'Ask',
           'data-theme': 'dark',
           'data-links': 'sources',
         }),
@@ -70,12 +70,13 @@ describe('scriptOptions', () => {
       placeholder: 'Ask away…',
       suggestions: ['How do I install it?', 'Is it free?'],
       shortcut: 'j',
-      buttonLabel: 'Ask',
+      launcher: 'Ask',
       theme: 'dark',
       links: 'sources',
     });
     expect(scriptOptions(data({}))).toEqual({});
     expect(scriptOptions(data({ 'data-links': 'some' }))).toEqual({});
+    expect(scriptOptions(data({ 'data-launcher': 'true' }))).toEqual({ launcher: true });
   });
 
   it('turns the shortcut and the button off with "false", and skips what it cannot read', () => {
@@ -84,12 +85,13 @@ describe('scriptOptions', () => {
       scriptOptions(
         data({
           'data-shortcut': 'false',
-          'data-button-label': '',
+          'data-launcher': '',
           'data-theme': 'sepia',
           'data-suggestions': 'How do I install it?',
         }),
       ),
-    ).toEqual({ shortcut: false, buttonLabel: false });
+    ).toEqual({ shortcut: false, launcher: false });
+    expect(scriptOptions(data({ 'data-launcher': 'false' }))).toEqual({ launcher: false });
     expect(scriptOptions(data({ 'data-suggestions': '[1, 2]' }))).toEqual({});
     expect(warn).toHaveBeenCalledTimes(2);
     expect(warn.mock.calls[0]?.[0]).toContain('data-suggestions must be a JSON array of strings');
@@ -127,7 +129,7 @@ describe('mountAskDialog', () => {
   it('renders into a given container, which unmount leaves in place', async () => {
     const container = document.createElement('section');
     document.body.append(container);
-    const dialog = mount({ container, buttonLabel: false, shortcut: 'j' });
+    const dialog = mount({ container, launcher: false, shortcut: 'j' });
     expect(container.querySelector('.ondocs-launcher')).toBeNull();
     await userEvent.keyboard('{Control>}j{/Control}');
     expect(await screen.findByRole('dialog', { name: 'Ask this site' })).toBeTruthy();
@@ -233,7 +235,7 @@ describe('dist/embed.global.js', () => {
   });
 
   it('mounts from its own tag’s data-* attributes, and injects its styles once', async () => {
-    await runScript({ 'data-button-label': 'Ask the docs', 'data-shortcut': 'j' });
+    await runScript({ 'data-launcher': 'Ask the docs', 'data-shortcut': 'j' });
     const launcher = screen.getByRole('button', { name: 'Ask the docs' });
     expect(launcher.getAttribute('aria-keyshortcuts')).toBe('Meta+J Control+J');
     expect(document.head.firstElementChild?.id).toBe('ondocs-styles');
@@ -248,7 +250,7 @@ describe('dist/embed.global.js', () => {
     expect(document.querySelector('.ondocs')).toBeNull();
     let dialog!: MountedAskDialog;
     act(() => {
-      dialog = window.Ondocs!.mount({ buttonLabel: 'Ask' });
+      dialog = window.Ondocs!.mount({ launcher: 'Ask' });
     });
     expect(screen.getByRole('button', { name: 'Ask' })).toBeTruthy();
     act(() => {
@@ -264,7 +266,7 @@ describe('dist/embed.global.js', () => {
     expect(window.AskMySite).toBe(window.Ondocs);
     let dialog!: MountedAskDialog;
     act(() => {
-      dialog = window.AskMySite!.mount({ buttonLabel: 'Ask' });
+      dialog = window.AskMySite!.mount({ launcher: 'Ask' });
     });
     expect(screen.getByRole('button', { name: 'Ask' })).toBeTruthy();
     expect(warn.mock.calls).toEqual([

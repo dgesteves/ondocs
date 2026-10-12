@@ -53,6 +53,7 @@ const sidebars: SidebarsConfig = {
         'limits',
         'faq',
         'migrating',
+        'upgrading',
       ],
     },
   ],

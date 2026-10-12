@@ -12,6 +12,7 @@ import {
 import { z } from 'zod';
 
 import type { EmbeddingProviderOptions } from '../build';
+import { warnDeprecated } from '../deprecation';
 import { sha256 } from '../hash';
 import {
   SOURCE_METADATA_KEY,
@@ -101,13 +102,17 @@ export interface AskHandlerOptions {
   /** Replace the system instructions, or extend the defaults: `(defaults) => defaults + '…'`. */
   instructions?: string | ((defaults: string) => string);
   /**
-   * How retrieval runs: `topK`, `candidates` and the relevance gate's thresholds, and two hooks.
-   * `rerank` puts the candidates in a new order (with the AI SDK's `rerank()`, or to boost
-   * sections), and `retrieve` finds them instead of the built-in retrieval, or around it. The
-   * relevance gate checks what the hooks return, so they cannot make an off-topic chunk count.
+   * How retrieval runs: `topK`, `candidates`, the relevance gate's thresholds and
+   * `maxContextChars`, and two hooks. `rerank` puts the candidates in a new order (with the AI
+   * SDK's `rerank()`, or to boost sections), and `retrieve` finds them instead of the built-in
+   * retrieval, or around it. The relevance gate checks what the hooks return, so they cannot make
+   * an off-topic chunk count.
    */
   retrieval?: AskRetrievalOptions;
-  /** Upper bound on source text sent to the model, in characters. Default 8000. */
+  /**
+   * @deprecated Use `retrieval.maxContextChars`, next to `topK`. `maxContextChars` still works,
+   * with a warning, until 0.10.
+   */
   maxContextChars?: number;
   /** Longest accepted question, in characters. Default 500. */
   maxQuestionLength?: number;
@@ -328,7 +333,11 @@ export function createAskHandler(
 ): (request: Request) => Promise<Response> {
   const siteName = options.siteName ?? 'this site';
   const maxQuestionLength = options.maxQuestionLength ?? 500;
-  const maxContextChars = options.maxContextChars ?? 8000;
+  const { maxContextChars: contextChars, ...retrievalSettings } = options.retrieval ?? {};
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- its name before 0.9, still read
+  const oldContextChars = options.maxContextChars;
+  if (oldContextChars !== undefined) warnDeprecated('maxContextChars', 'retrieval.maxContextChars');
+  const maxContextChars = contextChars ?? oldContextChars ?? DEFAULT_MAX_CONTEXT_CHARS;
   const maxBodyBytes = options.maxBodyBytes ?? 64 * 1024;
   const noAnswerMessage =
     options.noAnswerMessage ?? `I don't know. I couldn't find anything about that on ${siteName}.`;
@@ -385,7 +394,16 @@ export function createAskHandler(
   const maxOutputTokens = options.generation?.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
   const budget = options.budget ? createBudget(options.budget) : null;
   const cache = options.answerCache
-    ? answerCache(options.answerCache, options, instructions)
+    ? answerCache(options.answerCache, options, instructions, {
+        // `retrieval` and `maxContextChars` as before 0.9 named them, so moving `maxContextChars`
+        // into `retrieval` keeps the cache's keys.
+        retrieval:
+          options.retrieval === undefined ||
+          (contextChars !== undefined && Object.keys(retrievalSettings).length === 0)
+            ? null
+            : retrievalSettings,
+        maxContextChars: contextChars ?? oldContextChars ?? null,
+      })
     : null;
   const unavailable = (): Response =>
     json(503, {
@@ -675,7 +693,7 @@ export function createAskHandler(
     const retrieval = await retrieveWithHooks(
       index,
       { text: searched, vector: queryVector },
-      options.retrieval,
+      retrievalSettings,
       { signal: request.signal, report: reportError },
     );
     if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
@@ -830,6 +848,9 @@ export function createAskHandler(
 
 const DEFAULT_MAX_OUTPUT_TOKENS = 800;
 
+/** What `retrieval.maxContextChars` defaults to: characters of source text sent to the model. */
+const DEFAULT_MAX_CONTEXT_CHARS = 8000;
+
 /** What `rateLimit` defaults to: 10 questions a minute per client IP, per instance. */
 const DEFAULT_RATE_LIMIT = 10;
 
@@ -851,6 +872,10 @@ function answerCache(
   cacheOptions: true | AnswerCacheOptions,
   options: AskHandlerOptions,
   instructions: string,
+  keyed: {
+    retrieval: Omit<AskRetrievalOptions, 'maxContextChars'> | null;
+    maxContextChars: number | null;
+  },
 ) {
   const {
     store = memoryAnswerCache(),
@@ -870,11 +895,11 @@ function answerCache(
           modelName(options.model),
           instructions,
           options.noAnswerMessage ?? null,
-          options.retrieval ?? null,
+          keyed.retrieval,
           // The hooks, which JSON leaves out: a change to their code starts a fresh cache.
           String(options.retrieval?.retrieve ?? ''),
           String(options.retrieval?.rerank ?? ''),
-          options.maxContextChars ?? null,
+          keyed.maxContextChars,
           options.generation?.maxOutputTokens ?? null,
         ]),
       );

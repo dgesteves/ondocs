@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { version } from '../../package.json' with { type: 'json' };
+import { REMOVED_IN } from '../deprecation';
 import {
   cloudflarePagesFiles,
   cloudflareWorkerFiles,
@@ -46,7 +47,7 @@ Options:
       --provider <name>    For github-pages: workers-ai (the default; no API key) or openai
       --site-url <url>     The site's public URL with its base path, for github-pages
                            (default: from the site's config)
-      --name <text>        The site's name, for the model's instructions (default: its title)
+      --site-name <text>   The site's name, for the model's instructions (default: its title)
       --out <dir>          A static site's build output folder (default: detected)
       --no-mcp             Write the ask endpoint only
       --dry-run            Print what it would write, and write nothing
@@ -797,6 +798,8 @@ function parseInitFlags(args: string[]) {
         host: { type: 'string' },
         provider: { type: 'string' },
         'site-url': { type: 'string' },
+        'site-name': { type: 'string' },
+        // --site-name's name before 0.9.
         name: { type: 'string' },
         out: { type: 'string' },
         mcp: { type: 'boolean' },
@@ -818,11 +821,16 @@ function parseInitFlags(args: string[]) {
     if (siteUrl !== undefined && !/^https?:\/\/[^/]/.test(siteUrl)) {
       throw new InitError(`--site-url must be an absolute http(s) URL (got ${siteUrl}).`);
     }
+    const name = values['site-name'] ?? values.name;
     return {
       ...(host ? { host: host as Host } : {}),
       ...(provider ? { provider: provider } : {}),
       ...(siteUrl ? { siteUrl: siteUrl.replace(/\/+$/, '') } : {}),
-      ...(values.name ? { name: values.name } : {}),
+      ...(name ? { name } : {}),
+      deprecated:
+        values.name === undefined
+          ? []
+          : [`--name is now --site-name. The old name still works until ${REMOVED_IN}.`],
       ...(values.out ? { out: values.out } : {}),
       mcp: values.mcp ?? true,
       dryRun: values['dry-run'] ?? false,
@@ -880,6 +888,7 @@ export async function init(args: string[], io: CliIO): Promise<number> {
     io.stdout(INIT_USAGE);
     return 0;
   }
+  for (const warning of flags.deprecated) io.stderr(`! ${warning}`);
   try {
     const p = project(io.cwd);
     const site = detectSite(p, flags);

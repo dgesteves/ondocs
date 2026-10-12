@@ -134,9 +134,9 @@ export default function ondocs(context: LoadContext, options: OndocsOptions = {}
   const mcp = resolveMcp(options.mcp, context.siteConfig.url, siteTitle, 'the site config');
   // This build's locale: its own options over the dialog's, and sent with each question.
   const { currentLocale, defaultLocale } = context.i18n;
-  const { locales: perLocale, ...base } = options.dialog ?? {};
-  const own = perLocale?.[currentLocale];
-  const labels = { ...base.labels, ...own?.labels };
+  const { locales: perLocale, ...base } = withLauncher(options.dialog ?? {}, 'dialog.');
+  const own = withLauncher(perLocale?.[currentLocale] ?? {}, `dialog.locales.${currentLocale}.`);
+  const labels = { ...base.labels, ...own.labels };
   const dialog = { ...base, ...own, ...(Object.keys(labels).length > 0 ? { labels } : {}) };
   const data: OndocsGlobalData = {
     endpoint: dialogEndpoint(options.endpoint),
@@ -216,6 +216,27 @@ export default function ondocs(context: LoadContext, options: OndocsOptions = {}
       }
     },
   };
+}
+
+const warnedRenames = new Set<string>();
+
+/**
+ * `options` with `buttonLabel`, the launcher's name before 0.9, moved to `launcher` (which wins
+ * when both are set). Says once, while the site builds, that `buttonLabel` under `where` (such as
+ * `dialog.`) is now `launcher`.
+ */
+function withLauncher<
+  Options extends { launcher?: boolean | string; buttonLabel?: string | false },
+>(options: Options, where: string): Omit<Options, 'buttonLabel'> {
+  const { buttonLabel, ...rest } = options;
+  if (buttonLabel === undefined) return rest;
+  if (!warnedRenames.has(where)) {
+    warnedRenames.add(where);
+    consoleLogger().warn(
+      `${where}buttonLabel is now ${where}launcher. The old name still works until 0.10.`,
+    );
+  }
+  return rest.launcher === undefined ? { ...rest, launcher: buttonLabel } : rest;
 }
 
 /**

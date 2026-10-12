@@ -21,13 +21,17 @@ Build the index from the folder that holds your pages, and commit `ask-index.jso
 ```json
 {
   "scripts": {
-    "index": "ondocs index content --base-url /docs -e openai:text-embedding-3-small --dimensions 512",
+    "index": "ondocs index content --base-url /docs -e openai:text-embedding-3-small --dimensions 512 --llms-txt public",
     "prebuild": "npm run index"
   }
 }
 ```
 
 `--base-url /docs` makes `content/setup.md` cite `/docs/setup`. The CLI detects Next.js-style content (Fumadocs, Nextra) and leaves `(group)` folders out of URLs.
+
+Citations link to those URLs, so the app must serve the pages there. A new `create-next-app` project has no `content/` folder and no `/docs` route: add your pages and a route under `app/docs/` that renders them, or set `--base-url` to where your pages already are.
+
+`--llms-txt public` also writes `llms.txt`, `llms-full.txt` and a Markdown copy of each page into `public/`, which Next.js serves from the site's root: `/docs/setup.md` for `/docs/setup`. See [llms.txt and Markdown pages](./llms-txt.md).
 
 ## Mount the route handler
 
@@ -49,6 +53,25 @@ export const POST = createAskHandler({
 ```
 
 Importing the JSON bundles the index with the function, and it is loaded into memory once per server instance. Set `OPENAI_API_KEY` in your deployment's environment.
+
+## Serve agents over MCP
+
+The same index answers coding agents from a second route, with `createMcpHandler`. Without an `embeddingModel`, it calls no model:
+
+```ts
+// app/api/mcp/route.ts
+import { createMcpHandler } from 'ondocs/server';
+import index from '../../../ask-index.json';
+
+const handler = createMcpHandler({ index, siteName: 'Acme Docs' });
+
+export const POST = handler;
+export const GET = handler;
+export const DELETE = handler;
+export const OPTIONS = handler;
+```
+
+Agents connect to `/api/mcp`, as in `claude mcp add --transport http acme-docs https://docs.acme.dev/api/mcp`. See [MCP server](./mcp.md).
 
 ## Render the dialog
 
@@ -77,11 +100,11 @@ export function Ask() {
 }
 ```
 
-Then render `<Ask />` in `app/layout.tsx`. `launcher` shows a floating "Ask AI" button; the dialog also opens with ⌘K or Ctrl+K.
+Then render `<Ask />` in `app/layout.tsx`. `launcher` shows a floating "Ask AI" button; the dialog also opens with ⌘I or Ctrl+I.
 
 ## Open it from your own button
 
-Leave `launcher` out and pass `trigger` to open the dialog from an element of your own, such as a search box in your header: `<AskDialog trigger={<button type="button">Ask the docs</button>} />`. Change the shortcut with `shortcut="j"`, or turn it off with `shortcut={false}`.
+Leave `launcher` out and pass `trigger` to open the dialog from an element of your own, such as a search box in your header: `<AskDialog trigger={<button type="button">Ask the docs</button>} />`. Change the shortcut with `shortcut="k"`, for ⌘K on a site whose only search is this dialog, or turn it off with `shortcut={false}`.
 
 ## Other React frameworks and runtimes
 

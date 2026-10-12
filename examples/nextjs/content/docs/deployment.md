@@ -169,7 +169,7 @@ For a static site on Cloudflare Workers, `init` writes `worker/ondocs.ts`, which
 
 ## Environment variables
 
-Set your provider's key, such as `OPENAI_API_KEY`, in two places: in the build, if the build embeds the index, and in the function's runtime environment, which embeds questions and calls the model. `init` prints where each goes on your host. The key never reaches the browser: the dialog only talks to your endpoint. A build without the key writes a keyword-only index, which the endpoint answers from without embedding questions.
+Set your provider's key, such as `OPENAI_API_KEY`, in two places: in the build, if the build embeds the index, and in the function's runtime environment, which embeds questions and calls the model. `init` prints where each goes on your host. The key never reaches the browser: the dialog only talks to your endpoint. A plugin's build without the key writes a keyword-only index, which the endpoint answers from without embedding questions; `ondocs index` writes one with `-e none`.
 
 ## Cold starts
 

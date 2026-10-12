@@ -18,11 +18,11 @@ Add this tag to your base template, before `</body>` or in `<head>`:
 ></script>
 ```
 
-The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.7.0`, in production.
+The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.8.0`, in production.
 
 ## Script size
 
-The embed script, `embed.global.js`, is 2.7 KB gzipped: the button, the shortcut and their styles. The dialog, with React and its styles, is a second file next to it, `embed-dialog.global.js` (94 KB gzipped), which the script loads the first time the dialog is wanted: a pointer over or focus on the button, the shortcut, or `open()`. A shortcut pressed while it loads still opens the dialog once it arrives. The page needs nothing else, and `defer` loads the script without blocking the page.
+The embed script, `embed.global.js`, is 2.9 KB gzipped: the button, the shortcut and their styles. The dialog, with React and its styles, is a second file next to it, `embed-dialog.global.js` (94 KB gzipped), which the script loads the first time the dialog is wanted: a pointer over or focus on the button, the shortcut, or `open()`. A shortcut pressed while it loads still opens the dialog once it arrives. The page needs nothing else, and `defer` loads the script without blocking the page.
 
 If you host the script yourself, copy both files to the same folder, or point at the dialog's file with `data-dialog-src`.
 
@@ -31,14 +31,16 @@ If you host the script yourself, copy both files to the same folder, or point at
 The script only adds the dialog; the answers come from an endpoint that reads your index. Build the index with the CLI, either from your Markdown or from the HTML your generator built, which has the URLs it actually serves:
 
 ```sh
-hugo && npx ondocs index public -e openai:text-embedding-3-small
+hugo && npx ondocs index public -o public/ask-index.json -e openai:text-embedding-3-small
 ```
+
+`-o public/ask-index.json` puts the index in the folder the site deploys, where the endpoint reads it. The OpenAI embedding needs `OPENAI_API_KEY` set. Without a key, `-e none` builds a keyword-only index, which works too.
 
 The output folder is `public` after `hugo`, `_site` after Jekyll or Eleventy, and `site` after `mkdocs build`. HTML is read from each page's `<main>`, and citations link to the headings' own `id`s. `index.html` stands for its folder, and other HTML files keep `.html` in their URLs unless you pass `--clean-urls`, for hosts that serve `/guide.html` at `/guide`.
 
 ## Deploy the endpoint for a static site
 
-Write the endpoint with `npx ondocs init` in the site's folder: a Vercel, Netlify or Cloudflare function that reads the index next to the site's files, or, for GitHub Pages, S3 or any host that only serves files, a Cloudflare Worker of its own that reads the index from the live site, answers it across origins and needs no API key: see [Workers AI](./workers-ai.md). Then set `data-endpoint` to the Worker's URL plus `/api/ask`. On Vercel, Netlify and Cloudflare, the functions import `ondocs`, `ai` and `@ai-sdk/openai`, and init prints the command that installs them, with `npm init -y` first for a site that has no `package.json`. See [Deploying](./deployment.md).
+Write the endpoint with `npx ondocs init` in the site's folder. It finds Hugo, Jekyll, MkDocs and Eleventy from their config files. Plain HTML has none, so name the folder of HTML files with `--out`, as in `npx ondocs init --out public`. It writes a Vercel, Netlify or Cloudflare function that reads the index next to the site's files, or, for GitHub Pages, S3 or any host that only serves files, a Cloudflare Worker of its own that reads the index from the live site, answers it across origins and needs no API key: see [Workers AI](./workers-ai.md). Then set `data-endpoint` to the Worker's URL plus `/api/ask`. On Vercel, Netlify and Cloudflare, the functions import `ondocs`, `ai` and `@ai-sdk/openai`, and init prints the command that installs them, with `npm init -y` first for a site that has no `package.json`. See [Deploying](./deployment.md).
 
 To try it first, run `npx ondocs dev` beside the index and set `data-endpoint="http://localhost:8787/api/ask"`.
 
@@ -51,7 +53,7 @@ To try it first, run `npx ondocs dev` beside the index and set `data-endpoint="h
 | `data-placeholder`        | "Ask a question…"  | The input's placeholder.                                                              |
 | `data-suggestions`        | none               | A JSON array, as in `data-suggestions='["How do I install it?"]'`.                    |
 | `data-shortcut`           | `i`                | The key used with ⌘ or Ctrl; `"false"` turns it off.                                  |
-| `data-button-label`       | "Ask AI"           | The floating button's label; `"false"` hides the button.                              |
+| `data-launcher`           | "Ask AI"           | The floating button's label; `"false"` hides the button.                              |
 | `data-theme`              | `auto`             | `auto` follows `data-theme` on `<html>`, then the system; or `light` or `dark`.       |
 | `data-links`              | `all`              | `sources` keeps only the answer's links to its source pages.                          |
 | `data-labels`             | English            | The dialog's words, as a JSON object, as in `data-labels='{"launcher":"Demander"}'`.  |
@@ -68,7 +70,7 @@ With `data-manual`, the script waits for you to call `window.Ondocs.mount(option
 ```html
 <script src="https://cdn.jsdelivr.net/npm/ondocs@0.8/dist/embed.global.js" data-manual></script>
 <script type="module">
-  const ask = window.Ondocs.mount({ endpoint: '/api/ask', buttonLabel: false });
+  const ask = window.Ondocs.mount({ endpoint: '/api/ask', launcher: false });
   document.querySelector('#ask-button').addEventListener('click', () => ask.open());
 </script>
 ```

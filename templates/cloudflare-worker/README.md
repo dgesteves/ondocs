@@ -10,6 +10,8 @@ It is what `npx ondocs init --host github-pages` writes, as a template for `npm 
 npm create cloudflare@latest my-docs-ask -- --template=dgesteves/ondocs/templates/cloudflare-worker
 ```
 
+Or [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dgesteves/ondocs/tree/main/templates/cloudflare-worker), which copies this folder to a new repository of yours, asks for `SITE_URL`, and deploys it on every push.
+
 Set `SITE_URL` in `wrangler.jsonc` to your site's URL with its base path, such as `https://acme.github.io/docs`, then:
 
 ```sh
@@ -44,4 +46,4 @@ npm test            # the Worker in workerd, offline, with stand-ins for the sit
 npm run typecheck
 ```
 
-The tests need no Cloudflare account and use none of your allowance. `npx wrangler dev` runs the Worker against the real Workers AI, which needs `wrangler login` and counts against your allowance.
+The tests need no Cloudflare account and use none of your allowance. The warning `npm test` prints, "AI bindings always access remote resources, and so may incur usage charges even in local dev", is Wrangler's generic message for any AI binding: the tests stub `env.AI.run`. `npx wrangler dev` runs the Worker against the real Workers AI, which needs `wrangler login` and counts against your allowance.

@@ -4,7 +4,7 @@ import type { AskDialogLabels } from '../react/labels';
 export interface OndocsDialogOptions {
   /**
    * Every string the dialog and its button show or announce, in your language, over the English
-   * defaults. `title`, `placeholder` and `buttonLabel` win over their labels.
+   * defaults. `title`, `placeholder` and a `launcher` label win over their labels.
    */
   labels?: Partial<AskDialogLabels>;
   /** The dialog's accessible name. */
@@ -14,7 +14,16 @@ export interface OndocsDialogOptions {
   suggestions?: string[];
   /** Opens the dialog with ⌘ or Ctrl. Default `"i"`, so ⌘K stays with the site's search. `false` disables it. */
   shortcut?: string | false;
-  /** The floating button's label. Default "Ask AI". `false` hides the button (open it with the shortcut). */
+  /**
+   * The floating "Ask AI" button, with the shortcut on it: `true` (the default), or the button's
+   * label, or `false` to hide it (open the dialog with the shortcut). Its label is otherwise
+   * `labels.launcher`, "Ask AI".
+   */
+  launcher?: boolean | string;
+  /**
+   * @deprecated Use `launcher`, which takes the same values. `buttonLabel` still works, with a
+   * warning, until 0.10.
+   */
   buttonLabel?: string | false;
   /**
    * Which links in an answer stay links: `"all"` (the default), or `"sources"` for only links to

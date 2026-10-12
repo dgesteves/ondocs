@@ -1,6 +1,7 @@
 // The part of the embed every page runs: the "Ask AI" button and the shortcut, in plain DOM, with
 // no React. The dialog (React, Radix, cmdk) loads on first use: a pointer over or focus on the
 // button, the shortcut, or `open()`. A shortcut pressed while it loads opens it once it has.
+import { warnDeprecated } from '../deprecation';
 import type { OndocsDialogOptions, OndocsTheme } from './options';
 
 export interface MountAskDialogOptions extends OndocsDialogOptions {
@@ -38,7 +39,7 @@ export interface DialogRenderer {
 
 export interface DialogRenderOptions extends Omit<
   MountAskDialogOptions,
-  'container' | 'shortcut' | 'buttonLabel'
+  'container' | 'shortcut' | 'launcher' | 'buttonLabel'
 > {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -74,10 +75,14 @@ export function mountWithLoader(
   const {
     container: given,
     shortcut = 'i',
-    buttonLabel = options.labels?.launcher ?? 'Ask AI',
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- its name before 0.9, still read
+    buttonLabel,
+    launcher = buttonLabel ?? true,
     theme = 'auto',
     ...dialogOptions
   } = options;
+  if (buttonLabel !== undefined) warnDeprecated('buttonLabel', 'launcher');
+  const label = launcher === true ? (options.labels?.launcher ?? 'Ask AI') : launcher;
   const container = given ?? document.createElement('div');
   // Astro's <ClientRouter /> replaces <body> on navigation, and the dialog's container with it.
   const reattach = (): void => {
@@ -96,7 +101,7 @@ export function mountWithLoader(
 
   const key = shortcut ? shortcut.toUpperCase() : '';
   let button: HTMLButtonElement | null = null;
-  if (buttonLabel !== false) {
+  if (label !== false) {
     button = document.createElement('button');
     button.type = 'button';
     button.className = 'ondocs-launcher';
@@ -106,7 +111,7 @@ export function mountWithLoader(
     const icon = document.createElement('span');
     icon.setAttribute('aria-hidden', 'true');
     icon.textContent = '✦';
-    button.append(icon, ` ${buttonLabel}`);
+    button.append(icon, ` ${label}`);
     if (key) {
       const kbd = document.createElement('kbd');
       kbd.setAttribute('aria-hidden', 'true');

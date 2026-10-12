@@ -14,8 +14,10 @@ import {
   type ReactNode,
 } from 'react';
 
+import type { OndocsTheme } from '../embed/options';
 import type { AnswerLinks } from './answer';
 import type { AskDialogLabels } from './labels';
+import { themeOption, useThemeAttribute } from './theme';
 import type { AskState, UseAskOptions } from './use-ask';
 
 export type AskDialogSlot =
@@ -27,7 +29,8 @@ export interface AskDialogProps extends Omit<UseAskOptions, 'onFinish'> {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   /**
-   * Key that opens the dialog with ⌘ (macOS) or Ctrl. Default `"k"`; `false` disables it. It does
+   * Key that opens the dialog with ⌘ (macOS) or Ctrl. Default `"i"`, as in the plugins and the
+   * script embed, so ⌘K stays with the site's search; `"k"` for ⌘K. `false` disables it. It does
    * not open the dialog while a text field or editor has focus.
    */
   shortcut?: string | false;
@@ -54,8 +57,12 @@ export interface AskDialogProps extends Omit<UseAskOptions, 'onFinish'> {
    * yourself for client-side navigation (e.g. `router.push(url)`). The dialog closes either way.
    */
   onNavigate?: (url: string, event: MouseEvent<HTMLAnchorElement>) => void;
-  /** `system` (default) follows `prefers-color-scheme`. */
-  theme?: 'light' | 'dark' | 'system';
+  /**
+   * `auto` (the default) follows a `data-theme="light"` or `"dark"` on `<html>`, and
+   * `prefers-color-scheme` on a page without one; `light` or `dark` pins one. `system`, its name
+   * before 0.9, still works, with a warning, until 0.10.
+   */
+  theme?: OndocsTheme | 'system';
   /** Extra class names per part, e.g. for Tailwind. Default classes stay. */
   classNames?: Partial<Record<AskDialogSlot, string>>;
   /** Replaces the default footer. */
@@ -106,7 +113,7 @@ function isEditable(target: EventTarget | null): boolean {
 }
 
 /**
- * A ⌘K "ask" palette: a Radix dialog with a cmdk input, a streaming answer with numbered
+ * A ⌘I "ask" palette: a Radix dialog with a cmdk input, a streaming answer with numbered
  * citations, and the list of sources.
  *
  * Light on the page: what renders at first is only its shortcut and, if asked for, its button.
@@ -125,11 +132,13 @@ export function AskDialog({
   open: openProp,
   defaultOpen = false,
   onOpenChange,
-  shortcut = 'k',
+  shortcut = 'i',
   trigger,
   launcher = false,
+  theme: themeProp,
   ...props
 }: AskDialogProps): ReactNode {
+  const theme = themeOption(themeProp);
   const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
   const open = openProp ?? uncontrolledOpen;
   const openRef = useRef(open);
@@ -199,8 +208,7 @@ export function AskDialog({
     'aria-expanded': open,
     'data-state': open ? 'open' : 'closed',
   } as const;
-  const themeAttribute =
-    props.theme === 'system' || props.theme === undefined ? undefined : props.theme;
+  const themeAttribute = useThemeAttribute(theme);
   const key = shortcut ? shortcut.toUpperCase() : '';
 
   return (
@@ -232,7 +240,7 @@ export function AskDialog({
       )}
       {mounted || open ? (
         <Suspense fallback={null}>
-          <DialogPanel {...props} open={open} onOpenChange={setOpen} />
+          <DialogPanel {...props} theme={theme} open={open} onOpenChange={setOpen} />
         </Suspense>
       ) : null}
     </>
