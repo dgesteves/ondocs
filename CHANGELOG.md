@@ -2,6 +2,36 @@
 
 Until 0.6.0 this package was published as `ask-my-site`. Its entries below keep the links and names of that time.
 
+## 0.9.0
+
+### Minor Changes
+
+- [#84](https://github.com/dgesteves/ondocs/pull/84) [`9276df9`](https://github.com/dgesteves/ondocs/commit/9276df928534e4c19e508268a4d9e7d39c2ea00b) Thanks [@dgesteves](https://github.com/dgesteves)! - One name per option across the endpoint, the dialog, the script tag, the plugins and the CLI. The old names still work, and say once what they are called now, until 0.10 removes them. [Upgrading](https://ondocs.vercel.app/docs/upgrading) has the table, old name to new.
+  
+  - **`launcher`** replaces `buttonLabel` in `mountAskDialog`, `window.Ondocs.mount()` and the plugins' `dialog` options, each locale's included, as `AskDialog` already called it. It takes `true`, a label, or `false`. On the script tag, `data-launcher` replaces `data-button-label`.
+  - **`theme: 'auto'`** replaces `theme: 'system'` on `AskDialog`, the name the plugins and the script tag use.
+  - **`retrieval.maxContextChars`** replaces `maxContextChars` on `createAskHandler`, next to `topK`. The answer cache keeps its keys.
+  - **`ondocs init --site-name`** replaces `--name`, as `siteName` names it in the handlers.
+  
+  Two defaults of `AskDialog` change to match the plugins and the script tag. It opens with ⌘I or Ctrl+I, so ⌘K stays with the site's search; `shortcut="k"` keeps ⌘K. Its default theme, `auto`, follows `data-theme="light"` or `"dark"` on `<html>` when the page sets one, and the system's setting otherwise, as before.
+
+### Patch Changes
+
+- [#96](https://github.com/dgesteves/ondocs/pull/96) [`9b882ee`](https://github.com/dgesteves/ondocs/commit/9b882eee1b16e8a4c8b08b3f05dcd44644efa580) Thanks [@dgesteves](https://github.com/dgesteves)! - Fixes from following the docs on a fresh install:
+  
+  - `ondocs index --llms-txt` resolves the relative links and images in Markdown files from each file's folder, so they work from the page's `.md` copy and from `llms-full.txt`. Before, `content/index.md`, copied to `/docs.md`, kept `./setup.md` as written, which pointed at `/setup.md` there instead of `/docs/setup.md`. A link to another page's file goes to that page's copy. An HTML `index.html` page's links are now resolved from its folder too.
+  - `ondocs init` no longer takes a `docusaurus deploy` script for GitHub Pages: every new Docusaurus site has one, wherever it is hosted. With no host config, init asks, as the docs say. The `gh-pages` package, a script that runs it, and a Pages workflow still count.
+  - For GitHub Pages, init asks for the site's URL when the config has a template's placeholder, such as `https://your-docusaurus-site.example.com`, and warns when it keeps one: the Worker reads the index from that URL.
+  - When the site's config already adds the ondocs plugin, init's next steps no longer say to add it. On GitHub Pages they say which options to give it.
+  - On a site with no config to detect, the error now says how to name a plain HTML site's folder, as in `npx ondocs init --out public`, and names the folder when it finds one with HTML files.
+  - For a site indexed with `ondocs index` (Next.js and static sites), init says that a keyword-only index needs `-e none` when there is no key. The plugins build one without a key, but the CLI stops.
+
+- [#87](https://github.com/dgesteves/ondocs/pull/87) [`5409b87`](https://github.com/dgesteves/ondocs/commit/5409b874342cf8afd7989c6a5f8d85fea93698d8) Thanks [@dgesteves](https://github.com/dgesteves)! - `ondocs index`, and `loadDirectory` with `framework: 'next'` or `'auto'`, now cite Fumadocs and Nextra pages at the URLs those frameworks serve. On any Next.js site, `page.mdx` and `Index.mdx` in a content folder are pages of their own, and an `app` folder is read as Next.js routes it: only `page.mdx` files, without `_private` folders. Nextra keeps `(group)` folders in the URL, and a `## Title [#id]` heading is cited at `#id`. `frameworkUrl` is unchanged.
+
+- [#76](https://github.com/dgesteves/ondocs/pull/76) [`153760b`](https://github.com/dgesteves/ondocs/commit/153760bdae21429bc9178a8e5103d1f80809c1a9) Thanks [@dgesteves](https://github.com/dgesteves)! - `ondocs init` on a static site (Hugo, Jekyll, MkDocs, Eleventy or plain HTML) on Vercel, Netlify or Cloudflare now lists the packages its functions import, `ondocs ai @ai-sdk/openai`, in its next steps. A site with no `package.json` gets `npm init -y && npm i ondocs ai @ai-sdk/openai`, since the host installs the functions' packages from one. Before, the steps left out `ai` and `@ai-sdk/openai`, or said nothing without a `package.json`, and the functions failed to build.
+
+- [#81](https://github.com/dgesteves/ondocs/pull/81) [`7858807`](https://github.com/dgesteves/ondocs/commit/78588072a8ba7ae540cab1e135aa04fb53bd834b) Thanks [@dgesteves](https://github.com/dgesteves)! - `docusaurus-plugin-ondocs` and `starlight-ondocs` now publish to npm, at the same version as `ondocs`. They re-export `ondocs/docusaurus` and `ondocs/starlight` under the names Docusaurus and Starlight users search for, as the 0.7.0 release notes and the migration guide said, but until now they were left out of the publish, so `npm i docusaurus-plugin-ondocs` or `npm i starlight-ondocs` found nothing.
+
 ## 0.8.0
 
 ### Minor Changes

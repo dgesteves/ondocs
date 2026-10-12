@@ -1,6 +1,6 @@
 {
   "name": "ondocs",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Docusaurus, Starlight and VitePress plugins, Next.js, or one script tag.",
   "keywords": [
     "ask-ai",
