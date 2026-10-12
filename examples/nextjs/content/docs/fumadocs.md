@@ -94,7 +94,7 @@ export function Ask() {
     <AskDialog
       launcher
       shortcut="i"
-      theme={mounted ? (resolvedTheme === 'dark' ? 'dark' : 'light') : 'system'}
+      theme={mounted ? (resolvedTheme === 'dark' ? 'dark' : 'light') : undefined}
       suggestions={['How do I install it?']}
       onNavigate={(url, event) => {
         event.preventDefault();
