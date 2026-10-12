@@ -234,6 +234,51 @@ describe('createAskHandler', () => {
     expect(onFinish.mock.calls[0]![0]).toMatchObject({ refused: true, sources: [] });
   });
 
+  it('marks a reply of only "I don\'t know" as refused as it ends, cached or not', async () => {
+    const model = scriptedModel(['I don', '’t know.']);
+    const { handler, onFinish } = setup({ model, answerCache: true });
+    const { parts } = await readParts(
+      await handler(post({ question: 'How are int8 vectors stored?' })),
+    );
+
+    // The gate let the question through, so the model was called with its sources.
+    expect(model.doStreamCalls).toHaveLength(1);
+    expect(parts[0]).toMatchObject({ type: 'start', messageMetadata: { refused: false } });
+    expect(parts.some((p) => p.type === 'source-url')).toBe(true);
+    expect(parts.at(-1)).toMatchObject({
+      type: 'finish',
+      messageMetadata: { refused: true, retrieval: 'hybrid' },
+    });
+    // onFinish reports it as before: the model was called, and cited nothing.
+    expect(onFinish.mock.calls[0]![0]).toMatchObject({
+      answer: 'I don’t know.',
+      refused: false,
+      lowConfidence: true,
+    });
+
+    // Asked again, the cached answer is a refusal from its start.
+    const again = await readParts(
+      await handler(post({ question: 'How are int8 vectors stored?' })),
+    );
+    expect(model.doStreamCalls).toHaveLength(1);
+    expect(again.parts[0]).toMatchObject({ type: 'start', messageMetadata: { refused: true } });
+    expect(onFinish.mock.calls[1]![0]).toMatchObject({
+      cached: true,
+      refused: false,
+      lowConfidence: true,
+    });
+  });
+
+  it('leaves an answer that says more than "I don\'t know" as it is', async () => {
+    const { handler } = setup({
+      model: scriptedModel(["I don't know how int8 is chosen, but vectors are int8 [1]."]),
+    });
+    const { parts } = await readParts(
+      await handler(post({ question: 'How are int8 vectors stored?' })),
+    );
+    expect(parts.at(-1)).toEqual({ type: 'finish', finishReason: 'stop' });
+  });
+
   it('accepts the useChat request shape', async () => {
     const { handler } = setup();
     const response = await handler(

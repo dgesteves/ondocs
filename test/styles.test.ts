@@ -72,3 +72,9 @@ describe('the default theme', () => {
     expect(rules).not.toMatch(/opacity\s*:/);
   });
 });
+
+describe('the answer area', () => {
+  it('leaves no blank line over an error, which shows under the question instead', () => {
+    expect(css).toMatch(/\.ask-answer\[data-status='error'\]\s*\{\s*min-height:\s*0;\s*\}/);
+  });
+});

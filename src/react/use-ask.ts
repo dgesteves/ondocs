@@ -43,7 +43,10 @@ export interface AskState {
   answer: string;
   /** Numbered sources, available before the first word of the answer. */
   sources: AskSource[];
-  /** True when the server found nothing relevant and answered "I don't know". */
+  /**
+   * True when the answer is "I don't know": the server found nothing relevant, or the model's
+   * whole reply was that.
+   */
   refused: boolean;
   /**
    * True when the answer stopped at the model's output limit (`maxOutputTokens`), so it is
@@ -364,8 +367,10 @@ export function useAsk(options: UseAskOptions = {}): UseAsk {
     const progress = { finished: false, truncated: false };
     try {
       await readAskStream(response.body, {
+        // Sent as the answer starts, and again as it ends when it turned out to be a refusal,
+        // without the id the first one carried.
         metadata: ({ refused, retrieval, feedback, id }) => {
-          commit({ refused, retrieval, feedbackEnabled: feedback === true, id: id ?? null });
+          commit({ refused, retrieval, feedbackEnabled: feedback === true, ...(id ? { id } : {}) });
         },
         source: (source) => {
           commit({ sources: [...current.sources, source] });

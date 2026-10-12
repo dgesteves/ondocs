@@ -204,18 +204,24 @@ export function errorText(error: AskError | null, labels: ResolvedLabels): strin
   return error.message || labels.errorUnknown;
 }
 
+/** The sources a complete answer cites, which are the ones the dialog shows it with. */
+function citedSources(state: AskState): AskState['sources'] {
+  const cited = citedSourceIds(state.answer);
+  return state.sources.filter((source) => cited.has(source.id));
+}
+
 function statusMessage(state: AskState, labels: ResolvedLabels): string {
   switch (state.status) {
     case 'loading':
       return labels.searching;
     case 'streaming':
       return labels.writing;
-    case 'done':
+    case 'done': {
       if (state.refused) return labels.noAnswerFound;
       if (state.truncated) return labels.answerTruncated;
-      return state.sources.length === 1
-        ? labels.answerReadyOne
-        : fill(labels.answerReadyMany, { count: state.sources.length });
+      const count = citedSources(state).length;
+      return count === 1 ? labels.answerReadyOne : fill(labels.answerReadyMany, { count });
+    }
     case 'error':
       return errorText(state.error, labels);
     case 'idle':
@@ -273,9 +279,19 @@ export function DialogPanel({
     if (!open) stop();
   }, [open, stop]);
 
+  // Once a question is asked, the input shows it from its start. A long one stays scrolled to its
+  // end otherwise, and on a phone its first letters are cut off.
+  const showQuestionStart = useRef(false);
+  useEffect(() => {
+    if (!showQuestionStart.current) return;
+    showQuestionStart.current = false;
+    if (inputRef.current) inputRef.current.scrollLeft = 0;
+  });
+
   const submit = (question: string): void => {
     const trimmed = question.trim();
     if (!trimmed) return;
+    showQuestionStart.current = true;
     setQuery(trimmed);
     void state.ask(trimmed);
   };
@@ -452,8 +468,11 @@ function AnswerPanel({
 }): ReactNode {
   const streaming = state.status === 'streaming';
   const settled = state.status === 'done' || state.status === 'error';
-  // Once the answer is complete, sources it never cites are de-emphasized.
+  // Once the answer is complete, sources it never cites are de-emphasized, and an answer that
+  // cites none shows none: they were searched, and did not answer it.
   const cited = state.status === 'done' ? citedSourceIds(state.answer) : null;
+  const showSources =
+    state.sources.length > 0 && !state.refused && !(cited && citedSources(state).length === 0);
   const thread = state.turns.length > 0;
   return (
     <div className="ask-panel">
@@ -472,7 +491,10 @@ function AnswerPanel({
           </div>
         </div>
       ))}
-      {thread && state.question ? <p className="ask-turn-question">{state.question}</p> : null}
+      {/* The question over its answer in a thread, and over an error, so it says what failed. */}
+      {(thread || state.status === 'error') && state.question ? (
+        <p className="ask-turn-question">{state.question}</p>
+      ) : null}
       <div
         className={cx('ask-answer', classNames.answer)}
         aria-live="polite"
@@ -516,7 +538,7 @@ function AnswerPanel({
         </div>
       ) : null}
 
-      {state.sources.length > 0 && !state.refused ? (
+      {showSources ? (
         <nav aria-label={labels.sources} className={cx('ask-sources', classNames.sources)}>
           <h2 className="ask-sources-heading">{labels.sources}</h2>
           <ol>

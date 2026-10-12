@@ -265,6 +265,11 @@
   min-height: 24px;
 }
 
+/* An error has no answer to make room for: it shows under the question. */
+.ask-answer[data-status='error'] {
+  min-height: 0;
+}
+
 .ask-answer[data-refused] {
   color: var(--ask-muted);
 }
