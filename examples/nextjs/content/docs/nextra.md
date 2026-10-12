@@ -13,6 +13,25 @@ A Nextra site is a Next.js app, so ondocs is the same three pieces as in [Next.j
 npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
 ```
 
+Nextra 4.6.1's starter fails `next build` with zod 4.6 ("Invalid input: expected nonoptional, received undefined"), with or without ondocs. Pin zod 4.1.13 for `nextra` and `nextra-theme-docs` only, so ondocs keeps the zod it needs. With npm, in `package.json`:
+
+```json
+{
+  "overrides": {
+    "nextra": { "zod": "4.1.13" },
+    "nextra-theme-docs": { "zod": "4.1.13" }
+  }
+}
+```
+
+With pnpm, in `pnpm-workspace.yaml`:
+
+```yaml
+overrides:
+  nextra>zod: 4.1.13
+  nextra-theme-docs>zod: 4.1.13
+```
+
 ## Index your content
 
 Build the index before every build, and commit `ask-index.json`:
