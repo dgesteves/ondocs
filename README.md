@@ -4,8 +4,18 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/dgesteves/ondocs/ci.yml?branch=main&label=CI&style=flat-square&labelColor=181c22)](https://github.com/dgesteves/ondocs/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ondocs?style=flat-square&labelColor=181c22&color=22d3ee)](https://www.npmjs.com/package/ondocs)
+[![Downloads](https://img.shields.io/npm/dw/ondocs?style=flat-square&labelColor=181c22&color=22d3ee)](https://www.npmjs.com/package/ondocs)
+[![Script tag: 2.7 KB gzipped](https://img.shields.io/badge/script_tag-2.7_KB_gzipped-22d3ee?style=flat-square&labelColor=181c22)](https://ondocs.vercel.app/docs/script-tag)
 [![License: MIT](https://img.shields.io/badge/license-MIT-22d3ee?style=flat-square&labelColor=181c22)](./LICENSE)
 [![Types](https://img.shields.io/badge/types-included-22d3ee?style=flat-square&labelColor=181c22)](https://ondocs.vercel.app/docs/api)
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dgesteves/ondocs/tree/main/templates/cloudflare-worker)
+
+**Ask these docs from your editor**, through the MCP server this site runs on ondocs:
+[![Cursor](https://img.shields.io/badge/Cursor-Add_server-181c22?style=flat-square&logo=cursor&logoColor=white)](https://cursor.com/en/install-mcp?name=ondocs&config=eyJ1cmwiOiJodHRwczovL29uZG9jcy52ZXJjZWwuYXBwL2FwaS9tY3AifQ%3D%3D)
+[![VS Code](https://img.shields.io/badge/VS_Code-Add_server-0098FF?style=flat-square)](https://insiders.vscode.dev/redirect/mcp/install?name=ondocs&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fondocs.vercel.app%2Fapi%2Fmcp%22%7D)
+[![Claude Code](https://img.shields.io/badge/Claude_Code-Add_server-d97757?style=flat-square&logo=claude&logoColor=white)](https://ondocs.vercel.app/docs/mcp)
+[![Claude](https://img.shields.io/badge/Claude-Add_connector-d97757?style=flat-square&logo=claude&logoColor=white)](https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=ondocs&connectorUrl=https%3A%2F%2Fondocs.vercel.app%2Fapi%2Fmcp)
 
 **Website: [ondocs.vercel.app](https://ondocs.vercel.app)**, whose [docs](https://ondocs.vercel.app/docs) answer questions about this library with OpenAI, under a rate limit and a daily budget, and serve agents at `/api/mcp`. Formerly `ask-my-site` ([what changed](https://ondocs.vercel.app/docs/migrating)).
 
@@ -27,7 +37,7 @@ https://github.com/user-attachments/assets/555eb6d6-967b-48be-8b1e-e2da060ad87e
 
 One index, `ask-index.json`, built with your site from the pages it serves, feeds three things:
 
-- **An Ask box for people.** A ⌘K dialog that streams a short answer from your model, with numbered citations to the exact section. When nothing relevant is found, it says "I don't know" without calling the model. A page carries only its button, a few KB of JavaScript; the dialog loads the first time it is wanted.
+- **An Ask box for people.** A ⌘I dialog that streams a short answer from your model, with numbered citations to the exact section. When nothing relevant is found, it says "I don't know" without calling the model. A page carries only its button, a few KB of JavaScript; the dialog loads the first time it is wanted.
 - **An MCP server for agents.** `search`, `fetch` and `list_pages` over the same index, for Claude Code, Cursor, VS Code, ChatGPT and Claude. The agent brings its own model, and search is keyword-only by default, so it calls no model at all.
 - **`llms.txt`, `llms-full.txt` and a `.md` copy of every page**, written with the build.
 

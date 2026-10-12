@@ -197,7 +197,7 @@ const build = row(
 
 const request = row(
   [
-    { title: 'Ask dialog', sub: 'Cmd+K · AskDialog', icon: true },
+    { title: 'Ask dialog', sub: 'Cmd+I · AskDialog', icon: true },
     { title: 'Embed question', sub: 'one embedding call' },
     { title: 'Hybrid search', sub: 'BM25 + int8 cosine' },
     { title: 'Fuse and gate', sub: 'RRF · relevance floor' },

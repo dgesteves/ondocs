@@ -12,12 +12,12 @@ description: 'AskDialog props, the launcher button, shortcuts, theming, accessib
 | ------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `endpoint`                            | `/api/ask`                      | Where questions are posted. Also `headers` and a custom `fetch`.                                            |
 | `open`, `defaultOpen`, `onOpenChange` | uncontrolled                    | Controlled or uncontrolled.                                                                                 |
-| `shortcut`                            | `"k"`                           | Opens the dialog with ⌘ or Ctrl; `false` disables it.                                                       |
+| `shortcut`                            | `"i"`                           | Opens the dialog with ⌘ or Ctrl; `false` disables it.                                                       |
 | `trigger`                             | none                            | An element that opens the dialog, such as a search button.                                                  |
 | `launcher`                            | `false`                         | `true` or a label: a floating "Ask AI" button with the shortcut on it.                                      |
 | `suggestions`                         | `[]`                            | Questions offered before typing, filtered as you type.                                                      |
 | `onNavigate`                          | browser navigation              | `(url, event)` for citations and sources; call `preventDefault()` to route yourself.                        |
-| `theme`                               | `"system"`                      | `"light"` or `"dark"` to pin it.                                                                            |
+| `theme`                               | `"auto"`                        | Follows `data-theme` on `<html>`, then the system; `"light"` or `"dark"` to pin it.                         |
 | `classNames`                          | none                            | Extra classes per part: `overlay`, `content`, `input`, `list`, `item`, `answer`, `sources`, `footer`.       |
 | `title`                               | "Ask this site"                 | The dialog's accessible name.                                                                               |
 | `placeholder`                         | "Ask a question…"               | The input's placeholder.                                                                                    |
@@ -30,9 +30,9 @@ description: 'AskDialog props, the launcher button, shortcuts, theming, accessib
 
 ## Opening the dialog
 
-In React, the dialog opens with ⌘K on macOS and Ctrl+K elsewhere. The plugins and the script tag use ⌘I or Ctrl+I instead, so ⌘K stays with the site's search. The shortcut does nothing while a text field or editor has focus.
+The dialog opens with ⌘I on macOS and Ctrl+I elsewhere, in React, in the plugins and with the script tag, so ⌘K stays with the site's search. The shortcut does nothing while a text field or editor has focus.
 
-To change the keyboard shortcut, pass another key, as in `shortcut="j"`, or turn it off with `shortcut={false}` and open the dialog from a `trigger` element or the `launcher` button instead. In the plugins, the same option is `dialog: { shortcut: 'j' }`, and with the script tag it is `data-shortcut="j"`.
+To change the keyboard shortcut, pass another key, as in `shortcut="k"` on a site whose only search is this dialog, or turn it off with `shortcut={false}` and open the dialog from a `trigger` element or the `launcher` button instead. In the plugins, the same option is `dialog: { shortcut: 'k' }`, and with the script tag it is `data-shortcut="k"`.
 
 ## When the dialog's code loads
 
@@ -42,7 +42,7 @@ In the plugins' sites this takes the JavaScript ondocs adds to each page from ab
 
 ## The launcher button
 
-`launcher` adds a floating "Ask AI" button in the corner of the page, with the shortcut on it. Pass a string to change its label, as in `launcher="Ask the docs"`, and import `ondocs/embed/launcher.css` for its look, or style `.ondocs-launcher` yourself.
+`launcher` adds a floating "Ask AI" button in the corner of the page, with the shortcut on it. Pass a string to change its label, as in `launcher="Ask the docs"`, and import `ondocs/embed/launcher.css` for its look, or style `.ondocs-launcher` yourself. The plugins and the script tag show it by default; there, `launcher: false` (or `data-launcher="false"`) hides it.
 
 ## Citations and navigation
 
@@ -127,7 +127,7 @@ The endpoint's own words, its "I don't know" answer, its rate limit and budget m
 
 ## Theming the dialog
 
-Import `ondocs/react/styles.css` for the default theme, which follows the system's light or dark setting. To change the dialog's colors, set its CSS custom properties: every color, radius and font is one, so `.ask-dialog { --ask-accent: #7c3aed; --ask-radius: 8px; }` is a complete rebrand. To style it from scratch, skip the stylesheet: every part has a stable `ask-*` class, and `classNames` adds your own, which suits Tailwind.
+Import `ondocs/react/styles.css` for the default theme. With `theme="auto"`, the default, it follows a `data-theme="light"` or `"dark"` on `<html>`, as Docusaurus, Starlight and VitePress set it, and the system's light or dark setting on a page without one. To change the dialog's colors, set its CSS custom properties: every color, radius and font is one, so `.ask-dialog { --ask-accent: #7c3aed; --ask-radius: 8px; }` is a complete rebrand. To style it from scratch, skip the stylesheet: every part has a stable `ask-*` class, and `classNames` adds your own, which suits Tailwind.
 
 ## Accessibility
 

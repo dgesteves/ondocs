@@ -21,11 +21,12 @@ for (const [file, budget] of Object.entries(BUDGETS)) {
   if (bytes(file) > budget * 1024) problems.push(`${file} is over its ${String(budget)} KB budget`);
 }
 
-// Where the docs quote the launcher's size. The website's landing page measures it as it builds.
+// Where the docs, and the README's badge, quote the launcher's size. The website's landing page measures it as it builds.
 const launcher = `${String(kb('dist/embed.global.js'))} KB`;
 const QUOTED = [
   ['examples/nextjs/content/docs/script-tag.md', `\`embed.global.js\`, is ${launcher} gzipped`],
   ['examples/nextjs/content/docs/benchmarks.md', `| Script tag on a plain page |`, launcher],
+  ['README.md', 'img.shields.io/badge/script_tag-', launcher.replace(' ', '_')],
 ];
 for (const [file, needle, value = ''] of QUOTED) {
   const line = read(file)

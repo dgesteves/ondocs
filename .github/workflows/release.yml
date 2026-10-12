@@ -41,8 +41,10 @@ jobs:
       - id: changesets
         uses: changesets/action@v2.1.2
         with:
-          # sync-template moves the Worker template to the version this release publishes.
-          version-script: pnpm changeset version && node scripts/sync-template.mjs
+          # version-packages also moves the Worker template to the version this release publishes.
+          # The action runs these without a shell, so each must be one command: put `&&` in a
+          # package.json script.
+          version-script: pnpm version-packages
           publish-script: pnpm release
           commit-message: 'chore: release'
           pr-title: 'chore: release'

@@ -270,7 +270,7 @@ describe('AskAnswer', () => {
 });
 
 describe('AskDialog', () => {
-  it('opens with ⌘K, asks, streams a cited answer and returns focus on close', async () => {
+  it('opens with ⌘I, asks, streams a cited answer and returns focus on close', async () => {
     const user = userEvent.setup();
     const onNavigate = vi.fn((_url: string, event: { preventDefault: () => void }) => {
       event.preventDefault();
@@ -288,7 +288,7 @@ describe('AskDialog', () => {
     const elsewhere = screen.getByRole('button', { name: 'Elsewhere' });
     elsewhere.focus();
 
-    await user.keyboard('{Meta>}k{/Meta}');
+    await user.keyboard('{Meta>}i{/Meta}');
     const dialog = await screen.findByRole('dialog', { name: 'Ask this site' });
     const input = within(dialog).getByRole('combobox');
     await waitFor(() => {
@@ -441,7 +441,7 @@ describe('AskDialog', () => {
     const button = screen.getByRole('button', { name: /Ask AI/ });
     expect(button.className).toBe('ondocs-launcher');
     expect(button.dataset.askTheme).toBe('dark');
-    expect(button.getAttribute('aria-keyshortcuts')).toBe('Meta+K Control+K');
+    expect(button.getAttribute('aria-keyshortcuts')).toBe('Meta+I Control+I');
     await user.click(button);
     expect(await screen.findByRole('dialog', { name: 'Ask this site' })).toBeTruthy();
     await user.keyboard('{Escape}');
@@ -462,7 +462,7 @@ describe('AskDialog', () => {
         suggestions={['How do I install with pnpm?']}
       />,
     );
-    await user.keyboard('{Meta>}k{/Meta}');
+    await user.keyboard('{Meta>}i{/Meta}');
     expect(screen.queryByRole('dialog')).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Ask the docs' }));

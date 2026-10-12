@@ -26,7 +26,7 @@ When no chunk clears the gate, the handler answers "I don't know" immediately an
 
 ## From chunks to sources
 
-The top 6 chunks are numbered as sources, and chunks from the same section share one number, so an answer never cites two numbers that open the same place. Sources are added in rank order until 8,000 characters (`maxContextChars`), and sent to the model with the question. The stream sends the sources before the first word of the answer, so citations are clickable as soon as they appear.
+The top 6 chunks are numbered as sources, and chunks from the same section share one number, so an answer never cites two numbers that open the same place. Sources are added in rank order until 8,000 characters (`retrieval.maxContextChars`), and sent to the model with the question. The stream sends the sources before the first word of the answer, so citations are clickable as soon as they appear.
 
 ## Keyword fallback
 
@@ -34,7 +34,7 @@ If the embedding provider fails while embedding a question, that request falls b
 
 ## Tuning
 
-The defaults are `{ topK: 6, candidates: 40, rrfK: 60, minSimilarity: 0.25, minKeywordCoverage: 0.5 }`, passed to the handler as `retrieval`. The similarity threshold is calibrated for OpenAI's `text-embedding-3-small`. An index embedded with Workers AI's `@cf/baai/bge-small-en-v1.5` gets 0.65 instead, measured on docusaurus.io's docs (see [Workers AI](/workers-ai#keywords-or-meaning-too)). Other embedding models produce other ranges, so check the `best` scores that `retrieve()` returns on real questions and set `minSimilarity` to match.
+The defaults are `{ topK: 6, candidates: 40, rrfK: 60, minSimilarity: 0.25, minKeywordCoverage: 0.5, maxContextChars: 8000 }`, passed to the handler as `retrieval`. The similarity threshold is calibrated for OpenAI's `text-embedding-3-small`. An index embedded with Workers AI's `@cf/baai/bge-small-en-v1.5` gets 0.65 instead, measured on docusaurus.io's docs (see [Workers AI](/workers-ai#keywords-or-meaning-too)). Other embedding models produce other ranges, so check the `best` scores that `retrieve()` returns on real questions and set `minSimilarity` to match.
 
 The keyword side is conservative: IDF comes from your pages, so a question word that appears on none of them carries the most weight. A question that adds one such word, like a product or company name, can fall below 0.5 on keywords alone even when the rest of it matches a page exactly. With embeddings, the similarity side catches such questions; for a keyword-only index, lower `minKeywordCoverage`.
 

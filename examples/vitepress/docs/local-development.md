@@ -28,7 +28,7 @@ The plugins post to the `ASK_ENDPOINT` environment variable whenever it is set, 
 ASK_ENDPOINT=http://localhost:8787/api/ask npm start
 ```
 
-With React, render `<AskDialog endpoint="http://localhost:8787/api/ask" launcher />`. With the script tag, set `data-endpoint="http://localhost:8787/api/ask"`. Then press ⌘K (⌘I with the plugins and the script tag) and ask.
+With React, render `<AskDialog endpoint="http://localhost:8787/api/ask" launcher />`. With the script tag, set `data-endpoint="http://localhost:8787/api/ask"`. Then press ⌘I (Ctrl+I outside macOS) and ask.
 
 ## What mock mode does
 

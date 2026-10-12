@@ -24,7 +24,7 @@ beforeAll(() => {
       dialog: { title: 'Ask the docs', shortcut: 'j' },
       mcp: { url: 'https://docs.acme.dev/api/mcp', name: 'acme-docs' },
     },
-    blog: { endpoint: '/api/blog', dialog: { title: 'Ask the blog', buttonLabel: 'Ask' } },
+    blog: { endpoint: '/api/blog', dialog: { title: 'Ask the blog', launcher: 'Ask' } },
   };
   globalData.instances = instances;
 });

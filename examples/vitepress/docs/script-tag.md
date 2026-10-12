@@ -24,7 +24,7 @@ The script mounts itself once the page has loaded. It opens the dialog from a fl
 
 ## Script size
 
-The embed script, `embed.global.js`, is 2.7 KB gzipped: the button, the shortcut and their styles. The dialog, with React and its styles, is a second file next to it, `embed-dialog.global.js` (94 KB gzipped), which the script loads the first time the dialog is wanted: a pointer over or focus on the button, the shortcut, or `open()`. A shortcut pressed while it loads still opens the dialog once it arrives. The page needs nothing else, and `defer` loads the script without blocking the page.
+The embed script, `embed.global.js`, is 2.9 KB gzipped: the button, the shortcut and their styles. The dialog, with React and its styles, is a second file next to it, `embed-dialog.global.js` (94 KB gzipped), which the script loads the first time the dialog is wanted: a pointer over or focus on the button, the shortcut, or `open()`. A shortcut pressed while it loads still opens the dialog once it arrives. The page needs nothing else, and `defer` loads the script without blocking the page.
 
 If you host the script yourself, copy both files to the same folder, or point at the dialog's file with `data-dialog-src`.
 
@@ -55,7 +55,7 @@ To try it first, run `npx ondocs dev` beside the index and set `data-endpoint="h
 | `data-placeholder`        | "Ask a question…"  | The input's placeholder.                                                              |
 | `data-suggestions`        | none               | A JSON array, as in `data-suggestions='["How do I install it?"]'`.                    |
 | `data-shortcut`           | `i`                | The key used with ⌘ or Ctrl; `"false"` turns it off.                                  |
-| `data-button-label`       | "Ask AI"           | The floating button's label; `"false"` hides the button.                              |
+| `data-launcher`           | "Ask AI"           | The floating button's label; `"false"` hides the button.                              |
 | `data-theme`              | `auto`             | `auto` follows `data-theme` on `<html>`, then the system; or `light` or `dark`.       |
 | `data-links`              | `all`              | `sources` keeps only the answer's links to its source pages.                          |
 | `data-labels`             | English            | The dialog's words, as a JSON object, as in `data-labels='{"launcher":"Demander"}'`.  |
@@ -72,7 +72,7 @@ With `data-manual`, the script waits for you to call `window.Ondocs.mount(option
 ```html
 <script src="https://cdn.jsdelivr.net/npm/ondocs@0.8/dist/embed.global.js" data-manual></script>
 <script type="module">
-  const ask = window.Ondocs.mount({ endpoint: '/api/ask', buttonLabel: false });
+  const ask = window.Ondocs.mount({ endpoint: '/api/ask', launcher: false });
   document.querySelector('#ask-button').addEventListener('click', () => ask.open());
 </script>
 ```

@@ -50,6 +50,7 @@ export const sidebar: DefaultTheme.Sidebar = [
       { text: 'Limits and trade-offs', link: '/limits' },
       { text: 'FAQ', link: '/faq' },
       { text: 'Migrating from ask-my-site', link: '/migrating' },
+      { text: 'Upgrading', link: '/upgrading' },
     ],
   },
 ];

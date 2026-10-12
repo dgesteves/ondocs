@@ -100,11 +100,11 @@ export function Ask() {
 }
 ```
 
-Then render `<Ask />` in `app/layout.tsx`. `launcher` shows a floating "Ask AI" button; the dialog also opens with ⌘K or Ctrl+K.
+Then render `<Ask />` in `app/layout.tsx`. `launcher` shows a floating "Ask AI" button; the dialog also opens with ⌘I or Ctrl+I.
 
 ## Open it from your own button
 
-Leave `launcher` out and pass `trigger` to open the dialog from an element of your own, such as a search box in your header: `<AskDialog trigger={<button type="button">Ask the docs</button>} />`. Change the shortcut with `shortcut="j"`, or turn it off with `shortcut={false}`.
+Leave `launcher` out and pass `trigger` to open the dialog from an element of your own, such as a search box in your header: `<AskDialog trigger={<button type="button">Ask the docs</button>} />`. Change the shortcut with `shortcut="k"`, for ⌘K on a site whose only search is this dialog, or turn it off with `shortcut={false}`.
 
 ## Other React frameworks and runtimes
 

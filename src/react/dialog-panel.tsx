@@ -14,19 +14,22 @@ import {
   type ReactNode,
 } from 'react';
 
+import type { OndocsTheme } from '../embed/options';
 import { AskAnswer, citedSourceIds, safeHref, type AnswerLinks } from './answer';
 import type { AskDialogProps, AskDialogSlot } from './ask-dialog';
 import { fill, resolveLabels, type ResolvedLabels } from './labels';
+import { useThemeAttribute } from './theme';
 import { turnstileWidget, type TurnstileWidget } from './turnstile';
 import { useAsk, type AskError, type AskState } from './use-ask';
 
-/** What `AskDialog` hands the dialog: its props, with the open state it keeps. */
+/** What `AskDialog` hands the dialog: its props, with the open state it keeps and its theme read. */
 export type DialogPanelProps = Omit<
   AskDialogProps,
-  'open' | 'defaultOpen' | 'onOpenChange' | 'shortcut' | 'trigger' | 'launcher'
+  'open' | 'defaultOpen' | 'onOpenChange' | 'shortcut' | 'trigger' | 'launcher' | 'theme'
 > & {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  theme?: OndocsTheme;
 };
 
 const cx = (...names: (string | undefined | false)[]): string => names.filter(Boolean).join(' ');
@@ -229,7 +232,7 @@ export function DialogPanel({
   placeholder: placeholderProp,
   suggestions = [],
   onNavigate,
-  theme = 'system',
+  theme = 'auto',
   classNames = {},
   footer,
   links = 'all',
@@ -242,6 +245,7 @@ export function DialogPanel({
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState('');
+  const themeAttribute = useThemeAttribute(theme);
 
   // The bot check: a Turnstile widget in the dialog while it is open, rendered as it opens so a
   // token is solved before the first question, and the next one after each question takes one.
@@ -250,15 +254,13 @@ export function DialogPanel({
   const widgetRef = useRef<TurnstileWidget | null>(null);
   useEffect(() => {
     if (!siteKey || !challengeElement) return;
-    const widget = turnstileWidget(challengeElement, siteKey, {
-      theme: theme === 'system' ? 'auto' : theme,
-    });
+    const widget = turnstileWidget(challengeElement, siteKey, { theme: themeAttribute ?? 'auto' });
     widgetRef.current = widget;
     return () => {
       widget.remove();
       if (widgetRef.current === widget) widgetRef.current = null;
     };
-  }, [siteKey, challengeElement, theme]);
+  }, [siteKey, challengeElement, themeAttribute]);
   const state = useAsk(
     siteKey ? { ...askOptions, challengeToken: () => widgetRef.current?.token() } : askOptions,
   );
@@ -302,7 +304,6 @@ export function DialogPanel({
     : normalized
       ? suggestions.filter((s) => s.toLowerCase().includes(normalized) && s.trim() !== trimmedQuery)
       : suggestions;
-  const themeAttribute = theme === 'system' ? undefined : theme;
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
