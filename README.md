@@ -110,7 +110,7 @@ npx ondocs init --out public                               # plain HTML needs --
 ```
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/ondocs@0.9/dist/embed.global.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/ondocs@0.10/dist/embed.global.js" defer></script>
 ```
 
 **Try it without a key.** `npx ondocs index ./docs -e mock`, then `npx ondocs dev`, serves the ask endpoint and the MCP server on localhost, with offline embeddings and a mock model that quotes your docs. See [Try it locally](https://ondocs.vercel.app/docs/local-development).
