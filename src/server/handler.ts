@@ -204,7 +204,8 @@ export interface AskFinishEvent {
   /**
    * True when the model answered but cited none of its sources: it said the sources do not cover
    * the question, or it answered without them. With `refused`, the questions the docs do not
-   * answer well: the content gaps to look at.
+   * answer well: the content gaps to look at. A reply of only "I don't know" is one of these,
+   * though the dialog shows it as a refusal.
    */
   lowConfidence: boolean;
   /**
@@ -246,6 +247,14 @@ function citesSources(text: string, sources: readonly AskSource[]): boolean {
     if ((match[1] ?? '').split(',').some((id) => ids.has(Number(id.trim())))) return true;
   }
   return false;
+}
+
+/**
+ * Whether the model's reply is only "I don't know", as the instructions ask for when the sources
+ * do not answer: a refusal the model wrote, which the response marks as one.
+ */
+function saysOnlyIDontKnow(text: string): boolean {
+  return /^i (?:do not|don['’]t) know[.!]?$/i.test(text.trim().replace(/\s+/g, ' '));
 }
 
 /** A locale as the dialog sends it: `fr`, `pt-br`, `zh-Hans`. Only the keys of `indexes` are used. */
@@ -796,7 +805,8 @@ export function createAskHandler(
     done?: () => Promise<void>,
   ): Response {
     const metadata: AskMetadata = {
-      refused: answer.refused,
+      // A cached reply of only "I don't know" is a refusal from the start.
+      refused: answer.refused || saysOnlyIDontKnow(answer.answer),
       retrieval: answer.retrieval,
       ...(options.onFeedback ? { feedback: true } : {}),
     };
@@ -824,11 +834,20 @@ export function createAskHandler(
           return done?.();
         }
 
+        // A reply that is only "I don't know" is a refusal: the stream's last part says so, so the
+        // dialog shows it as one, without the sources it was given.
+        let reply = '';
         writer.merge(
           toUIMessageStream({
             stream: generate().stream,
             sendStart: false,
             onError: () => MODEL_ERROR_MESSAGE,
+            messageMetadata: ({ part }) => {
+              if (part.type === 'text-delta') reply += part.text;
+              return part.type === 'finish' && saysOnlyIDontKnow(reply)
+                ? { ...metadata, refused: true }
+                : undefined;
+            },
           }),
         );
         return undefined;

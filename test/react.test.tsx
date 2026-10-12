@@ -33,6 +33,30 @@ function handlerFetch(
   );
 }
 
+/** A model that answers with `text` in one piece, citing what `text` cites. */
+function answering(text: string) {
+  return new MockLanguageModelV4({
+    doStream: () =>
+      Promise.resolve({
+        stream: simulateReadableStream({
+          chunks: [
+            { type: 'text-start' as const, id: 't' },
+            { type: 'text-delta' as const, id: 't', delta: text },
+            { type: 'text-end' as const, id: 't' },
+            {
+              type: 'finish' as const,
+              finishReason: { unified: 'stop' as const, raw: 'stop' },
+              usage: {
+                inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+                outputTokens: { total: 1, text: 1, reasoning: 0 },
+              },
+            },
+          ],
+        }),
+      }),
+  });
+}
+
 beforeAll(() => {
   // jsdom lacks these; cmdk and Radix call them.
   Element.prototype.scrollIntoView = vi.fn();
@@ -72,6 +96,20 @@ describe('useAsk', () => {
     await act(() => result.current.ask('Who won the 1998 World Cup final?'));
     expect(result.current).toMatchObject({ status: 'done', refused: true, sources: [] });
     expect(result.current.answer).toContain("I don't know");
+  });
+
+  it('reports a model reply of only "I don\'t know" as a refusal, keeping its id', async () => {
+    const fetch = handlerFetch({ model: answering("I don't know."), onFeedback: vi.fn() });
+    const { result } = renderHook(() => useAsk({ fetch }));
+    await act(() => result.current.ask('How is an int8 vector scaled?'));
+    expect(result.current).toMatchObject({
+      status: 'done',
+      refused: true,
+      answer: "I don't know.",
+      feedbackEnabled: true,
+    });
+    expect(result.current.sources.length).toBeGreaterThan(0);
+    expect(result.current.id).toEqual(expect.any(String));
   });
 
   it('flags an answer the model cut off at its output limit', async () => {
@@ -450,6 +488,90 @@ describe('AskDialog', () => {
     const custom = screen.getByRole('button', { name: 'Ask the docs' });
     expect(custom.getAttribute('aria-keyshortcuts')).toBeNull();
     expect(custom.querySelector('kbd')).toBeNull();
+  });
+
+  it('hides the sources of an answer that cites none of them', async () => {
+    const user = userEvent.setup();
+    const model = answering('The sources say nothing about how it is scaled.');
+    render(<AskDialog fetch={handlerFetch({ model })} defaultOpen />);
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByRole('combobox'), 'How is an int8 vector scaled?{Enter}');
+    await waitFor(() => {
+      expect(dialog.querySelector('[data-status="done"]')).not.toBeNull();
+    });
+    expect(within(dialog).queryByRole('navigation', { name: 'Sources' })).toBeNull();
+    expect(within(dialog).getByRole('status').textContent).toBe('Answer ready, citing 0 sources.');
+  });
+
+  it('shows a model reply of only "I don\'t know" as a refusal, without sources', async () => {
+    const user = userEvent.setup();
+    render(
+      <AskDialog
+        fetch={handlerFetch({ model: answering("I don't know.") })}
+        defaultOpen
+        labels={{ noAnswer: 'Nothing on that here.' }}
+      />,
+    );
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByRole('combobox'), 'How is an int8 vector scaled?{Enter}');
+    const answer = await waitFor(() => {
+      const region = dialog.querySelector('[data-status="done"]');
+      expect(region).not.toBeNull();
+      return region as HTMLElement;
+    });
+    expect(answer.hasAttribute('data-refused')).toBe(true);
+    expect(answer.textContent).toBe('Nothing on that here.');
+    expect(within(dialog).queryByRole('navigation', { name: 'Sources' })).toBeNull();
+    expect(within(dialog).getByRole('status').textContent).toBe('No answer found on this site.');
+  });
+
+  it('shows the question over an error', async () => {
+    const user = userEvent.setup();
+    render(
+      <AskDialog fetch={() => Promise.reject(new TypeError('Failed to fetch'))} defaultOpen />,
+    );
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByRole('combobox'), 'How is an int8 vector scaled?{Enter}');
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert.textContent).toContain('Could not reach the server.');
+    const question = within(dialog).getByText('How is an int8 vector scaled?', { selector: 'p' });
+    expect(question.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows the question just asked from its start, typed or picked', async () => {
+    const user = userEvent.setup();
+    render(
+      <AskDialog
+        fetch={handlerFetch()}
+        defaultOpen
+        suggestions={['How do I install with pnpm?']}
+      />,
+    );
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByRole('combobox');
+    // jsdom has no layout: record what the dialog sets, as if the input had scrolled to its end.
+    const scrolled: number[] = [];
+    Object.defineProperty(input, 'scrollLeft', {
+      configurable: true,
+      get: () => 240,
+      set: (value: number) => {
+        scrolled.push(value);
+      },
+    });
+    await user.type(input, 'How is an int8 vector scaled?');
+    expect(scrolled).toEqual([]);
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(dialog.querySelector('[data-status="done"]')).not.toBeNull();
+    });
+    expect(scrolled).toEqual([0]);
+
+    await user.click(within(dialog).getByRole('button', { name: 'New question' }));
+    await user.click(within(dialog).getByRole('option', { name: 'How do I install with pnpm?' }));
+    await waitFor(() => {
+      expect(dialog.querySelector('[data-status="done"]')).not.toBeNull();
+    });
+    expect(scrolled).toEqual([0, 0]);
   });
 
   it('asks a suggestion on click and supports a custom trigger', async () => {

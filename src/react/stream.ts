@@ -56,9 +56,13 @@ function dispatch(part: Part, on: AskStreamHandlers): void {
     case 'error':
       on.error?.(typeof part.errorText === 'string' ? part.errorText : 'The stream failed.');
       break;
-    case 'finish':
+    case 'finish': {
+      // The server can amend the metadata as the answer ends: a reply of only "I don't know".
+      const metadata = toMetadata(part.messageMetadata, part.messageId);
+      if (metadata) on.metadata?.(metadata);
       on.finish?.(typeof part.finishReason === 'string' ? part.finishReason : undefined);
       break;
+    }
     default:
       // Unknown parts (step markers, future additions) are ignored, not errors.
       break;

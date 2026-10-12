@@ -23,9 +23,16 @@ export interface AskSource {
   heading: string;
 }
 
-/** Sent as `messageMetadata` on the stream's `start` part. */
+/**
+ * Sent as `messageMetadata` on the stream's `start` part, and again on its `finish` part when the
+ * answer turned out to be a refusal.
+ */
 export interface AskMetadata {
-  /** True when retrieval found nothing relevant and the answer is the "I don't know" message. */
+  /**
+   * True when retrieval found nothing relevant and the answer is the "I don't know" message, or
+   * when the model's whole reply was "I don't know": the `finish` part says so as it ends, and
+   * the `start` part of the same answer from `answerCache`.
+   */
   refused: boolean;
   /** Whether the query was embedded (`hybrid`) or matched on keywords only. */
   retrieval: 'hybrid' | 'keyword';
