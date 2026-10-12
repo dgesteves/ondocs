@@ -27,6 +27,8 @@
     "starlight-plugin",
     "vitepress",
     "vitepress-plugin",
+    "fumadocs",
+    "nextra",
     "chatbot",
     "ui",
     "utility"
