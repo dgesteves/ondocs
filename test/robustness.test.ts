@@ -4,6 +4,7 @@ import GithubSlugger from 'github-slugger';
 
 import { chunkDocument, createSlugger, fromHtml, fromMarkdown, slugify } from '../src';
 import { nextHeadingIds } from '../src/node/next';
+import { dropHeadingFootnotes } from '../src/text/markdown';
 import type { SourceDocument } from '../src';
 import { resolveMarkdownLinks } from '../src/llms';
 import { seeded } from './helpers';
@@ -40,9 +41,16 @@ describe('linear-time parsing of hostile input', () => {
 
   it('reads `[#id]` heading ids quickly, on long and on many lines', () => {
     const long = `## a${' [#'.repeat(20_000)}]`;
-    expect(timed(() => nextHeadingIds(long, 'fumadocs'))).toBeLessThan(250);
+    expect(timed(() => nextHeadingIds(long, { nextra: false }))).toBeLessThan(250);
     const many = `## a [#b${' '.repeat(200)}[#c]\n`.repeat(20_000);
-    expect(timed(() => nextHeadingIds(many, 'nextra'))).toBeLessThan(250);
+    expect(timed(() => nextHeadingIds(many, { nextra: true }))).toBeLessThan(250);
+  });
+
+  it('leaves footnote references out of headings quickly, on long and on many lines', () => {
+    const long = `## a${' [^'.repeat(20_000)}]\n\n[^a]: A footnote.`;
+    expect(timed(() => dropHeadingFootnotes(long))).toBeLessThan(250);
+    const many = `## a [^b${' '.repeat(200)}[^c]\n[^c]: C.\n`.repeat(20_000);
+    expect(timed(() => dropHeadingFootnotes(many))).toBeLessThan(250);
   });
 
   it('handles long backtick runs and unclosed tags quickly', () => {

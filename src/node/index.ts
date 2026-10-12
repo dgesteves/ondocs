@@ -12,9 +12,19 @@ import type { EmbeddingProviderOptions } from '../build';
 import { parseIndexFile, serializeIndexFile, type AskIndexFile } from '../index-file';
 import { fromHtml } from '../loaders/html';
 import { fromMarkdown, parseFrontmatter } from '../loaders/markdown';
+import { dropHeadingFootnotes } from '../text/markdown';
 import type { ChunkingOptions, SourceDocument } from '../types';
 import { matchesGlob } from './glob';
-import { NEXT_CONFIG, nextHeadingIds, nextPath, nextRouting, type NextRouting } from './next';
+import {
+  NEXT_CONFIG,
+  nextHeadingIds,
+  nextPath,
+  nextSite,
+  type NextRouting,
+  type NextSite,
+} from './next';
+
+export type { NextRouting } from './next';
 
 export const DEFAULT_EXTENSIONS = ['.md', '.mdx', '.markdown', '.html', '.htm'] as const;
 
@@ -24,14 +34,16 @@ export const DEFAULT_EXTENSIONS = ['.md', '.mdx', '.markdown', '.html', '.htm'] 
  * - `docusaurus` (docs plugin): frontmatter `slug` (absolute, or resolved against the page's
  *   folder) and `id`, number prefixes dropped (`01-intro.md` → `intro`, but not `2024-12-recap.md`
  *   or `1.0-release.md`), `index`, `README` or a file named like its folder as the folder's page,
- *   and `_`-prefixed files and folders as partials.
+ *   and `_`-prefixed files and folders as partials. A heading's footnote references (`[^1]`) are
+ *   left out of its anchor, as Docusaurus leaves them out of its id.
  * - `starlight`: frontmatter `slug` replaces the path, segments are slugified, `index` is the
  *   folder's page, and `_`-prefixed files are skipped.
  * - `next`: a Next.js site, by the rules of the folder read: in an App Router folder (`app` or
  *   `src/app`), `page.mdx` files are the pages, `(group)` folders are not part of the URL and
  *   `_private` folders are not routed; in a content folder, `index.mdx` is its folder's page, and
  *   `(group)` folders are not part of the URL for Fumadocs but are for Nextra. Headings take
- *   custom ids as `## Title [#id]`.
+ *   custom ids as `## Title [#id]`, which Nextra slugs, and Fumadocs and Nextra leave footnote
+ *   references (`[^1]`) out of a heading's id.
  * - `none`: the path as it is.
  */
 export type Framework = 'docusaurus' | 'starlight' | 'next' | 'none';
@@ -140,19 +152,32 @@ const NOT_A_NUMBER_PREFIX = /^\d+[-_.]\d+/;
 const stripNumberPrefix = (name: string) =>
   NOT_A_NUMBER_PREFIX.test(name) ? name : name.replace(NUMBER_PREFIX, '');
 
+/** Options for {@link frameworkUrl}. */
+export interface FrameworkUrlOptions {
+  /**
+   * For `next`, the rules of the folder the path is in, as `loadDirectory` reads them from the
+   * site: `app` (an App Router folder), `fumadocs`, `nextra`, or `content` (any other content
+   * folder, read as Fumadocs reads it).
+   */
+  routing?: NextRouting;
+}
+
 /**
  * The URL a framework serves a content file at, before `url`/`permalink` frontmatter, which
  * always wins. `relativePath` uses `/`.
  *
- * For `next`, whose rules depend on the folder, a path is read as an App Router path and a
- * Fumadocs path at once: `(group)` folders are left out, and `index` and `page` are the folder's
- * page. `loadDirectory` reads which kind of folder it is, and follows that one's rules.
+ * For `next`, whose rules depend on the folder, pass the folder's `routing` to follow its rules,
+ * as `loadDirectory` does: `getting-started/page.mdx` in a Fumadocs content folder is
+ * `/getting-started/page`. Without it, or for a file that is not a page by those rules (in an App
+ * Router folder, anything but `page.mdx`), a path is read as an App Router path and a Fumadocs
+ * path at once: `(group)` folders are left out, and `index` and `page` are the folder's page.
  */
 export function frameworkUrl(
   relativePath: string,
   frontmatter: Record<string, unknown>,
   framework: Framework,
   baseUrl = '/',
+  { routing }: FrameworkUrlOptions = {},
 ): string {
   const toUrl = (path: string) => joinUrl(baseUrl, path);
   const text = (value: unknown) => (typeof value === 'string' ? value.trim() : undefined);
@@ -182,6 +207,8 @@ export function frameworkUrl(
     return toUrl([...dirs.map((d) => slug(d)), page].filter(Boolean).join('/'));
   }
   if (framework === 'next') {
+    const path = routing === undefined ? null : nextPath(relativePath, routing);
+    if (path !== null) return toUrl(path);
     const page = /^(?:index|page)$/i.test(name) ? '' : name;
     return toUrl([...dirs.filter((d) => !/^\(.+\)$/.test(d)), page].filter(Boolean).join('/'));
   }
@@ -249,7 +276,8 @@ export async function loadDirectory(
   const ignore = options.ignore ?? [];
   const framework =
     options.framework === 'auto' ? await detectFramework(directory) : (options.framework ?? 'none');
-  const routing = framework === 'next' ? await nextRouting(directory) : 'content';
+  const site = framework === 'next' ? await nextSite(directory) : undefined;
+  const routing = site?.routing ?? 'content';
   const files = (await listFiles(directory, extensions))
     .filter(({ path }) => !isHidden(path, framework, routing))
     .filter(({ path }) => !ignore.some((pattern) => matchesGlob(path, pattern)))
@@ -262,7 +290,7 @@ export async function loadDirectory(
     const markdown = ext !== '.html' && ext !== '.htm';
     let url = pathToUrl(path, options.baseUrl, { cleanUrls: options.cleanUrls ?? false });
     if (framework === 'next') {
-      url = joinUrl(options.baseUrl ?? '/', nextPath(path, routing) ?? '');
+      url = frameworkUrl(path, {}, framework, options.baseUrl, { routing });
     } else if (framework !== 'none') {
       let frontmatter: Record<string, unknown> = {};
       try {
@@ -279,8 +307,8 @@ export async function loadDirectory(
         ext === '.html' || ext === '.htm'
           ? fromHtml(source, { ...meta, markdown: options.markdown ?? false })
           : fromMarkdown(
-              // The index reads `[#id]` heading ids; a page's `.md` copy keeps them as written.
-              framework === 'next' && !options.markdown ? nextHeadingIds(source, routing) : source,
+              // A page's `.md` copy keeps its headings as written.
+              options.markdown ? source : indexedHeadings(source, framework, site),
               {
                 ...meta,
                 mdx: ext === '.mdx',
@@ -296,6 +324,18 @@ export async function loadDirectory(
     if (document) documents.push(document);
   }
   return documents;
+}
+
+/**
+ * The source with its headings as the index reads them: a Next.js site's `[#id]` heading ids, and
+ * without footnote references where the framework leaves them out of a heading's id (Docusaurus,
+ * Fumadocs, Nextra). Astro, and so Starlight, puts the footnote's number in the id instead.
+ */
+function indexedHeadings(source: string, framework: Framework, site: NextSite | undefined): string {
+  const text = site ? nextHeadingIds(source, site) : source;
+  const footnotes =
+    framework === 'docusaurus' || site?.nextra === true || site?.routing === 'fumadocs';
+  return footnotes ? dropHeadingFootnotes(text) : text;
 }
 
 /** Reads and validates an index file. Returns `null` if it does not exist. */
