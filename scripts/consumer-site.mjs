@@ -5,8 +5,10 @@
 //
 //   npm pack && node scripts/consumer-site.mjs <site> ondocs-x.y.z.tgz [dir]
 //
-// The sites are next, docusaurus, starlight and vitepress, and docusaurus-plugin-ondocs and
-// starlight-ondocs, which install the plugin under its own package's name (packages/).
+// The sites are next, fumadocs, nextra, docusaurus, starlight and vitepress, and
+// docusaurus-plugin-ondocs and starlight-ondocs, which install the plugin under its own package's
+// name (packages/). Nextra has no scaffolder, so its site is the docs starter from the Nextra
+// repository at a pinned tag.
 //
 // The workspace examples link the package from source, so they cannot catch what only an
 // installed package meets: how Docusaurus loads plugins, the published files, peer resolution.
@@ -29,6 +31,8 @@ import { startOpenAIStub } from './openai-stub.mjs';
 
 const MODEL = 'text-embedding-3-small';
 const PEERS = ['ai', '@ai-sdk/openai', '@radix-ui/react-dialog', 'cmdk'];
+/** The Nextra release whose docs starter the nextra site is, as the Nextra guide was checked on. */
+const NEXTRA = '4.6.1';
 
 /**
  * Per site: how to create it, what to add, what to install and run, where the index lands and
@@ -37,8 +41,9 @@ const PEERS = ['ai', '@ai-sdk/openai', '@radix-ui/react-dialog', 'cmdk'];
  * deliberate upgrade here rather than a surprise in an unrelated pull request.
  *
  * Some sites have more to check, such as where their pages are served (`check`, which returns the
- * problems it finds). The plugins' sites build their pages into `llms`, and each indexed page must
- * link its `.md` copy from its `<head>` (`linked`).
+ * problems it finds). `llms` is where ondocs writes `llms.txt` and the `.md` copies; a site that
+ * serves its own (Fumadocs) has none. The plugins' sites build their pages into `llms`, or into
+ * `html`, and each indexed page must link its `.md` copy from its `<head>` (`linked`).
  *
  * @type {Record<string, {
  *   create: (dir: string) => [string, string[], string?] | [string, string[], string?][],
@@ -46,7 +51,8 @@ const PEERS = ['ai', '@ai-sdk/openai', '@radix-ui/react-dialog', 'cmdk'];
  *   install: string[],
  *   build: string[][],
  *   index: string,
- *   llms: string,
+ *   llms?: string,
+ *   html?: string,
  *   dimensions: number,
  *   linked?: boolean,
  *   package?: string,
@@ -140,6 +146,177 @@ export function Ask() {
     llms: 'public',
     dimensions: 512,
   },
+  // create-fumadocs-app's Next.js template, with ondocs added as the Fumadocs guide says, and the
+  // pages of test/fixtures/fumadocs-site, one for each rule that moves a URL. The template serves
+  // its own llms.txt and Markdown copies, so the index is built without --llms-txt.
+  fumadocs: {
+    create: (dir) => [
+      'npx',
+      [
+        '-y',
+        'create-fumadocs-app@16',
+        basename(dir),
+        '--template',
+        '+next+fuma-docs-mdx',
+        '--pm',
+        'npm',
+        '--yes',
+        '--no-git',
+      ],
+      dirname(dir),
+    ],
+    configure: (dir) => {
+      cpSync(fixture('fumadocs-site/content/docs'), join(dir, 'content/docs'), { recursive: true });
+      scripts(
+        dir,
+        `ondocs index content/docs --base-url /docs -e openai:${MODEL} --dimensions 512`,
+      );
+      write(
+        dir,
+        'app/api/ask/route.ts',
+        `import { openai } from '@ai-sdk/openai';
+import { createAskHandler, memoryRateLimit } from 'ondocs/server';
+import index from '@/ask-index.json';
+
+export const POST = createAskHandler({
+  index,
+  model: openai('gpt-5.4-mini'),
+  embeddingModel: openai.embedding('${MODEL}'),
+  siteName: 'Acme Docs',
+  rateLimit: memoryRateLimit({ limit: 10, windowMs: 60_000 }),
+});
+`,
+      );
+      write(dir, 'app/api/mcp/route.ts', mcpRoute("'@/ask-index.json'"));
+      write(dir, 'components/ask.tsx', askComponent("'next-themes'"));
+      edit(
+        dir,
+        'app/layout.tsx',
+        (layout) =>
+          layout
+            .replace(
+              "import './global.css';",
+              "import './global.css';\nimport { Ask } from '@/components/ask';",
+            )
+            .replace(
+              '<RootProvider>{children}</RootProvider>',
+              '<RootProvider>\n          {children}\n          <Ask />\n        </RootProvider>',
+            ),
+        '<Ask />',
+      );
+    },
+    install: [...PEERS, 'next-themes'],
+    build: [['npm', 'run', 'build']],
+    index: 'ask-index.json',
+    dimensions: 512,
+    check: (dir, index) => nextRoutes(dir, index, '/docs/[[...slug]]'),
+  },
+  // Nextra 4.6.1's docs starter (examples/docs in its repository, with nextra and
+  // nextra-theme-docs from npm at that version in place of its workspace links), with ondocs added
+  // as the Nextra guide says, and the pages of test/fixtures/nextra-site/src/content. Its build
+  // runs `next build --webpack`, then Pagefind.
+  nextra: {
+    create: (dir) => {
+      const repository = `${dir}-repository`;
+      return [
+        ['rm', ['-rf', repository]],
+        [
+          'git',
+          [
+            'clone',
+            '--depth',
+            '1',
+            '--branch',
+            `nextra@${NEXTRA}`,
+            '--filter',
+            'blob:none',
+            '--sparse',
+            'https://github.com/shuding/nextra.git',
+            repository,
+          ],
+        ],
+        ['git', ['sparse-checkout', 'set', 'examples/docs'], repository],
+        ['cp', ['-R', join(repository, 'examples/docs'), dir]],
+      ];
+    },
+    configure: (dir) => {
+      cpSync(fixture('nextra-site/src/content'), join(dir, 'src/content'), { recursive: true });
+      scripts(
+        dir,
+        `ondocs index src/content --base-url /docs -e openai:${MODEL} --dimensions 512 --llms-txt public`,
+      );
+      edit(
+        dir,
+        'package.json',
+        (text) => {
+          const manifest = JSON.parse(text);
+          for (const name of ['nextra', 'nextra-theme-docs']) manifest.dependencies[name] = NEXTRA;
+          // As the guide says: the starter's build fails with zod 4.6, which ondocs needs.
+          manifest.overrides = {
+            nextra: { zod: '4.1.13' },
+            'nextra-theme-docs': { zod: '4.1.13' },
+          };
+          return `${JSON.stringify(manifest, null, 2)}\n`;
+        },
+        '"overrides"',
+      );
+      write(
+        dir,
+        'src/app/api/ask/route.js',
+        `import { openai } from '@ai-sdk/openai';
+import { createAskHandler, memoryRateLimit } from 'ondocs/server';
+import index from '../../../../ask-index.json';
+
+export const POST = createAskHandler({
+  index,
+  model: openai('gpt-5.4-mini'),
+  embeddingModel: openai.embedding('${MODEL}'),
+  siteName: 'Acme Docs',
+  rateLimit: memoryRateLimit({ limit: 10, windowMs: 60_000 }),
+});
+`,
+      );
+      write(dir, 'src/app/api/mcp/route.js', mcpRoute("'../../../../ask-index.json'"));
+      write(dir, 'components/ask.jsx', askComponent("'nextra-theme-docs'"));
+      edit(
+        dir,
+        'src/app/layout.jsx',
+        (layout) =>
+          layout
+            .replace(
+              "import 'nextra-theme-docs/style.css'",
+              "import 'nextra-theme-docs/style.css'\nimport { Ask } from '../../components/ask'",
+            )
+            .replace(
+              '          {children}\n        </Layout>',
+              '          {children}\n          <Ask />\n        </Layout>',
+            ),
+        '<Ask />',
+      );
+      // Each page links its .md copy from its <head>, as the guide's metadata does.
+      edit(
+        dir,
+        'src/app/docs/[[...mdxPath]]/page.jsx',
+        (page) =>
+          page.replace(
+            '  const { metadata } = await importPage(params.mdxPath)\n  return metadata\n',
+            `  const { metadata } = await importPage(params.mdxPath);
+  const markdown = ['/docs', ...(params.mdxPath ?? [])].join('/') + '.md';
+  return { ...metadata, alternates: { types: { 'text/markdown': markdown } } };
+`,
+          ),
+        "'text/markdown'",
+      );
+    },
+    install: PEERS,
+    build: [['npm', 'run', 'build']],
+    index: 'ask-index.json',
+    llms: 'public',
+    html: '.next/server/app',
+    dimensions: 512,
+    linked: true,
+    check: (dir, index) => nextRoutes(dir, index, '/docs/[[...mdxPath]]'),
+  },
   // The plugin with no options: the default model, from OPENAI_API_KEY, loaded under jiti.
   docusaurus: docusaurus("['ondocs/docusaurus', {}]"),
   // The same plugin under its own package's name, the one Docusaurus users search for.
@@ -218,6 +395,90 @@ export function Ask() {
   },
 };
 
+/** A file or folder in test/fixtures. */
+function fixture(path) {
+  return fileURLToPath(new URL(`../test/fixtures/${path}`, import.meta.url));
+}
+
+/** Adds the guides' `index` script, run before every build, to the site's package.json. */
+function scripts(dir, index) {
+  edit(dir, 'package.json', (text) => {
+    const manifest = JSON.parse(text);
+    manifest.scripts = { ...manifest.scripts, index, prebuild: 'npm run index' };
+    return `${JSON.stringify(manifest, null, 2)}\n`;
+  });
+}
+
+/** The guides' MCP route handler, importing the index from `index`. */
+function mcpRoute(index) {
+  return `import { createMcpHandler } from 'ondocs/server';
+import index from ${index};
+
+const handler = createMcpHandler({ index, siteName: 'the Acme docs' });
+
+export const POST = handler;
+export const GET = handler;
+export const DELETE = handler;
+export const OPTIONS = handler;
+`;
+}
+
+/** The guides' Ask component, with the theme from `useTheme` in `themes`. */
+function askComponent(themes) {
+  return `'use client';
+import { useEffect, useState } from 'react';
+import { AskDialog } from 'ondocs/react';
+import 'ondocs/react/styles.css';
+import 'ondocs/embed/launcher.css';
+import { useTheme } from ${themes};
+import { useRouter } from 'next/navigation';
+
+export function Ask() {
+  const router = useRouter();
+  const { resolvedTheme } = useTheme();
+  // next-themes knows the theme only once the page runs; until then, follow the system's.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return (
+    <AskDialog
+      launcher
+      shortcut="i"
+      theme={mounted ? (resolvedTheme === 'dark' ? 'dark' : 'light') : undefined}
+      suggestions={['How do I install it?']}
+      onNavigate={(url, event) => {
+        event.preventDefault();
+        router.push(url);
+      }}
+    />
+  );
+}
+`;
+}
+
+/**
+ * What is wrong with the index's URLs next to the pages of the docs route `route` that `next
+ * build` generated (in `.next/prerender-manifest.json`): each URL in the index must be one of
+ * them, and each of them must be in the index.
+ */
+function nextRoutes(dir, index, route) {
+  const manifest = JSON.parse(readFileSync(join(dir, '.next/prerender-manifest.json'), 'utf8'));
+  const built = new Set(
+    Object.entries(manifest.routes)
+      .filter(([, prerendered]) => prerendered.srcRoute === route)
+      .map(([path]) => decodeURI(path)),
+  );
+  const indexed = new Set(index.documents.map(({ url }) => decodeURI(url)));
+  const problems = [];
+  if (built.size === 0) problems.push(`next build generated no pages for ${route}`);
+  for (const url of indexed) {
+    if (!built.has(url)) problems.push(`the index has ${url}, which next build did not generate`);
+  }
+  for (const path of built) {
+    if (!indexed.has(path)) problems.push(`next build generated ${path}, which the index lacks`);
+  }
+  return problems;
+}
+
 /** A Docusaurus site with `plugin` in its plugins. */
 function docusaurus(plugin) {
   return {
@@ -272,10 +533,10 @@ function starlight(entry) {
 
 /**
  * What is wrong with the links from the built pages to their `.md` copies: each indexed page,
- * where the build wrote it, must have `<link rel="alternate" type="text/markdown">` in its
- * `<head>`, to a copy that is in the build.
+ * where the build wrote it in `out`, must have `<link rel="alternate" type="text/markdown">` in
+ * its `<head>`, to a copy that is in `copies`.
  */
-function markdownLinks(out, index) {
+function markdownLinks(out, copies, index) {
   const problems = [];
   for (const { url } of index.documents) {
     const path = decodeURI(new URL(url, 'http://site').pathname).replace(/^\//, '');
@@ -293,13 +554,15 @@ function markdownLinks(out, index) {
     const html = readFileSync(join(out, file), 'utf8');
     const end = html.search(/<\/head>/i);
     const head = end === -1 ? '' : html.slice(0, end);
-    const href = /<link rel="alternate" type="text\/markdown" href="([^"]+)">/.exec(head)?.[1];
+    const href = /<link rel="alternate" type="text\/markdown" href="([^"]+)"\s*\/?>/.exec(
+      head,
+    )?.[1];
     if (!href) {
       problems.push(`${file} does not link its .md copy`);
       continue;
     }
     const copy = decodeURI(new URL(href, 'http://site').pathname).replace(/^\//, '');
-    if (!existsSync(join(out, copy)))
+    if (!existsSync(join(copies, copy)))
       problems.push(`${file} links ${href}, which is not in the build`);
   }
   return problems;
@@ -310,11 +573,14 @@ function write(dir, file, content) {
   writeFileSync(join(dir, file), content);
 }
 
-/** Rewrites a scaffolded file, failing if the change did not apply (the template moved on). */
-function edit(dir, file, change) {
+/**
+ * Rewrites a scaffolded file, failing if the change did not apply (the template moved on): the
+ * file must change and then include `marker`.
+ */
+function edit(dir, file, change, marker = 'ondocs') {
   const before = readFileSync(join(dir, file), 'utf8');
   const after = change(before);
-  if (after === before || !after.includes('ondocs')) {
+  if (after === before || !after.includes(marker)) {
     throw new Error(`Could not add ondocs to ${file}; did the template change?`);
   }
   writeFileSync(join(dir, file), after);
@@ -390,24 +656,30 @@ if (!index.chunks?.length || !index.chunks.every((chunk) => typeof chunk.vector 
   problems.push('some chunks have no vector');
 }
 // llms.txt, llms-full.txt and a .md copy of each indexed page, linked from llms.txt.
-const llmsDir = join(dir, site.llms);
-for (const file of ['llms.txt', 'llms-full.txt']) {
-  if (!existsSync(join(llmsDir, file))) problems.push(`the build wrote no ${site.llms}/${file}`);
-}
-const llmsTxt = existsSync(join(llmsDir, 'llms.txt'))
-  ? readFileSync(join(llmsDir, 'llms.txt'), 'utf8')
-  : '';
-const links = [...llmsTxt.matchAll(/^- \[[^\]]*\]\(([^)]+\.md)\)/gm)].map((match) => match[1]);
-if (links.length !== index.documents.length) {
-  problems.push(
-    `llms.txt links ${String(links.length)} .md pages, the index has ${String(index.documents.length)}`,
+if (site.llms) {
+  const llmsDir = join(dir, site.llms);
+  for (const file of ['llms.txt', 'llms-full.txt']) {
+    if (!existsSync(join(llmsDir, file))) problems.push(`the build wrote no ${site.llms}/${file}`);
+  }
+  const llmsTxt = existsSync(join(llmsDir, 'llms.txt'))
+    ? readFileSync(join(llmsDir, 'llms.txt'), 'utf8')
+    : '';
+  // A destination may hold balanced parentheses, as a Nextra `(group)` folder's pages do.
+  const links = [...llmsTxt.matchAll(/^- \[[^\]]*\]\(((?:[^()\s]|\([^()\s]*\))+\.md)\)/gm)].map(
+    (match) => match[1],
   );
+  if (links.length !== index.documents.length) {
+    problems.push(
+      `llms.txt links ${String(links.length)} .md pages, the index has ${String(index.documents.length)}`,
+    );
+  }
+  for (const link of links) {
+    const file = join(llmsDir, decodeURI(new URL(link, 'http://site').pathname).replace(/^\//, ''));
+    if (!existsSync(file)) problems.push(`llms.txt links ${link}, which is not in ${site.llms}`);
+  }
+  if (site.linked)
+    problems.push(...markdownLinks(join(dir, site.html ?? site.llms), llmsDir, index));
 }
-for (const link of links) {
-  const file = join(llmsDir, decodeURI(new URL(link, 'http://site').pathname).replace(/^\//, ''));
-  if (!existsSync(file)) problems.push(`llms.txt links ${link}, which is not in ${site.llms}`);
-}
-if (site.linked) problems.push(...markdownLinks(llmsDir, index));
 problems.push(...(site.check?.(dir, index) ?? []));
 const strays = stub.requests.filter((request) => request !== 'POST /v1/embeddings');
 if (stub.requests.length === 0) problems.push('the stub received no embedding request');
@@ -417,5 +689,5 @@ if (problems.length > 0) {
   process.exit(1);
 }
 console.log(
-  `\n✓ ${name}: ${site.index} has ${String(index.documents.length)} pages and ${String(index.chunks.length)} chunks embedded with ${MODEL} at ${String(site.dimensions)} dimensions, from ${String(stub.requests.length)} requests to the stub; ${site.llms}/llms.txt links a .md copy of each${site.linked ? ', and so does each page' : ''}.`,
+  `\n✓ ${name}: ${site.index} has ${String(index.documents.length)} pages and ${String(index.chunks.length)} chunks embedded with ${MODEL} at ${String(site.dimensions)} dimensions, from ${String(stub.requests.length)} requests to the stub${site.llms ? `; ${site.llms}/llms.txt links a .md copy of each${site.linked ? ', and so does each page' : ''}` : ''}.`,
 );

@@ -96,6 +96,9 @@ jobs:
   # with OpenAI embeddings from a local stub (scripts/openai-stub.mjs) and must come out embedded.
   # The sites are generated rather than committed: scaffolding takes seconds next to installing,
   # and a committed copy would drift from what create-docusaurus and friends produce today.
+  # Nextra has no scaffolder, so its site is the docs starter from the Nextra repository at a
+  # pinned tag. The Fumadocs and Nextra sites' index must have every docs page next build
+  # generated, and nothing else.
   consumers:
     name: Fresh ${{ matrix.site }} site, from the packed package
     runs-on: ubuntu-latest
@@ -103,7 +106,15 @@ jobs:
       fail-fast: false
       matrix:
         # The last two install the plugin under its own package's name, from packages/.
-        site: [next, docusaurus, starlight, vitepress, docusaurus-plugin-ondocs, starlight-ondocs]
+        site:
+          - next
+          - fumadocs
+          - nextra
+          - docusaurus
+          - starlight
+          - vitepress
+          - docusaurus-plugin-ondocs
+          - starlight-ondocs
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
