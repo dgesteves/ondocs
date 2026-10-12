@@ -89,6 +89,12 @@ describe('package.json', () => {
       expect(ranges.length, file).toBeGreaterThan(0);
       for (const range of ranges) expect(range, file).toBe(minor);
     }
+    // The migration's perl command rewrites old script tags to the same range.
+    const migrating = readFileSync(
+      join(import.meta.dirname, '..', 'examples/nextjs/content/docs/migrating.md'),
+      'utf8',
+    );
+    expect(/\{\$1\/ondocs\\@([\d.]+)\}g/.exec(migrating)?.[1]).toBe(minor);
   });
 
   it('keeps the types’ names from before ondocs, as deprecated aliases', () => {
