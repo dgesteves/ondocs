@@ -6,8 +6,9 @@
 //   pnpm build && node scripts/sync-template.mjs --check   # exit 1 if it is out of date
 //
 // The files are kept as init writes them, byte for byte (.prettierignore leaves them alone). The
-// template's package.json adds what its tests need, and its ondocs version is left as it is:
-// init writes the version it is, which a release changes.
+// template's package.json adds what its tests need, and depends on ondocs at this package.json's
+// version, the one on npm. The release workflow runs this after `changeset version`, so the
+// release pull request moves the template to the version it publishes.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -15,6 +16,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
+const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const TEMPLATE = join(root, 'templates/cloudflare-worker');
 const GENERATED = ['package.json', 'tsconfig.json', 'wrangler.jsonc', 'src/index.ts'];
 const check = process.argv.includes('--check');
@@ -47,15 +49,15 @@ try {
     }
     if (file === 'package.json') {
       const pkg = JSON.parse(text);
-      const own = current ? JSON.parse(current) : {};
       pkg.scripts = { ...pkg.scripts, test: 'vitest run' };
       pkg.devDependencies = {
         ...pkg.devDependencies,
         '@cloudflare/vitest-plugin': '^1.4.0',
-        vitest: '^5.0.0',
+        // vitest 5.0.4 breaks @cloudflare/vitest-plugin 1.4.0 ("no such file or directory,
+        // readAll …/.vitest-cache/…"). Back to ^5.0.0 once the plugin supports it.
+        vitest: '5.0.3',
       };
-      const version = own.dependencies?.ondocs;
-      if (version) pkg.dependencies.ondocs = version;
+      pkg.dependencies.ondocs = `^${version}`;
       text = `${JSON.stringify(pkg, null, 2)}\n`;
     }
     if (current !== text) changed.push([file, text]);
