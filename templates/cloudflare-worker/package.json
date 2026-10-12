@@ -27,5 +27,18 @@
   },
   "overrides": {
     "vitest": "5.0.3"
+  },
+  "cloudflare": {
+    "bindings": {
+      "SITE_URL": {
+        "description": "Your docs site's URL with its base path, such as `https://acme.github.io/docs`. The Worker reads the index at `SITE_URL/ask-index.json`, which the [ondocs plugins](https://ondocs.vercel.app/docs) write with every build."
+      },
+      "CHAT_MODEL": {
+        "description": "The Workers AI model that writes the answers. The [Workers AI guide](https://ondocs.vercel.app/docs/workers-ai) compares them by cost."
+      },
+      "AI": {
+        "description": "Workers AI embeds the questions and writes the answers: no API key."
+      }
+    }
   }
 }

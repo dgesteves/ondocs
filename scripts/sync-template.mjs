@@ -64,6 +64,22 @@ try {
       };
       pkg.overrides = { vitest: '5.0.3' };
       pkg.dependencies.ondocs = `^${version}`;
+      // What the "Deploy to Cloudflare" form says about each field it asks for.
+      pkg.cloudflare = {
+        bindings: {
+          SITE_URL: {
+            description:
+              "Your docs site's URL with its base path, such as `https://acme.github.io/docs`. The Worker reads the index at `SITE_URL/ask-index.json`, which the [ondocs plugins](https://ondocs.vercel.app/docs) write with every build.",
+          },
+          CHAT_MODEL: {
+            description:
+              'The Workers AI model that writes the answers. The [Workers AI guide](https://ondocs.vercel.app/docs/workers-ai) compares them by cost.',
+          },
+          AI: {
+            description: 'Workers AI embeds the questions and writes the answers: no API key.',
+          },
+        },
+      };
       text = `${JSON.stringify(pkg, null, 2)}\n`;
     }
     if (current !== text) changed.push([file, text]);
