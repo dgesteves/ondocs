@@ -12,13 +12,13 @@ Add this tag to your base template, before `</body>` or in `<head>`:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.9/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.10/dist/embed.global.js"
   data-endpoint="/api/ask"
   defer
 ></script>
 ```
 
-The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.9.0`, in production.
+The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.10.0`, in production.
 
 ## Script size
 
@@ -68,7 +68,7 @@ To try it first, run `npx ondocs dev` beside the index and set `data-endpoint="h
 With `data-manual`, the script waits for you to call `window.Ondocs.mount(options)`, which takes the same options as the attributes and returns `{ open, close, unmount }`. Use it to open the dialog from your own button:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/ondocs@0.9/dist/embed.global.js" data-manual></script>
+<script src="https://cdn.jsdelivr.net/npm/ondocs@0.10/dist/embed.global.js" data-manual></script>
 <script type="module">
   const ask = window.Ondocs.mount({ endpoint: '/api/ask', launcher: false });
   document.querySelector('#ask-button').addEventListener('click', () => ask.open());
