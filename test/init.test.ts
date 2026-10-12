@@ -9,7 +9,7 @@ import { join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { version } from '../package.json' with { type: 'json' };
-import { wranglerWorkerConfig } from '../src/cli/init';
+import { placeholderUrl, wranglerWorkerConfig } from '../src/cli/init';
 import { comment, workerName } from '../src/cli/init-templates';
 import { main } from '../src/cli/main';
 
@@ -98,6 +98,7 @@ describe('ondocs init: what it writes per host', () => {
           scripts: { deploy: 'docusaurus deploy' },
           dependencies: { '@docusaurus/core': '3' },
         }),
+        '.github/workflows/deploy.yml': 'steps:\n  - uses: actions/deploy-pages@v4\n',
       },
       [],
     ],
@@ -274,6 +275,97 @@ describe('ondocs init', () => {
     expect(asked.stdout).toContain('Where is the site hosted?');
     expect(asked.stdout).toContain('a Docusaurus site on Netlify.');
     expect(existsSync(join(cwd, 'netlify/functions/ask.mts'))).toBe(true);
+  });
+
+  it('does not take a new Docusaurus site’s deploy script for GitHub Pages', async () => {
+    // As create-docusaurus writes it: a `docusaurus deploy` script, the template's URL, and the
+    // plugin added as the docs say.
+    await site({
+      'package.json': JSON.stringify({
+        name: 'acme-docs',
+        scripts: { build: 'docusaurus build', deploy: 'docusaurus deploy' },
+        dependencies: { '@docusaurus/core': '3' },
+      }),
+      'docusaurus.config.ts':
+        "export default {\n  title: 'Acme Docs',\n  url: 'https://your-docusaurus-site.example.com',\n  baseUrl: '/',\n  plugins: ['ondocs/docusaurus'],\n};\n",
+    });
+    const unattended = await run([]);
+    expect(unattended.code).toBe(2);
+    expect(unattended.stderr).toContain('pass --host vercel|netlify|cloudflare|github-pages');
+    expect(existsSync(join(cwd, 'ondocs-worker'))).toBe(false);
+
+    // Asked, and told GitHub Pages: it asks for the site's URL, since the config's is the
+    // template's, and warns when it gets none.
+    const asked = await run([], ['4', '']);
+    expect(asked.code).toBe(0);
+    expect(asked.stdout).toContain('Where is the site hosted?');
+    expect(asked.stdout).toContain(
+      "The site's config has https://your-docusaurus-site.example.com as its URL, which looks like a placeholder.",
+    );
+    expect(asked.asked.at(-1)).toContain('The site’s public URL');
+    expect(asked.stderr).toContain(
+      "! The site's URL, https://your-docusaurus-site.example.com, looks like a template's placeholder",
+    );
+    // The plugin is in the config already: the step gives it the Worker's endpoint.
+    expect(asked.stdout).not.toContain('Add the plugin');
+    expect(asked.stdout).toContain(
+      "Pass { endpoint: 'https://acme-docs-ask.<your-subdomain>.workers.dev/api/ask', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' } to the ondocs plugin in docusaurus.config.ts",
+    );
+
+    // Given the real URL, it uses it, and has nothing to warn about.
+    const answered = await run(['--yes'], ['4', 'https://acme.github.io/docs/']);
+    expect(answered.stderr).toBe('');
+    expect(await readFile(join(cwd, 'ondocs-worker/wrangler.jsonc'), 'utf8')).toContain(
+      '"SITE_URL": "https://acme.github.io/docs"',
+    );
+    // And on a host whose endpoint is the site's own, there is no plugin step left at all.
+    const vercel = await run(['--host', 'vercel', '--dry-run']);
+    expect(vercel.code).toBe(0);
+    expect(vercel.stderr).toBe('');
+    const steps = vercel.stdout.slice(vercel.stdout.lastIndexOf('\nNext:'));
+    expect(steps).toContain('Deploy as you do now.');
+    expect(steps).not.toMatch(/plugin/i);
+  });
+
+  it('takes the gh-pages package or a script that runs it for GitHub Pages', async () => {
+    await site({
+      ...DOCUSAURUS,
+      'package.json': JSON.stringify({
+        name: 'acme-docs',
+        scripts: { deploy: 'gh-pages -d build' },
+        dependencies: { '@docusaurus/core': '3' },
+      }),
+    });
+    const result = await run(['--dry-run']);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain(
+      'a Docusaurus site on GitHub Pages, answered by a Cloudflare Worker.',
+    );
+  });
+
+  it('tells a plain HTML site to name its folder with --out', async () => {
+    await site({ 'package.json': JSON.stringify({ name: 'acme' }) });
+    const nothing = await run([]);
+    expect(nothing.code).toBe(2);
+    expect(nothing.stderr).toContain(
+      'For plain HTML, pass the folder of its HTML files with --out <dir>, as in npx ondocs init --out public.',
+    );
+
+    await site({ '_site/index.html': '<!doctype html><title>Acme</title><main>Hi</main>' });
+    const found = await run([]);
+    expect(found.code).toBe(2);
+    expect(found.stderr).toContain(
+      '_site/ has HTML files: if it is the folder the site deploys, run npx ondocs init --out _site.',
+    );
+    const named = await run(['--out', '_site', '--host', 'vercel', '--dry-run']);
+    expect(named.code).toBe(0);
+    // `ondocs index` needs -e none to build without a key, which the plugins do not.
+    expect(named.stdout).toContain(
+      'without it there, add -e none to the index command for a keyword-only index, which works too',
+    );
+    expect(named.stdout).toContain(
+      'Build the index after the site: npx ondocs index _site -o _site/ask-index.json (it embeds with OPENAI_API_KEY; -e none builds a keyword-only index without it)',
+    );
   });
 
   it('asks which host when the site has config for two', async () => {
@@ -498,6 +590,21 @@ describe('the templates’ helpers', () => {
     expect(text.split('\n').every((line) => line.length <= 100 && line.startsWith('// '))).toBe(
       true,
     );
+  });
+
+  it('tells a template’s placeholder URL from a site’s', () => {
+    for (const url of [
+      'https://your-docusaurus-site.example.com',
+      'https://example.org/',
+      'http://localhost:3000',
+      'https://docs.test',
+      'https://your-site.netlify.app',
+    ]) {
+      expect([url, placeholderUrl(url)]).toEqual([url, true]);
+    }
+    for (const url of ['https://acme.github.io/docs', 'https://docs.acme.dev', 'not a url']) {
+      expect([url, placeholderUrl(url)]).toEqual([url, false]);
+    }
   });
 
   it('names a Worker from the site', () => {

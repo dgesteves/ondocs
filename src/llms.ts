@@ -11,6 +11,7 @@
  *   `/docs/intro.md`, the site's root → `/index.md`), as Mintlify, GitBook, Fumadocs and the
  *   Docusaurus and Starlight llms plugins write them. It starts with a pointer to `llms.txt`.
  */
+import { mapLinkDestinations } from './text/links';
 
 /** A page to write: what the index was built from, with its content as Markdown. */
 export interface LlmsPage {
@@ -116,6 +117,49 @@ export function markdownCopies(pages: readonly LlmsPage[], base = '/'): Map<Llms
     copies.set(page, path);
   }
   return copies;
+}
+
+/** A host no URL has, to resolve root-relative URLs with `URL` and tell them from absolute ones. */
+const NOWHERE = 'https://ondocs.invalid';
+
+/**
+ * Markdown read from the file `file` (its path from the content folder, as `guide/index.md`),
+ * with each relative link and image resolved, so it works from the page's `.md` copy and from
+ * `llms-full.txt`. A copy is not always in its file's folder: `content/index.md` is `/docs.md`,
+ * where `./setup.md` would be `/setup.md`. A link to another page's file becomes what `page`
+ * returns for that file, its copy or its URL; any other relative link is resolved against
+ * `folder`, the URL of the file's folder, as `/docs/guide/`. Fragments, root-relative and
+ * absolute links stay as they are.
+ */
+export function resolveMarkdownLinks(
+  markdown: string,
+  file: string,
+  folder: string,
+  page: (file: string) => string | undefined,
+): string {
+  const root = `${NOWHERE}/content/`;
+  const dir = file
+    .split('/')
+    .slice(0, -1)
+    .map((segment) => `${encodeURIComponent(segment)}/`)
+    .join('');
+  return mapLinkDestinations(markdown, (destination) => {
+    if (!destination || /^(?:[a-z][a-z\d+.-]*:|[/#?])/i.test(destination)) return null;
+    try {
+      const target = new URL(destination, `${root}${dir}`);
+      if (target.href.startsWith(root)) {
+        const path = decoded(target.pathname.slice('/content/'.length)).normalize('NFC');
+        const href = page(path);
+        if (href !== undefined) return `${href}${target.search}${target.hash}`;
+      }
+      const resolved = new URL(destination, new URL(folder, `${NOWHERE}/`));
+      return resolved.origin === NOWHERE
+        ? `${resolved.pathname}${resolved.search}${resolved.hash}`
+        : resolved.href;
+    } catch {
+      return null;
+    }
+  });
 }
 
 /** `path` (relative to `base`) from the site's root: `/docs/` and `intro.md` → `/docs/intro.md`. */

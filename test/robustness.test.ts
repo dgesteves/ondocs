@@ -4,6 +4,7 @@ import GithubSlugger from 'github-slugger';
 
 import { chunkDocument, createSlugger, fromHtml, fromMarkdown, slugify } from '../src';
 import type { SourceDocument } from '../src';
+import { resolveMarkdownLinks } from '../src/llms';
 import { seeded } from './helpers';
 
 const doc = (content: string, title = 'Page'): SourceDocument => ({
@@ -55,6 +56,9 @@ describe('linear-time loaders on unclosed constructs', () => {
       fromMarkdown(source, { id: 'x', url: '/x', mdx, markdown });
   const markdown = (source: string) => () =>
     fromHtml(source, { id: 'x', url: '/docs/x', markdown: true });
+  // A Markdown file's links, resolved for its .md copy.
+  const relinked = (source: string) => () =>
+    resolveMarkdownLinks(source, 'guide/index.md', '/docs/guide/', () => undefined);
 
   it.each([
     ['unclosed dropped elements', html(`<main>${'<nav>x '.repeat(n)}</main>`)],
@@ -110,6 +114,11 @@ describe('linear-time loaders on unclosed constructs', () => {
     ['Markdown links with unclosed destinations', md('[a](('.repeat(n))],
     ['Markdown links without destinations', md('[a]('.repeat(n))],
     ['Markdown images with unclosed destinations', md('![a]('.repeat(n))],
+    ['Resolved links with unclosed destinations', relinked('[a](('.repeat(n))],
+    ['Resolved links with unclosed angle brackets', relinked('[a](<x '.repeat(n))],
+    ['Resolved angle brackets across lines', relinked(`${'[a](<x\n'.repeat(n)}>`)],
+    ['Resolved links, many of them', relinked('[a](./b.md) ![c](d.png "e")\n'.repeat(n / 4))],
+    ['Resolved links without destinations', relinked('[a]('.repeat(n))],
     ['unclosed link labels', md(`${'['.repeat(4 * n)}]`)],
     ['unclosed image labels', md(`!${'['.repeat(4 * n)}]`)],
     ['link definitions with unclosed labels', md(`${'[x\n'.repeat(n)}]: /url`)],
