@@ -13,7 +13,7 @@ import { mono, sans } from '../lib/fonts';
 import { SITE_URL } from '../lib/site';
 
 const description =
-  'Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Agent traffic costs you no model tokens.';
+  'Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own key. No vector database.';
 
 const title = 'ondocs: make your docs answerable by people and by agents';
 
@@ -31,6 +31,7 @@ export const metadata: Metadata = {
     'RAG',
     'Docusaurus plugin',
     'Starlight plugin',
+    'VitePress plugin',
     'Astro integration',
     'Next.js',
     'AI SDK',

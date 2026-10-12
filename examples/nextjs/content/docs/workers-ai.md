@@ -23,6 +23,8 @@ npm create cloudflare@latest my-docs-ask -- --template=dgesteves/ondocs/template
 cd my-docs-ask && npx wrangler deploy
 ```
 
+Or use [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dgesteves/ondocs/tree/main/templates/cloudflare-worker), which copies the template to a new repository of yours, asks for `SITE_URL`, and deploys it on every push.
+
 Wrangler prints the Worker's URL. Point the dialog at it, plus `/api/ask`: `endpoint` in the Docusaurus or Starlight plugin, or `data-endpoint` on the script tag. You need a Cloudflare account, which is free, and `npx wrangler login` once. The site keeps deploying as it does now, and must serve its index at `SITE_URL/ask-index.json`, which the plugins write with every build.
 
 The Worker fetches the index from the live site and checks it again every five minutes with a conditional request, so it follows the site's deploys without being deployed again. It sends CORS headers for the site's origin and no other, says "I don't know" without calling the model when nothing in the docs is relevant, and serves the same index to agents at `/api/mcp`, keyword-only, calling no model.

@@ -6,10 +6,11 @@ import { ArrowRight, CopyIcon, GitHubIcon } from '../components/icons';
 import { Flow } from '../components/landing/flow';
 import { HeroDemo } from '../components/landing/hero-demo';
 import { SetupTabs, type SetupTab } from '../components/landing/setup-tabs';
+import { McpInstall } from '../components/mcp-install';
 import { mode } from '../lib/ai';
 import { codeBlock } from '../lib/highlight';
 import { sampleAnswer } from '../lib/sample-answer';
-import { GITHUB_URL, INSTALL, SUGGESTIONS, VERSION } from '../lib/site';
+import { GITHUB_URL, INSTALL, MCP_URL, SUGGESTIONS, VERSION } from '../lib/site';
 import { gzippedSize } from '../lib/sizes';
 
 import './landing.css';
@@ -22,13 +23,24 @@ export const metadata: Metadata = {
 async function setupTabs(): Promise<SetupTab[]> {
   const DEPLOY_STEP = {
     title: 'Write the endpoint',
-    text: 'One function on your host answers from the index, with your model key, rate-limited and on a daily budget. init writes it for Vercel, Netlify, Cloudflare, or GitHub Pages with Workers AI and no API key, and deploys nothing.',
+    text: (
+      <>
+        One function on your host answers from the index, with your model key, rate-limited and on a
+        daily budget. <code>npx ondocs init</code> writes it for Vercel, Netlify, Cloudflare, or
+        GitHub Pages with Workers AI and no API key, and deploys nothing.
+      </>
+    ),
     link: { href: '/docs/deployment', label: 'What it writes for each host' },
     code: await codeBlock('npx ondocs init', 'sh'),
   };
   const ASTRO_STEP = {
     title: 'Deploy as you do now',
-    text: 'With an SSR adapter, the integration serves the ask and MCP endpoints itself: there is no file to write. A static site writes its endpoint with npx ondocs init.',
+    text: (
+      <>
+        With an SSR adapter, the integration serves the ask and MCP endpoints itself: there is no
+        file to write. A static site writes its endpoint with <code>npx ondocs init</code>.
+      </>
+    ),
     link: { href: '/docs/deployment#astro-with-an-adapter', label: 'Astro with an adapter' },
   };
   return [
@@ -46,7 +58,7 @@ async function setupTabs(): Promise<SetupTab[]> {
         {
           title: 'Add the plugin',
           code: await codeBlock(
-            "// docusaurus.config.ts\nexport default {\n  plugins: [['ondocs/docusaurus', { endpoint: '/api/ask' }]],\n};",
+            "// docusaurus.config.ts\nexport default {\n  plugins: ['ondocs/docusaurus'],\n};",
             'ts',
           ),
         },
@@ -75,6 +87,30 @@ async function setupTabs(): Promise<SetupTab[]> {
           ),
         },
         ASTRO_STEP,
+      ],
+    },
+    {
+      id: 'vitepress',
+      label: 'VitePress',
+      summary:
+        'A VitePress plugin that wraps your config. After every build it indexes the pages your site serves into .vitepress/dist/ask-index.json, and it adds the dialog behind a floating “Ask AI” button and ⌘I.',
+      docs: { href: '/docs/vitepress', label: 'VitePress guide' },
+      steps: [
+        {
+          title: 'Install',
+          code: await codeBlock(
+            'npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk',
+            'sh',
+          ),
+        },
+        {
+          title: 'Wrap the config',
+          code: await codeBlock(
+            "// .vitepress/config.mts\nimport { defineConfig } from 'vitepress';\nimport { withOndocs } from 'ondocs/vitepress';\n\nexport default withOndocs(\n  defineConfig({\n    title: 'Acme Docs',\n  }),\n);",
+            'ts',
+          ),
+        },
+        DEPLOY_STEP,
       ],
     },
     {
@@ -156,7 +192,7 @@ const NUMBERS = [
   {
     value: '0',
     label: 'model calls to answer what the docs don’t cover',
-    note: 'The gate says “I don’t know” before the model is reached; a follow-up may cost a short rewrite first.',
+    note: 'When nothing in the docs is relevant, the gate says “I don’t know” before the model is reached. A question close to the docs can still reach it, and a follow-up may cost a short rewrite first.',
   },
   {
     value: '≤ 800',
@@ -271,6 +307,10 @@ export default async function Home() {
             <div className="hero-actions">
               <AskButton className="button button-primary">Try it: ask these docs</AskButton>
               <Install />
+              <Link href="/docs/getting-started" className="text-link">
+                Get started
+                <ArrowRight />
+              </Link>
             </div>
           </div>
           <HeroDemo suggestions={SUGGESTIONS} initial={initial} mode={mode} />
@@ -281,7 +321,7 @@ export default async function Home() {
         <div className="container">
           <p className="eyebrow">Set up</p>
           <h2 id="setup-title" className="section-title">
-            One line for Docusaurus and Starlight. A script tag for everything else.
+            One line for Docusaurus, Starlight and VitePress. A script tag for everything else.
           </h2>
           <p className="section-lead">
             Every setup has the same two halves: an index built with your site, and one function
@@ -299,18 +339,10 @@ export default async function Home() {
           </h2>
           <p className="section-lead">
             Coding agents and AI apps search and read your docs over MCP, with their own model.
-            Search is keyword-only by default, so it calls no model at all. These docs do it at{' '}
-            <code>/api/mcp</code>:
+            Search is keyword-only by default, so it calls no model at all. Connect yours to these
+            docs:
           </p>
-          <div
-            className="agents-code"
-            dangerouslySetInnerHTML={{
-              __html: await codeBlock(
-                'claude mcp add --transport http ondocs https://ondocs.vercel.app/api/mcp',
-                'sh',
-              ),
-            }}
-          />
+          <McpInstall url={MCP_URL} name="ondocs" />
           <div className="principles">
             <div>
               <h3>search and fetch</h3>
@@ -490,6 +522,12 @@ export default async function Home() {
             and run <code>npx ondocs dev</code>.
           </p>
           <Install large />
+          <div
+            className="cta-code"
+            dangerouslySetInnerHTML={{
+              __html: await codeBlock('npx ondocs index ./docs -e mock\nnpx ondocs dev', 'sh'),
+            }}
+          />
           <div className="cta-actions">
             <a href={GITHUB_URL} className="button button-secondary">
               <GitHubIcon />

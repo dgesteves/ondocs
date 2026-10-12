@@ -10,8 +10,7 @@ export const contentType = 'image/png';
 const CODE = [
   ['// docusaurus.config.ts', COLORS.subtle],
   ['export default {', COLORS.soft],
-  ["  plugins: [['ondocs/docusaurus',", COLORS.soft],
-  ["    { endpoint: '/api/ask' }]],", COLORS.soft],
+  ["  plugins: ['ondocs/docusaurus'],", COLORS.soft],
   ['};', COLORS.soft],
 ] as const;
 
@@ -69,6 +68,7 @@ export default async function Image() {
         >
           <span>Docusaurus</span>
           <span>Starlight</span>
+          <span>VitePress</span>
           <span>Next.js</span>
           <span>any site</span>
         </div>

@@ -13,7 +13,7 @@ export async function GET() {
   const lines = [
     '# ondocs',
     '',
-    '> Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Agent traffic costs you no model tokens. Plugins for Docusaurus, Astro and Starlight, React components for Next.js, and a script tag for any other site.',
+    '> Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Agent traffic costs you no model tokens. Plugins for Docusaurus, Astro, Starlight and VitePress, React components for Next.js, and a script tag for any other site.',
     '',
     `Install with \`npm i ondocs\`. Source: ${GITHUB_URL}.`,
     '',

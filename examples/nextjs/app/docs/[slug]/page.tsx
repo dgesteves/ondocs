@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { McpInstall } from '../../../components/mcp-install';
 import { getDoc, getDocs } from '../../../lib/docs';
+import { MCP_URL } from '../../../lib/site';
 
 export const dynamicParams = false;
 
@@ -41,6 +43,8 @@ export default async function DocPage(props: PageProps<'/docs/[slug]'>) {
         <p className="doc-section">{doc.section}</p>
         <h1>{doc.title}</h1>
         {doc.description ? <p className="lead">{doc.description}</p> : null}
+        {/* This site's own server, ready to add, above the page that explains it. */}
+        {doc.slug === 'mcp' ? <McpInstall url={MCP_URL} name="ondocs" /> : null}
         <div className="prose" dangerouslySetInnerHTML={{ __html: doc.html }} />
         {doc.previous || doc.next ? (
           <nav aria-label="Previous and next pages" className="pager">

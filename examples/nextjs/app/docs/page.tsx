@@ -2,9 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { getSections } from '../../lib/docs';
-
-const description =
-  'Set up ondocs with Docusaurus, Astro, Starlight, Next.js or a script tag, deploy the endpoint, serve the same index to agents over MCP and llms.txt, and tune retrieval.';
+import { DOCS_DESCRIPTION as description } from '../../lib/site';
 
 export const metadata: Metadata = {
   title: 'Documentation',

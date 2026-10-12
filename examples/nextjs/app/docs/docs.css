@@ -143,8 +143,15 @@
 
 .doc-layout {
   display: grid;
-  grid-template-columns: minmax(0, 740px) 210px;
-  gap: 56px;
+  grid-template-columns: minmax(0, 800px) 200px;
+  gap: 40px;
+}
+
+/* Beside the table of contents, the content runs to the header's right edge. */
+@media (min-width: 1141px) {
+  .content {
+    padding-right: var(--gutter);
+  }
 }
 
 .doc-section {
@@ -247,6 +254,12 @@
 
 .prose strong {
   color: var(--fg);
+}
+
+.prose img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
 }
 
 .prose :not(pre) > code {
@@ -412,8 +425,26 @@
     display: none;
   }
 
+  /* The menu stays under the header as the page scrolls, and its list scrolls on its own. */
   .docs-menu {
+    position: sticky;
+    top: var(--header-height);
+    z-index: 10;
     display: block;
+    margin: -8px 0 20px;
+    padding: 8px 0;
+    background: var(--ink);
+  }
+
+  .docs-menu-panel {
+    max-height: calc(100dvh - var(--header-height) - 88px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* A heading jumped to lands below the menu as well as the header. */
+  html:has(.docs-menu) {
+    scroll-padding-top: calc(var(--header-height) + 84px);
   }
 
   .content {
