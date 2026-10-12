@@ -10,7 +10,7 @@ describe('AskDialog on the server', () => {
     expect(html).toContain('class="ondocs-launcher"');
     expect(html).toContain('Ask the docs');
     // The platform is only known in the browser, which corrects it after hydration.
-    expect(html).toContain('Ctrl <!-- -->K');
+    expect(html).toContain('Ctrl <!-- -->I');
   });
 });
 

@@ -4,6 +4,7 @@ import { useSyncExternalStore, type ReactNode } from 'react';
 
 import type { OndocsDialogOptions, OndocsTheme } from '../embed/options';
 import { AskDialog, type AskDialogProps } from './ask-dialog';
+import { pageScheme, subscribeToScheme } from './theme';
 
 export interface AskWithLauncherProps extends OndocsDialogOptions {
   endpoint: string;
@@ -17,40 +18,16 @@ export interface AskWithLauncherProps extends OndocsDialogOptions {
 
 /**
  * `AskDialog` opened by ⌘/Ctrl+I (by default) and by its floating launcher button, with the
- * `ondocs-launcher` class, which the integration's stylesheet places and colors.
+ * `ondocs-launcher` class, which the integration's stylesheet places and colors. The plugin has
+ * already moved `buttonLabel`, the launcher's name before 0.9, to `launcher`, and warned.
  */
 export function AskWithLauncher({
-  shortcut = 'i',
+  launcher,
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- swizzled data may still have it
   buttonLabel,
   ...props
 }: AskWithLauncherProps): ReactNode {
-  return (
-    <AskDialog
-      {...props}
-      shortcut={shortcut}
-      launcher={buttonLabel ?? props.labels?.launcher ?? 'Ask AI'}
-    />
-  );
-}
-
-const DARK = '(prefers-color-scheme: dark)';
-
-/** The page's color scheme: `<html data-theme>` when it says light or dark, else the system's. */
-function pageScheme(): 'light' | 'dark' {
-  const theme = document.documentElement.dataset.theme;
-  if (theme === 'light' || theme === 'dark') return theme;
-  return typeof matchMedia === 'function' && matchMedia(DARK).matches ? 'dark' : 'light';
-}
-
-function subscribeToScheme(onChange: () => void): () => void {
-  const observer = new MutationObserver(onChange);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-  const media = typeof matchMedia === 'function' ? matchMedia(DARK) : undefined;
-  media?.addEventListener('change', onChange);
-  return () => {
-    observer.disconnect();
-    media?.removeEventListener('change', onChange);
-  };
+  return <AskDialog {...props} launcher={launcher ?? buttonLabel ?? true} />;
 }
 
 const noSubscription = () => () => undefined;

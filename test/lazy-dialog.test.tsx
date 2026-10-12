@@ -61,7 +61,7 @@ describe('AskDialog loads the dialog on first use', () => {
     );
     const link = screen.getByRole('link', { name: 'Docs' });
     link.focus();
-    await user.keyboard('{Meta>}k{/Meta}');
+    await user.keyboard('{Meta>}i{/Meta}');
     const dialog = await screen.findByRole('dialog');
     await waitFor(() => {
       expect(document.activeElement?.className).toContain('ask-input');
@@ -209,7 +209,7 @@ describe('the embed loads the dialog on first use', () => {
 
   it('passes open and close through to the dialog once it is there', async () => {
     const { load, setOpen, arrive } = deferredLoader();
-    const mounted = mountWithLoader({ buttonLabel: false, shortcut: false }, load);
+    const mounted = mountWithLoader({ launcher: false, shortcut: false }, load);
     expect(document.querySelector('.ondocs-launcher')).toBeNull();
     mounted.open();
     await arrive();

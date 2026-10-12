@@ -1,3 +1,4 @@
+import { warnDeprecated } from '../deprecation';
 import type { AskDialogLabels } from '../react/labels';
 import type { MountAskDialogOptions } from './index';
 
@@ -31,12 +32,17 @@ function scriptLabels(data: DOMStringMap): Partial<AskDialogLabels> | undefined 
   return Object.keys(labels).length > 0 ? labels : undefined;
 }
 
+/** `data-shortcut` or `data-launcher`'s value: `"false"` or nothing turns it off. */
+const turnedOff = (value: string): string | false =>
+  value === 'false' || value === '' ? false : value;
+
 /**
  * The `mountAskDialog` options a `<script>` tag's `data-*` attributes describe: `data-endpoint`,
  * `data-title`, `data-placeholder`, `data-suggestions` (a JSON array of strings),
- * `data-shortcut` and `data-button-label` (`"false"` turns either off), `data-theme`,
- * `data-links` (`all` or `sources`), `data-locale`, `data-turnstile-site-key` (the bot check's
- * Turnstile site key), and the labels, `data-labels` (a JSON object) and `data-label-<name>`.
+ * `data-shortcut` and `data-launcher` (the button's label; `"false"` turns either off),
+ * `data-theme`, `data-links` (`all` or `sources`), `data-locale`, `data-turnstile-site-key` (the
+ * bot check's Turnstile site key), and the labels, `data-labels` (a JSON object) and
+ * `data-label-<name>`. `data-button-label`, `data-launcher`'s name before 0.9, still works.
  */
 export function scriptOptions(data: DOMStringMap): MountAskDialogOptions {
   const options: MountAskDialogOptions = {};
@@ -59,12 +65,13 @@ export function scriptOptions(data: DOMStringMap): MountAskDialogOptions {
       );
     }
   }
-  if (data.shortcut !== undefined) {
-    options.shortcut = data.shortcut === 'false' || data.shortcut === '' ? false : data.shortcut;
-  }
+  if (data.shortcut !== undefined) options.shortcut = turnedOff(data.shortcut);
   if (data.buttonLabel !== undefined) {
-    options.buttonLabel =
-      data.buttonLabel === 'false' || data.buttonLabel === '' ? false : data.buttonLabel;
+    warnDeprecated('data-button-label', 'data-launcher');
+    options.launcher = turnedOff(data.buttonLabel);
+  }
+  if (data.launcher !== undefined) {
+    options.launcher = data.launcher === 'true' || turnedOff(data.launcher);
   }
   if (data.theme === 'auto' || data.theme === 'light' || data.theme === 'dark') {
     options.theme = data.theme;
