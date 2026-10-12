@@ -82,7 +82,7 @@ data: {"type":"finish"}
 data: [DONE]
 ```
 
-Because sources arrive before the text, citations are clickable as soon as they appear. The same stream works with `useChat` from `@ai-sdk/react`, and `readAskStream` from `ondocs/react` parses it without the AI SDK.
+Because sources arrive before the text, citations are clickable as soon as they appear. When the model's whole answer is "I don't know", the `finish` part carries the metadata again, with `refused: true`, so the dialog shows it as a refusal. The same stream works with `useChat` from `@ai-sdk/react`, and `readAskStream` from `ondocs/react` parses it without the AI SDK.
 
 ## Using it outside Next.js
 

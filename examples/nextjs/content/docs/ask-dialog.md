@@ -136,7 +136,7 @@ Focus moves into the dialog when it opens and returns to where it was when it cl
 
 ## While an answer streams
 
-Sources arrive before the first word, and the answer renders as it streams, batched to one update per animation frame. Closing the dialog, by Escape, a click outside or its parent, stops the answer in flight, so the model is not left generating for nobody. When an answer stops at the model's output limit, the dialog says it may be incomplete.
+Sources arrive before the first word, and the answer renders as it streams, batched to one update per animation frame. Closing the dialog, by Escape, a click outside or its parent, stops the answer in flight, so the model is not left generating for nobody. When an answer stops at the model's output limit, the dialog says it may be incomplete. Once an answer is complete, the sources it does not cite are dimmed, and an answer that cites none shows no sources.
 
 ## The useAsk hook
 
