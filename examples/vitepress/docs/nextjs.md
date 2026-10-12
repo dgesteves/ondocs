@@ -29,7 +29,7 @@ Build the index from the folder that holds your pages, and commit `ask-index.jso
 }
 ```
 
-`--base-url /docs` makes `content/setup.md` cite `/docs/setup`. The CLI detects Next.js-style content (Fumadocs, Nextra) and leaves `(group)` folders out of URLs.
+`--base-url /docs` makes `content/setup.md` cite `/docs/setup`. The CLI detects a Next.js site and leaves `(group)` folders out of URLs. Fumadocs and Nextra have guides of their own: [Fumadocs](/fumadocs) and [Nextra](/nextra).
 
 Citations link to those URLs, so the app must serve the pages there. A new `create-next-app` project has no `content/` folder and no `/docs` route: add your pages and a route under `app/docs/` that renders them, or set `--base-url` to where your pages already are.
 

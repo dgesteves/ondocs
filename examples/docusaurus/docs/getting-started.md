@@ -12,6 +12,7 @@ Every setup has the same two halves: an index built with your site, and an endpo
 - **Astro or Starlight.** One plugin or integration in `astro.config.mjs`, which builds the index and adds the dialog. See [Astro and Starlight](./astro.md).
 - **VitePress.** Wrap the config in `.vitepress/config.mts` with `withOndocs`, which builds the index and adds the dialog. See [VitePress](./vitepress.md).
 - **Next.js or another React app.** Index with the CLI, mount `createAskHandler` as a route, and render `<AskDialog />`. See [Next.js and React](./nextjs.md).
+- **Fumadocs or Nextra.** The same, with the CLI following the framework's URLs. See [Fumadocs](./fumadocs.md) and [Nextra](./nextra.md).
 - **Any other site.** Index the built HTML with the CLI, write the endpoint with `npx ondocs init`, and add one script tag. See [Script tag](./script-tag.md).
 
 ## Install

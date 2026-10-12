@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import GithubSlugger from 'github-slugger';
 
 import { chunkDocument, createSlugger, fromHtml, fromMarkdown, slugify } from '../src';
+import { nextHeadingIds } from '../src/node/next';
 import type { SourceDocument } from '../src';
 import { seeded } from './helpers';
 
@@ -34,6 +35,13 @@ describe('linear-time parsing of hostile input', () => {
     const ids = `## a {/* #b${' \t'.repeat(400)}`.repeat(25).concat('\n').repeat(400);
     expect(timed(() => chunkDocument(doc(ids)))).toBeLessThan(250);
     expect(timed(() => fromMarkdown(line, { id: 'x', url: '/x' }))).toBeLessThan(250);
+  });
+
+  it('reads `[#id]` heading ids quickly, on long and on many lines', () => {
+    const long = `## a${' [#'.repeat(20_000)}]`;
+    expect(timed(() => nextHeadingIds(long, 'fumadocs'))).toBeLessThan(250);
+    const many = `## a [#b${' '.repeat(200)}[#c]\n`.repeat(20_000);
+    expect(timed(() => nextHeadingIds(many, 'nextra'))).toBeLessThan(250);
   });
 
   it('handles long backtick runs and unclosed tags quickly', () => {

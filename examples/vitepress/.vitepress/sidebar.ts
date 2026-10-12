@@ -17,6 +17,8 @@ export const sidebar: DefaultTheme.Sidebar = [
       { text: 'Astro and Starlight', link: '/astro' },
       { text: 'VitePress', link: '/vitepress' },
       { text: 'Next.js and React', link: '/nextjs' },
+      { text: 'Fumadocs', link: '/fumadocs' },
+      { text: 'Nextra', link: '/nextra' },
       { text: 'Script tag', link: '/script-tag' },
       { text: 'MCP server', link: '/mcp' },
       { text: 'llms.txt and Markdown pages', link: '/llms-txt' },
