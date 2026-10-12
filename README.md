@@ -35,13 +35,13 @@ Search runs in memory inside one function you deploy: BM25 and vectors, merged w
 
 ## Pick your setup
 
-| Your site                          | What you add                | Guide                                                       |
-| ---------------------------------- | --------------------------- | ----------------------------------------------------------- |
-| Docusaurus 3                       | A plugin                    | [Docusaurus](https://ondocs.vercel.app/docs/docusaurus)     |
-| Starlight, or any Astro site       | A plugin, or an integration | [Astro and Starlight](https://ondocs.vercel.app/docs/astro) |
-| VitePress                          | One wrapper in its config   | [VitePress](https://ondocs.vercel.app/docs/vitepress)       |
-| Next.js or another React app       | A route and a component     | [Next.js and React](https://ondocs.vercel.app/docs/nextjs)  |
-| Hugo, Jekyll, MkDocs or plain HTML | One script tag              | [Script tag](https://ondocs.vercel.app/docs/script-tag)     |
+| Your site                          | What you add                                       | Guide                                                       |
+| ---------------------------------- | -------------------------------------------------- | ----------------------------------------------------------- |
+| Docusaurus 3                       | A plugin                                           | [Docusaurus](https://ondocs.vercel.app/docs/docusaurus)     |
+| Starlight, or any Astro site       | A plugin, or an integration                        | [Astro and Starlight](https://ondocs.vercel.app/docs/astro) |
+| VitePress                          | One wrapper in its config                          | [VitePress](https://ondocs.vercel.app/docs/vitepress)       |
+| Next.js or another React app       | A route and a component                            | [Next.js and React](https://ondocs.vercel.app/docs/nextjs)  |
+| Hugo, Jekyll, MkDocs or plain HTML | One script tag; for plain HTML, `init --out <dir>` | [Script tag](https://ondocs.vercel.app/docs/script-tag)     |
 
 Each answers from an endpoint you deploy as one function next to the site, rate-limited by default. `npx ondocs init` writes it for Vercel, Netlify, Cloudflare or GitHub Pages (as a Cloudflare Worker of its own, answering with Workers AI and no API key), and an Astro site with an SSR adapter needs none: see [Deploying](https://ondocs.vercel.app/docs/deployment).
 
@@ -61,7 +61,7 @@ After `docusaurus build`, it indexes the pages into `build/ask-index.json`, writ
 integrations: [starlight({ title: 'Acme Docs', plugins: [ondocs()] })],
 ```
 
-**Next.js.** With `OPENAI_API_KEY` set, index your content with `npx ondocs index ./content --base-url /docs`, then:
+**Next.js.** With `OPENAI_API_KEY` set, index your content with `npx ondocs index ./content --base-url /docs --llms-txt public`, then:
 
 ```ts
 // app/api/ask/route.ts
@@ -72,9 +72,22 @@ export const POST = createAskHandler({
 });
 ```
 
-and render `<AskDialog launcher />` from `ondocs/react` in your layout.
+and render the dialog in your layout, with its two stylesheets:
 
-**Any other site.** Index the HTML it builds (`npx ondocs index public`), write the endpoint with `npx ondocs init`, and add:
+```tsx
+// app/layout.tsx
+import { AskDialog } from 'ondocs/react';
+import 'ondocs/react/styles.css';
+import 'ondocs/embed/launcher.css';
+// …then <AskDialog launcher /> in the body
+```
+
+**Any other site.** Index the HTML it builds, write the endpoint with `npx ondocs init`, and add the script tag. For a site built into `public`:
+
+```sh
+npx ondocs index public -o public/ask-index.json -e none   # keyword-only; leave out -e none to embed with OPENAI_API_KEY
+npx ondocs init --out public                               # plain HTML needs --out; Hugo, Jekyll, MkDocs and Eleventy are detected
+```
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/ondocs@0.8/dist/embed.global.js" defer></script>
