@@ -113,6 +113,87 @@ describe('ondocs index', () => {
     expect(await readFile(join(cwd, 'public/llms.txt'), 'utf8')).toMatch(/^# /);
   });
 
+  it('--llms-txt resolves relative links from each file’s folder, so an index page’s copy keeps them', async () => {
+    // content/index.md is copied to /docs.md, one folder up from the file: as written, its
+    // ./guides/setup.md would point at /guides/setup.md there.
+    await writeFile(
+      join(cwd, 'content/index.md'),
+      '---\ntitle: Home\n---\n\nSee [Setup](./guides/setup.md#install), [Deploying](guides/deploy.mdx), [the API](./api) and [Acme](https://acme.dev). ![A chart](./img/chart.png)\n\n`[not a link](./x.md)`\n\n[setup]: ./guides/setup.md\n',
+    );
+    await writeFile(
+      join(cwd, 'content/guides/index.md'),
+      '# Guides\n\nStart with [setup](./setup.md), then go [home](../index.md).\n',
+    );
+    await writeFile(
+      join(cwd, 'content/guides/setup.md'),
+      '# Setup\n\n## Install\n\nBack to the [guides](./index.md) and [legacy](./legacy.html).\n',
+    );
+    const result = await run(
+      'index',
+      'content',
+      '-e',
+      'none',
+      '--base-url',
+      '/docs',
+      '--llms-txt',
+      'public',
+      '-q',
+    );
+    expect(result.code).toBe(0);
+    const home = await readFile(join(cwd, 'public/docs.md'), 'utf8');
+    expect(home).toContain(
+      'See [Setup](/docs/guides/setup.md#install), [Deploying](/docs/guides/deploy.md), [the API](/docs/api) and [Acme](https://acme.dev). ![A chart](/docs/img/chart.png)',
+    );
+    expect(home).toContain('`[not a link](./x.md)`');
+    expect(home).toContain('[setup]: /docs/guides/setup.md');
+    // A folder's index page is copied next to its folder, not in it.
+    expect(await readFile(join(cwd, 'public/docs/guides.md'), 'utf8')).toContain(
+      'Start with [setup](/docs/guides/setup.md), then go [home](/docs.md).',
+    );
+    expect(await readFile(join(cwd, 'public/docs/guides/setup.md'), 'utf8')).toContain(
+      'Back to the [guides](/docs/guides.md) and [legacy](/docs/guides/legacy.md).',
+    );
+    // llms-full.txt is read from the site's root, so it needs them resolved too.
+    expect(await readFile(join(cwd, 'public/llms-full.txt'), 'utf8')).toContain(
+      'Start with [setup](/docs/guides/setup.md), then go [home](/docs.md).',
+    );
+
+    // Without the copies, a link to a page's file goes to the page.
+    expect(
+      (
+        await run(
+          'index',
+          'content',
+          '-e',
+          'none',
+          '--base-url',
+          '/docs',
+          '--llms-txt',
+          'out',
+          '--no-llms-markdown',
+          '-q',
+        )
+      ).code,
+    ).toBe(0);
+    expect(await readFile(join(cwd, 'out/llms-full.txt'), 'utf8')).toContain(
+      'Start with [setup](/docs/guides/setup), then go [home](/docs).',
+    );
+  });
+
+  it('--llms-txt resolves an HTML index page’s relative links from its folder', async () => {
+    await writeFile(
+      join(cwd, 'content/guides/index.html'),
+      '<html><body><main><h1>Guides</h1><p>Read <a href="legacy.html">the old page</a>.</p></main></body></html>',
+    );
+    expect((await run('index', 'content', '-e', 'none', '--llms-txt', 'public', '-q')).code).toBe(
+      0,
+    );
+    // guides/index.html is served at /guides/, where legacy.html is /guides/legacy.html.
+    expect(await readFile(join(cwd, 'public/guides.md'), 'utf8')).toContain(
+      'Read [the old page](/guides/legacy.html).',
+    );
+  });
+
   it('--llms-txt takes --no-llms-index, --no-llms-full and --no-llms-markdown, and needs a dir for them', async () => {
     const result = await run(
       'index',

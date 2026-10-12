@@ -79,6 +79,8 @@ interface Site extends TemplateSite {
   appDir?: string;
   /** For a site the CLI indexes (Next.js, static generators): the command that builds the index. */
   indexCommand?: string;
+  /** The config file that adds ondocs's plugin, when it already does: `docusaurus.config.ts`. */
+  plugin?: string;
 }
 
 interface PackageJson {
@@ -219,6 +221,11 @@ function detectSite(p: Project, flags: { out?: string; name?: string; siteUrl?: 
         indexFile: 'build/ask-index.json',
         indexPath: '/ask-index.json',
         ...localesOf(configLocales(source, false)),
+        ...pluginIn(
+          docusaurus,
+          source,
+          /['"`](?:ondocs\/docusaurus|docusaurus-plugin-ondocs)['"`]/,
+        ),
       },
       url(joinUrl(configString(source, 'url'), configString(source, 'baseUrl'))),
     );
@@ -242,6 +249,13 @@ function detectSite(p: Project, flags: { out?: string; name?: string; siteUrl?: 
         indexPath: '/ask-index.json',
         ...(adapter ? { adapter } : {}),
         ...localesOf(configLocales(source, starlight)),
+        ...pluginIn(
+          astro,
+          source,
+          starlight
+            ? /['"`](?:ondocs\/starlight|starlight-ondocs)['"`]/
+            : /['"`]ondocs\/astro['"`]/,
+        ),
       },
       url(joinUrl(configString(source, 'site'), configString(source, 'base'))),
     );
@@ -281,6 +295,7 @@ function detectSite(p: Project, flags: { out?: string; name?: string; siteUrl?: 
         indexPath: '/ask-index.json',
         config: config ?? `${vitepress}/config.mts`,
         ...localesOf(configLocales(source, true)),
+        ...pluginIn(config, source, /['"`]ondocs\/vitepress['"`]/),
       },
       url(joinUrl(configString(source, 'hostname'), configString(source, 'base'))),
     );
@@ -289,9 +304,12 @@ function detectSite(p: Project, flags: { out?: string; name?: string; siteUrl?: 
   const generator = STATIC_GENERATORS.find(({ files }) => files.some((file) => p.has(file)));
   const out = (flags.out ?? generator?.out)?.replace(/^\.\/|\/+$/g, '');
   if (!out) {
+    const html = HTML_FOLDERS.find((dir) => hasHtml(p, dir));
     throw new InitError(
       'No Docusaurus, Astro, Next.js, VitePress, Hugo, MkDocs, Jekyll or Eleventy config here. ' +
-        'Run init in the site’s folder, or pass --out <dir>, the folder a static site builds into.',
+        (html
+          ? `${html}/ has HTML files: if it is the folder the site deploys, run npx ondocs init --out ${html}.`
+          : 'Run init in the site’s folder. For plain HTML, pass the folder of its HTML files with --out <dir>, as in npx ondocs init --out public.'),
     );
   }
   const source =
@@ -318,6 +336,44 @@ function detectSite(p: Project, flags: { out?: string; name?: string; siteUrl?: 
 
 const withUrl = (site: Site, url: string | undefined): Site => (url ? { ...site, url } : site);
 
+/** `{ plugin: file }` when the config file's source names ondocs's plugin, as `pattern` finds it. */
+const pluginIn = (
+  file: string | undefined,
+  source: string | null,
+  pattern: RegExp,
+): { plugin?: string } => (file && source && pattern.test(source) ? { plugin: file } : {});
+
+/** Where a plain HTML site keeps its pages, in the order init looks. */
+const HTML_FOLDERS = ['public', 'site', '_site', 'dist', 'build', 'out', 'www'];
+
+/** Whether `dir` in the project holds an HTML file. */
+function hasHtml(p: Project, dir: string): boolean {
+  try {
+    return readdirSync(join(p.root, dir)).some((file) => /\.html?$/i.test(file));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether `url` is a template's placeholder rather than a site's address: on a domain kept for
+ * examples (example.com, .org and .net, and the .example, .test, .invalid and .localhost
+ * domains), localhost, or a host named like `your-docusaurus-site`.
+ */
+export function placeholderUrl(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return (
+    /(?:^|\.)example\.(?:com|org|net)$/.test(host) ||
+    /(?:^|\.)(?:example|test|invalid|localhost)$/.test(host) ||
+    /^your[-.]/.test(host)
+  );
+}
+
 const localesOf = (locales: string[]): { locales?: string[] } =>
   locales.length > 0 ? { locales } : {};
 
@@ -334,10 +390,13 @@ function detectHosts(p: Project): Host[] {
   return hosts;
 }
 
-/** A GitHub Pages workflow, or a gh-pages or `docusaurus deploy` script. */
+/**
+ * A GitHub Pages workflow, or the gh-pages package or a script that runs it. Not a `docusaurus
+ * deploy` script: every new Docusaurus site has one, wherever it is hosted.
+ */
 function deploysToPages(p: Project): boolean {
   const scripts = Object.values(p.pkg?.scripts ?? {}).filter((s) => typeof s === 'string');
-  if (p.deps.has('gh-pages') || scripts.some((s) => /\bgh-pages\b|docusaurus deploy/.test(s))) {
+  if (p.deps.has('gh-pages') || scripts.some((s) => /\bgh-pages\b/.test(s))) {
     return true;
   }
   const dir = join(p.root, '.github', 'workflows');
@@ -520,9 +579,10 @@ function sitePackages(site: Site, openai = true, functions = false): string[] {
 
 /**
  * How to add the dialog, for the site's framework, pointed at `endpoint` when it is not /api/ask,
- * and embedding the pages with `embedding` when given.
+ * and embedding the pages with `embedding` when given. `null` when the site's config already
+ * adds the plugin and there is no option to give it.
  */
-function dialogStep(site: Site, endpoint: string | null, embedding?: string): string {
+function dialogStep(site: Site, endpoint: string | null, embedding?: string): string | null {
   const fields = [
     ...(endpoint ? [`endpoint: '${endpoint}'`] : []),
     ...(embedding ? [`embedding: '${embedding}'`] : []),
@@ -531,6 +591,9 @@ function dialogStep(site: Site, endpoint: string | null, embedding?: string): st
   const withEmbedding = embedding
     ? ` (the embedding needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN as the site builds; leave it out for a keyword-only index)`
     : '';
+  if (site.plugin) {
+    return option ? `Pass ${option} to the ondocs plugin in ${site.plugin}${withEmbedding}` : null;
+  }
   switch (site.kind) {
     case 'docusaurus':
       return option
@@ -567,7 +630,11 @@ function planFor(
   // Where the pages are embedded: by the plugin as the site builds, or by `ondocs index`.
   const build =
     site.kind === 'next' || site.kind === 'static' ? 'the index build' : 'the site\u2019s build';
-  const keyless = 'without it there, the index is keyword-only, which works too';
+  // The plugins build a keyword-only index without a key; `ondocs index` needs -e none for one.
+  const keyless =
+    site.kind === 'next' || site.kind === 'static'
+      ? 'without it there, add -e none to the index command for a keyword-only index, which works too'
+      : 'without it there, the index is keyword-only, which works too';
   // A site whose Worker answers with Workers AI embeds with it too, or not at all.
   const needed = sitePackages(
     site,
@@ -602,7 +669,7 @@ function planFor(
     next.push(
       `Build the index before the app, as a "prebuild" script: ${String(site.indexCommand)}${WITHOUT_KEY}`,
     );
-    next.push(dialogStep(site, null));
+    addStep(next, dialogStep(site, null));
   } else if (host === 'github-pages') {
     if (!site.url) {
       throw new InitError(
@@ -641,7 +708,8 @@ function planFor(
     next.push(
       `cd ${STANDALONE_DIR} && npm install && npx wrangler deploy${workersAi ? '' : ` (after wrangler secret put ${key})`}: it prints the Worker's URL, https://${standaloneName(site)}.<your-subdomain>.workers.dev`,
     );
-    next.push(
+    addStep(
+      next,
       dialogStep(
         site,
         `https://${standaloneName(site)}.<your-subdomain>.workers.dev/api/ask`,
@@ -709,12 +777,16 @@ function planFor(
   if (site.kind === 'static' && site.indexCommand && host !== 'github-pages') {
     next.push(`Build the index after the site: ${site.indexCommand}${WITHOUT_KEY}`);
   }
-  if (site.kind !== 'next' && host !== 'github-pages') next.push(dialogStep(site, null));
+  if (site.kind !== 'next' && host !== 'github-pages') addStep(next, dialogStep(site, null));
   next.push('Deploy as you do now. init has deployed nothing.');
   return { site, host, files, manual, env, next };
 }
 
 const standaloneName = (site: Site): string => workerName(site.name);
+
+const addStep = (next: string[], step: string | null): void => {
+  if (step) next.push(step);
+};
 
 function parseInitFlags(args: string[]) {
   try {
@@ -840,11 +912,23 @@ export async function init(args: string[], io: CliIO): Promise<number> {
       flags.host ??
       (detected.length === 1 && detected[0] ? detected[0] : await chooseHost(detected, io));
     let resolved = site;
-    if (host === 'github-pages' && !site.url && io.prompt) {
+    // A URL from the site's config can be its template's, as a new Docusaurus site's is.
+    const placeholder = !flags.siteUrl && site.url && placeholderUrl(site.url) ? site.url : null;
+    if (host === 'github-pages' && (!site.url || placeholder) && io.prompt) {
+      if (placeholder) {
+        io.stdout(
+          `The site's config has ${placeholder} as its URL, which looks like a placeholder.`,
+        );
+      }
       const answer = (
         await io.prompt('The site’s public URL, with its base path (https://user.github.io/repo): ')
       ).trim();
       if (/^https?:\/\/[^/]/.test(answer)) resolved = { ...site, url: answer.replace(/\/+$/, '') };
+    }
+    if (host === 'github-pages' && placeholder && resolved.url === placeholder) {
+      io.stderr(
+        `! The site's URL, ${placeholder}, looks like a template's placeholder, and the Worker reads the index from it. Set the site's real URL in its config, or run init again with --site-url.`,
+      );
     }
     if (flags.provider === 'workers-ai' && host !== 'github-pages') {
       throw new InitError(

@@ -551,7 +551,7 @@ export function fromHtml(original: string, meta: HtmlMeta): SourceDocument | nul
     meta.id;
 
   const body = (meta.root === 'article' ? docusaurusMarkdown(html) : undefined) ?? html;
-  const content = meta.markdown ? htmlToText(body, { url: meta.url }) : htmlToText(body);
+  const content = meta.markdown ? htmlToText(body, { url: linkBase(meta) }) : htmlToText(body);
   const description = metaDescription(original);
   // Headings link only to the ids the page has: one without an id has no anchor to land on.
   return {
@@ -591,6 +591,16 @@ function fenceFor(code: string): string {
   let longest = 0;
   for (const run of code.match(/`+/g) ?? []) longest = Math.max(longest, run.length);
   return '`'.repeat(Math.max(3, longest + 1));
+}
+
+/**
+ * The URL a page's relative links resolve against: its own, or for a folder's `index.html` read
+ * from a file, whose URL is the folder's (`guide/index.html` is `/guide`), the folder with a
+ * trailing slash, where a server serves it and the browser resolves its links.
+ */
+function linkBase({ id, url }: HtmlMeta): string {
+  const folderPage = /(?:^|\/)(?:_?index|readme)\.html?$/i.test(id);
+  return folderPage && !/(?:\/|\.html?)$/i.test(url) ? `${url}/` : url;
 }
 
 /**

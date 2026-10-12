@@ -960,7 +960,7 @@ exports[`ondocs init: what it writes per host > Next.js on Netlify 2`] = `
   created    src/app/api/mcp/route.ts  /api/mcp: the same index as an MCP server for agents, keyword-only
 
 Set (init reads none of these):
-  OPENAI_API_KEY, for the app and the index build: in Netlify's environment variables; without it there, the index is keyword-only, which works too
+  OPENAI_API_KEY, for the app and the index build: in Netlify's environment variables; without it there, add -e none to the index command for a keyword-only index, which works too
 
 Next:
   1. npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk

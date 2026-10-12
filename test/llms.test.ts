@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildLlmsFiles, fromHtml, fromMarkdown, markdownPath, type LlmsPage } from '../src';
+import { resolveMarkdownLinks } from '../src/llms';
 import { llmsOutputs, writeLlmsFiles } from '../src/integration';
 import { withMarkdownLink } from '../src/integration/llms';
 
@@ -213,6 +214,44 @@ describe('fromMarkdown with markdown', () => {
       '# Setup\n\nSee install and a chart.',
     );
     expect(fromMarkdown(source, { id: 'x', url: '/x' })?.description).toBe('The setup.');
+  });
+});
+
+describe('resolveMarkdownLinks', () => {
+  const pages: Record<string, string> = {
+    'index.md': '/docs.md',
+    'guide/index.md': '/docs/guide.md',
+    'guide/setup.md': '/docs/guide/setup.md',
+  };
+  const resolve = (markdown: string, file = 'guide/index.md', folder = '/docs/guide/') =>
+    resolveMarkdownLinks(markdown, file, folder, (path) => pages[path]);
+
+  it('resolves links to pages’ files, and other relative links from the file’s folder', () => {
+    expect(
+      resolve(
+        'See [setup](./setup.md#install "Setup"), [home](../index.md), [the API](api) and ![a chart](<img/a chart.png>).',
+      ),
+    ).toBe(
+      'See [setup](/docs/guide/setup.md#install "Setup"), [home](/docs.md), [the API](/docs/guide/api) and ![a chart](</docs/guide/img/a%20chart.png>).',
+    );
+  });
+
+  it('leaves fragments, root-relative and absolute links, and code, as they are', () => {
+    const kept =
+      'See [here](#top), [root](/docs/a), [x](https://x.dev/a), [mail](mailto:a@x.dev) and `[code](./setup.md)`.\n\n```md\n[fenced](./setup.md)\n```';
+    expect(resolve(kept)).toBe(kept);
+  });
+
+  it('resolves link reference definitions, and parentheses in a destination', () => {
+    expect(resolve('[ref]: ./setup.md\n\n[group](<(group)/a>) and [b]((group)/b)')).toBe(
+      '[ref]: /docs/guide/setup.md\n\n[group](</docs/guide/(group)/a>) and [b](/docs/guide/(group)/b)',
+    );
+  });
+
+  it('resolves against an absolute folder, for a site with an absolute base URL', () => {
+    expect(resolve('[a](a.png)', 'guide/index.md', 'https://acme.dev/docs/guide/')).toBe(
+      '[a](https://acme.dev/docs/guide/a.png)',
+    );
   });
 });
 

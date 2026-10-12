@@ -12,12 +12,13 @@ import type { AskIndexFile } from '../index-file';
 import { embeddingFromSpec, EmbeddingSpecError } from '../node/embedding';
 import { nextRouting, type NextRouting } from '../node/next';
 import { llmsOutputs, writeLlmsFiles } from '../integration/llms';
-import type { LlmsPage } from '../llms';
+import { markdownCopies, resolveMarkdownLinks, rootedPath, type LlmsPage } from '../llms';
 import { dev } from './dev';
 import { evalCommand } from './eval';
 import { init } from './init';
 import {
   detectFramework,
+  frameworkUrl,
   loadDirectory,
   readIndexFile,
   writeIndexFile,
@@ -371,17 +372,18 @@ async function writeLlms(
     ...(document.description ? { description: document.description } : {}),
     content: document.content,
   }));
+  const outputs = llmsOutputs(settings);
   const dir = resolve(io.cwd, llms.dir);
   const label = relative(io.cwd, dir) || '.';
   await writeLlmsFiles({
-    pages,
+    pages: directory ? withResolvedLinks(pages, documents, ids, directory.options, outputs) : pages,
     site: {
       title: settings.title ?? packageName(io.cwd) ?? 'Docs',
       ...(settings.description ? { description: settings.description } : {}),
       ...(settings.siteUrl ? { url: settings.siteUrl } : {}),
       ...(settings.mcp ? { mcp: settings.mcp } : {}),
     },
-    outputs: llmsOutputs(settings),
+    outputs,
     dir,
     label,
     log: {
@@ -393,6 +395,55 @@ async function writeLlms(
       },
     },
     overwrite: true,
+  });
+}
+
+/**
+ * The pages, with the relative links and images of those read from Markdown files resolved, so
+ * they work from the pages' `.md` copies and from `llms-full.txt`, as they do from the files. A
+ * link to another page's file goes to that page's copy, or to the page when there are no copies.
+ * HTML files' links are resolved as they are read.
+ */
+function withResolvedLinks(
+  pages: readonly LlmsPage[],
+  documents: readonly SourceDocument[],
+  files: ReadonlySet<string>,
+  options: Parameters<typeof loadDirectory>[1],
+  outputs: { markdown: boolean },
+): LlmsPage[] {
+  const copies = outputs.markdown ? markdownCopies(pages) : new Map<LlmsPage, string>();
+  const hrefs = new Map<string, string>();
+  documents.forEach((document, i) => {
+    const page = pages[i];
+    if (!page || !files.has(document.id)) return;
+    const copy = copies.get(page);
+    const rooted = copy === undefined ? undefined : encodeURI(rootedPath(copy));
+    hrefs.set(
+      document.id,
+      rooted === undefined
+        ? document.url
+        : /^https?:\/\//i.test(document.url)
+          ? new URL(rooted, document.url).href
+          : rooted,
+    );
+  });
+  const framework = options?.framework === 'auto' ? 'none' : (options?.framework ?? 'none');
+  return pages.map((page, i) => {
+    const document = documents[i];
+    if (!document || !files.has(document.id) || !/\.(?:mdx?|markdown)$/i.test(document.id)) {
+      return page;
+    }
+    // The URL of the file's folder: where its folder's index page is, with a trailing slash.
+    const folder = frameworkUrl(
+      `${document.id.replace(/[^/]*$/, '')}index.md`,
+      {},
+      framework,
+      options?.baseUrl,
+    ).replace(/\/*$/, '/');
+    return {
+      ...page,
+      content: resolveMarkdownLinks(page.content, document.id, folder, (file) => hrefs.get(file)),
+    };
   });
 }
 

@@ -57,7 +57,7 @@ npx ondocs index content/docs --base-url /docs --llms-txt public \
   --site-url https://docs.acme.dev --mcp-url https://docs.acme.dev/api/mcp
 ```
 
-`--no-llms-index`, `--no-llms-full` and `--no-llms-markdown` leave one out, and a config module can set the same under `llmsTxt`. From Markdown sources, a copy keeps the Markdown as written, links and images included, without MDX imports and components. This site runs it with `--no-llms-index`, because it curates its own `llms.txt` in its sidebar's order.
+`--no-llms-index`, `--no-llms-full` and `--no-llms-markdown` leave one out, and a config module can set the same under `llmsTxt`. From Markdown sources, a copy keeps the Markdown as written, links and images included, without MDX imports and components. Relative links and images are resolved from the file's folder, so they work from the copy and from `llms-full.txt`: in `content/index.md`, copied to `/docs.md`, `./setup.md` becomes `/docs/setup.md`. This site runs it with `--no-llms-index`, because it curates its own `llms.txt` in its sidebar's order.
 
 The CLI does not change your pages, so link each one to its copy from the page itself. In Next.js, that is `alternates.types` in the page's metadata:
 
