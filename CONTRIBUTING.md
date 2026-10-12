@@ -50,6 +50,8 @@ The docs live in `examples/nextjs/content/docs`, and the Docusaurus, Starlight a
 
 `test/corpus.test.ts` checks search on real docs: docusaurus.io's, at a pinned commit. Fetch them once with `node scripts/corpus.mjs` (a few MB, into the git-ignored `.corpus/`); without them the file is skipped locally, and CI always fetches them. A change that moves its counts has to say why.
 
+`.github/workflows/retrieval-eval.yml` measures the same docs with OpenAI's embeddings. It runs by hand only, with the `OPENAI_API_KEY` repository secret: `scripts/retrieval-eval.mjs` indexes them with `text-embedding-3-small` at 512 dimensions, stops first if they are more chunks than its cap, and runs `ondocs eval` at a sweep of the similarity gate. `node scripts/retrieval-eval.mjs --stub` runs the same steps against the local OpenAI stub, with no key; CI does that on every pull request.
+
 `node scripts/js-weight.mjs --check` loads a docs page of each example in headless Chrome (build them first) and checks the JavaScript it carries before any interaction against each site's budget, and that the dialog opens from a shortcut pressed while its code loads and gives focus back when it closes. CI runs it.
 
 Parsers must stay linear on hostile input: if you touch `src/loaders` or `src/chunk.ts`, add a case to `test/robustness.test.ts`.

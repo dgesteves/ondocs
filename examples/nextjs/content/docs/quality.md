@@ -46,6 +46,19 @@ It runs what the endpoint runs before the model, embedding each question as the 
 
 This repository runs two eval files in CI: one of this site's own questions against the website's index, and one of the 22 questions and 6 off-topic ones the 2026-10-10 audit asked of docusaurus.io's docs, where keyword search scores hit@1 14 of 22, hit@3 18 of 22, and refuses all 6 off-topic questions and 2 it should answer. Copy `test/eval/docusaurus.io.yaml` from the repository as a start. When you change `minSimilarity` or `minKeywordCoverage`, the eval shows what moved.
 
+## With OpenAI's embeddings
+
+The eval of docusaurus.io's docs in CI searches by keywords only, since embedding them needs a key. The [retrieval eval workflow](https://github.com/dgesteves/ondocs/blob/main/.github/workflows/retrieval-eval.yml) measures them with embeddings, run by hand: it indexes the same docs, at the same pinned commit, with OpenAI's `text-embedding-3-small` at 512 dimensions, the plugins' default, and runs `ondocs eval` with the same 22 questions and 6 off-topic ones. It scores the relevance gate at a `minSimilarity` of 0.15, 0.20, 0.25 (the default for OpenAI's models), 0.30, 0.35 and 0.40, and reports how close each question's nearest chunk is, to check that 0.25 suits this model. It counts the chunks before it embeds any and stops above 1,500 (the docs are 1,070), and it keeps the report and the index with the run. `node scripts/retrieval-eval.mjs --stub` runs the same steps against a local stand-in for OpenAI's API, with no key and no cost.
+
+> **Not run yet.** The results go here after the first run, with its date, the ondocs version and the commit of docusaurus.io's docs.
+
+| Search                                         | Right page first | Right page in the top 3 | Off-topic questions answered | Answerable questions refused |
+| ---------------------------------------------- | ---------------- | ----------------------- | ---------------------------- | ---------------------------- |
+| Keywords only                                  | 14 of 22         | 18 of 22                | 0 of 6                       | 2 of 22                      |
+| Keywords and text-embedding-3-small, gate 0.25 | not run yet      | not run yet             | not run yet                  | not run yet                  |
+
+The gate from 0.15 to 0.40: not run yet.
+
 ## Feedback from readers
 
 Give the handler an `onFeedback`, and the dialog asks "Was this helpful?" under each answer, with thumbs up and down, and then offers a comment:
