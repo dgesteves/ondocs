@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { chunkDocument } from '../src/chunk';
 import { detectFramework, frameworkUrl, loadDirectory } from '../src/node';
 import { matchesGlob } from '../src/node/glob';
 
@@ -215,10 +216,18 @@ describe('framework URLs', () => {
       '@modal/login/page.mdx': '/login',
       'page.mdx': '/',
     });
-    // frameworkUrl, which sees a path and not its folder, reads it as either.
+    // frameworkUrl, which sees a path and not its folder, reads it as either, unless it is told
+    // which rules the folder follows. A file that is not a page by those rules is read as either.
     expect(frameworkUrl('getting-started/page.mdx', {}, 'next', '/docs')).toBe(
       '/docs/getting-started',
     );
+    expect(
+      frameworkUrl('getting-started/page.mdx', {}, 'next', '/docs', { routing: 'fumadocs' }),
+    ).toBe('/docs/getting-started/page');
+    expect(frameworkUrl('(marketing)/pricing/page.mdx', {}, 'next', '/', { routing: 'app' })).toBe(
+      '/pricing',
+    );
+    expect(frameworkUrl('notes.mdx', {}, 'next', '/', { routing: 'app' })).toBe('/notes');
     // Without a framework config, paths are kept as they are (Hugo's _index.md is a section page).
     expect(await detectFramework(join(root, 'plain'))).toBe('none');
     expect(await ids(join(root, 'plain'), auto)).toEqual([
@@ -228,6 +237,59 @@ describe('framework URLs', () => {
     // Astro without Starlight is not Starlight.
     await write({ 'astro/package.json': '{"name":"a"}', 'astro/astro.config.mjs': '' });
     expect(await detectFramework(join(root, 'astro'))).toBe('none');
+  });
+
+  it('leaves footnote references out of heading anchors where the framework does', async () => {
+    const page = [
+      '# Setup',
+      '## Install [^1]',
+      'Run it.',
+      '## Use `[^1]` in [^note] text',
+      'A.',
+      '## Undefined [^x]',
+      'B.',
+      '[^1]: One.',
+      '[^NOTE]: Labels match whatever their case.',
+    ].join('\n\n');
+    await write({
+      'docusaurus/package.json': '{"name":"d"}',
+      'docusaurus/docusaurus.config.js': 'module.exports = {}',
+      'docusaurus/docs/setup.md': page,
+      'fumadocs/package.json': '{"dependencies":{"fumadocs-core":"16.17.1"}}',
+      'fumadocs/next.config.mjs': 'export default {}',
+      'fumadocs/content/docs/setup.mdx': page,
+      'starlight/package.json': '{"dependencies":{"@astrojs/starlight":"0.42.5"}}',
+      'starlight/astro.config.mjs': 'export default {}',
+      'starlight/src/content/docs/setup.md': page,
+      'website/package.json': '{"name":"w"}',
+      'website/next.config.mjs': 'export default {}',
+      'website/content/setup.md': page,
+      'plain/setup.md': page,
+    });
+    const anchors = async (directory: string) => {
+      const [document] = await loadDirectory(join(root, directory), { framework: 'auto' });
+      if (!document) throw new Error(`${directory} has no page`);
+      return chunkDocument(document).map(({ heading, anchor }) => [heading, anchor]);
+    };
+    // Docusaurus 3.10, Fumadocs 16.17 and Nextra 4.6 slug a heading without its references (as
+    // `Install `), and only a label with a definition is a reference.
+    const dropped = [
+      ['Install', 'install-'],
+      ['Use [^1] in text', 'use-1-in--text'],
+      ['Undefined [^x]', 'undefined-x'],
+    ];
+    expect(await anchors('docusaurus/docs')).toEqual(dropped);
+    expect(await anchors('fumadocs/content/docs')).toEqual(dropped);
+    // Astro 7.3, and so Starlight, puts each footnote's number in the id (`install-1`), and other
+    // sites render headings their own way: their anchors are what they were.
+    const kept = [
+      ['Install [^1]', 'install-1'],
+      ['Use [^1] in [^note] text', 'use-1-in-note-text'],
+      ['Undefined [^x]', 'undefined-x'],
+    ];
+    expect(await anchors('starlight/src/content/docs')).toEqual(kept);
+    expect(await anchors('website/content')).toEqual(kept);
+    expect(await anchors('plain')).toEqual(kept);
   });
 
   it('detects the framework through a linked content folder', async () => {

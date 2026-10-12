@@ -218,3 +218,40 @@ export function removeDelimited(
   }
   return out + text.slice(last);
 }
+
+// A GFM footnote label: no whitespace or brackets. Labels match case-insensitively.
+const FOOTNOTE_DEFINITION = /^ {0,3}\[\^([^\s[\]]+)\]:/;
+const FOOTNOTE_REFERENCE = /\[\^([^\s[\]]+)\]/g;
+const footnoteLabel = (label: string): string => label.toLowerCase().toUpperCase();
+
+/**
+ * Rewrites each footnote reference in a heading (`## Install [^1]`), outside code, as `~`, for
+ * the renderers that leave references out of a heading's text and id: Docusaurus, Fumadocs and
+ * Nextra slug `Install ` (`install-`). The chunker drops `~`, a strikethrough marker, from a
+ * heading's text and slug; unlike removing the reference, it keeps the space before it, which an
+ * ATX heading would trim. As in GFM, `[^label]` is a reference only when the page defines the
+ * label (`[^label]: ...`); any other stays as text.
+ */
+export function dropHeadingFootnotes(source: string): string {
+  if (!source.includes('[^')) return source;
+  const lines = source.split('\n');
+  const defined = new Set<string>();
+  const scanDefinitions = createFenceScanner();
+  for (const line of lines) {
+    const label = scanDefinitions(line) === 'prose' ? FOOTNOTE_DEFINITION.exec(line)?.[1] : null;
+    if (label) defined.add(footnoteLabel(label));
+  }
+  if (defined.size === 0) return source;
+  const scanHeadings = createFenceScanner();
+  return lines
+    .map((line) =>
+      scanHeadings(line) === 'prose' && parseAtxHeading(line)
+        ? mapOutsideCodeSpans(line, (prose) =>
+            prose.replace(FOOTNOTE_REFERENCE, (reference, label: string) =>
+              defined.has(footnoteLabel(label)) ? '~' : reference,
+            ),
+          )
+        : line,
+    )
+    .join('\n');
+}

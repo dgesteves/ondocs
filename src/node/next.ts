@@ -24,26 +24,45 @@ export const NEXT_CONFIG = /^(?:next\.config\.[cm]?[jt]s|source\.config\.[cm]?ts
  */
 export type NextRouting = 'app' | 'fumadocs' | 'nextra' | 'content';
 
+/** The Next.js site a folder is in, as far as its URLs and heading ids go. */
+export interface NextSite {
+  /** How the site routes the folder. */
+  routing: NextRouting;
+  /**
+   * The site depends on `nextra`, which renders the pages of every folder it reads, `app`
+   * included: it slugs `[#id]` heading ids there too.
+   */
+  nextra: boolean;
+}
+
 /**
- * How the Next.js site that `directory` is in routes it: the site is the nearest folder at or
- * above it with a Next.js config or a `package.json`. A content folder belongs to Nextra or
- * Fumadocs when the site depends on it.
+ * The Next.js site that `directory` is in: the nearest folder at or above it with a Next.js
+ * config or a `package.json`. A content folder belongs to Nextra or Fumadocs when the site
+ * depends on it.
  */
-export async function nextRouting(directory: string): Promise<NextRouting> {
+export async function nextSite(directory: string): Promise<NextSite> {
   const start = await realpath(directory).catch(() => resolve(directory));
   for (let dir = start; ; dir = dirname(dir)) {
     const names = await readdir(dir).catch(() => [] as string[]);
     const isSite = names.includes('package.json') || names.some((name) => NEXT_CONFIG.test(name));
     if (!isSite && dir !== dirname(dir)) continue;
-    // Next.js reads `app` or `src/app`, as Nextra does when it builds its page map.
-    if (/^(?:src\/)?app(?:\/|$)/.test(relative(dir, start).split(sep).join('/'))) return 'app';
     const manifest = await readFile(join(dir, 'package.json'), 'utf8').catch(() => '');
-    if (/"nextra"\s*:/.test(manifest)) return 'nextra';
+    const nextra = /"nextra"\s*:/.test(manifest);
+    // Next.js reads `app` or `src/app`, as Nextra does when it builds its page map.
+    if (/^(?:src\/)?app(?:\/|$)/.test(relative(dir, start).split(sep).join('/'))) {
+      return { routing: 'app', nextra };
+    }
+    if (nextra) return { routing: 'nextra', nextra };
     const fumadocs =
       /"fumadocs-(?:core|mdx|ui)"\s*:/.test(manifest) ||
       names.some((name) => /^source\.config\.[cm]?ts$/.test(name));
-    return fumadocs ? 'fumadocs' : 'content';
+    return { routing: fumadocs ? 'fumadocs' : 'content', nextra };
   }
+}
+
+/** How the Next.js site that `directory` is in routes it; see {@link nextSite}. */
+export async function nextRouting(directory: string): Promise<NextRouting> {
+  return (await nextSite(directory)).routing;
 }
 
 const GROUP = /^\(.+\)$/;
@@ -69,10 +88,11 @@ export function nextPath(relativePath: string, routing: NextRouting): string | n
 
 /**
  * Rewrites `## Title [#id]`, the custom heading id Fumadocs and Nextra read, as `## Title {#id}`,
- * which the chunker reads, outside fenced code. Nextra slugs the id (`[#Setup]` is `#setup`), and
- * Fumadocs keeps it as written. An id with spaces or brackets stays as written.
+ * which the chunker reads, outside fenced code. Nextra slugs the id (`[#Setup]` is `#setup`), in
+ * every folder of its site, and Fumadocs keeps it as written. An id with spaces or brackets stays
+ * as written.
  */
-export function nextHeadingIds(source: string, routing: NextRouting): string {
+export function nextHeadingIds(source: string, { nextra }: Pick<NextSite, 'nextra'>): string {
   if (!source.includes('[#')) return source;
   const scan = createFenceScanner();
   return source
@@ -83,7 +103,7 @@ export function nextHeadingIds(source: string, routing: NextRouting): string {
       const open = text.lastIndexOf('[#');
       const id = open === -1 || !text.endsWith(']') ? '' : text.slice(open + 2, -1);
       if (!/^[^\s[\]{}]+$/.test(id)) return line;
-      return `${text.slice(0, open).trimEnd()} {#${routing === 'nextra' ? slug(id) : id}}`;
+      return `${text.slice(0, open).trimEnd()} {#${nextra ? slug(id) : id}}`;
     })
     .join('\n');
 }

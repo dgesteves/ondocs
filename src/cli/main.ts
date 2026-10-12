@@ -375,8 +375,13 @@ async function writeLlms(
   const outputs = llmsOutputs(settings);
   const dir = resolve(io.cwd, llms.dir);
   const label = relative(io.cwd, dir) || '.';
+  // How a Next.js site routes the folder, which its pages' URLs follow, and so their links.
+  const routing =
+    directory?.options?.framework === 'next' ? await nextRouting(directory.root) : undefined;
   await writeLlmsFiles({
-    pages: directory ? withResolvedLinks(pages, documents, ids, directory.options, outputs) : pages,
+    pages: directory
+      ? withResolvedLinks(pages, documents, ids, directory.options, routing, outputs)
+      : pages,
     site: {
       title: settings.title ?? packageName(io.cwd) ?? 'Docs',
       ...(settings.description ? { description: settings.description } : {}),
@@ -409,6 +414,7 @@ function withResolvedLinks(
   documents: readonly SourceDocument[],
   files: ReadonlySet<string>,
   options: Parameters<typeof loadDirectory>[1],
+  routing: NextRouting | undefined,
   outputs: { markdown: boolean },
 ): LlmsPage[] {
   const copies = outputs.markdown ? markdownCopies(pages) : new Map<LlmsPage, string>();
@@ -433,12 +439,15 @@ function withResolvedLinks(
     if (!document || !files.has(document.id) || !/\.(?:mdx?|markdown)$/i.test(document.id)) {
       return page;
     }
-    // The URL of the file's folder: where its folder's index page is, with a trailing slash.
+    // The URL of the file's folder: where its folder's index page is (`page.mdx` in an App Router
+    // folder), with a trailing slash, by the rules its pages' URLs follow.
+    const index = routing === 'app' ? 'page.mdx' : 'index.md';
     const folder = frameworkUrl(
-      `${document.id.replace(/[^/]*$/, '')}index.md`,
+      `${document.id.replace(/[^/]*$/, '')}${index}`,
       {},
       framework,
       options?.baseUrl,
+      routing ? { routing } : {},
     ).replace(/\/*$/, '/');
     return {
       ...page,
