@@ -40,8 +40,8 @@ Without an API key, replace `-e openai:text-embedding-3-small --dimensions 512` 
 
 The ask endpoint and the MCP endpoint are two route handlers that import the same index:
 
-```ts
-// app/api/ask/route.ts
+```js
+// app/api/ask/route.js
 import { openai } from '@ai-sdk/openai';
 import { createAskHandler, memoryRateLimit } from 'ondocs/server';
 import index from '../../../ask-index.json';
@@ -55,8 +55,8 @@ export const POST = createAskHandler({
 });
 ```
 
-```ts
-// app/api/mcp/route.ts
+```js
+// app/api/mcp/route.js
 import { createMcpHandler } from 'ondocs/server';
 import index from '../../../ask-index.json';
 
@@ -74,8 +74,8 @@ In a project with a `src` folder, the routes are in `src/app/api` and import `..
 
 Render the dialog from a client component. Nextra's search box takes ⌘K, so `shortcut="i"` gives the dialog ⌘I. The docs theme switches between light and dark with next-themes, which sets a `dark` class on `<html>` that the dialog does not read, so the component passes it the theme from `useTheme`, which `nextra-theme-docs` exports:
 
-```tsx
-// components/ask.tsx
+```jsx
+// components/ask.jsx
 'use client';
 import { useEffect, useState } from 'react';
 import { AskDialog } from 'ondocs/react';
