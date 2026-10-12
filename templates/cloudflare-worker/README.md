@@ -44,4 +44,4 @@ npm test            # the Worker in workerd, offline, with stand-ins for the sit
 npm run typecheck
 ```
 
-The tests need no Cloudflare account and use none of your allowance. `npx wrangler dev` runs the Worker against the real Workers AI, which needs `wrangler login` and counts against your allowance.
+The tests need no Cloudflare account and use none of your allowance. The warning `npm test` prints, "AI bindings always access remote resources, and so may incur usage charges even in local dev", is Wrangler's generic message for any AI binding: the tests stub `env.AI.run`. `npx wrangler dev` runs the Worker against the real Workers AI, which needs `wrangler login` and counts against your allowance.
