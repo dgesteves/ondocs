@@ -1,5 +1,5 @@
 /**
- * ondocs/react: the ⌘K ask palette and the hook behind it.
+ * ondocs/react: the ⌘I ask palette and the hook behind it.
  *
  * Import `ondocs/react/styles.css` once for the default theme, or style the `ask-*`
  * classes yourself.

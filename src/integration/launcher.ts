@@ -1,11 +1,12 @@
 // The launcher on every page, for a framework whose pages a bundler builds (Vite, in Astro and
 // Starlight): a script that mounts it, and the stylesheets it needs.
+import { warnDeprecated } from '../deprecation';
 import type { OndocsDialogOptions, OndocsTheme } from '../embed/options';
 
 /** What the dialog shows in one locale, over the dialog's own options. */
 export type LocaleDialogOptions = Pick<
   OndocsDialogOptions,
-  'labels' | 'placeholder' | 'suggestions' | 'buttonLabel'
+  'labels' | 'placeholder' | 'suggestions' | 'launcher' | 'buttonLabel'
 > & { title?: string };
 
 /** The dialog's options as a plugin takes them: the embed's, with a theme and locales. */
@@ -13,6 +14,39 @@ export interface LauncherDialogOptions extends OndocsDialogOptions {
   theme?: OndocsTheme;
   /** Options for each locale, by its path prefix (`fr`, `pt-br`), over these. */
   locales?: Record<string, LocaleDialogOptions>;
+}
+
+/**
+ * `options` with `buttonLabel`, the launcher's name before 0.9, moved to `launcher` (which wins
+ * when both are set), and a warning that names it `where`, such as `dialog.`.
+ */
+function withLauncher<Options extends Pick<OndocsDialogOptions, 'launcher' | 'buttonLabel'>>(
+  options: Options,
+  where: string,
+): Omit<Options, 'buttonLabel'> {
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- read to move it to `launcher`
+  const { buttonLabel, ...rest } = options;
+  if (buttonLabel === undefined) return rest;
+  warnDeprecated(`${where}buttonLabel`, `${where}launcher`);
+  return rest.launcher === undefined ? { ...rest, launcher: buttonLabel } : rest;
+}
+
+/**
+ * `dialog` with `buttonLabel`, the launcher's name before 0.9, moved to `launcher`, its own and
+ * each locale's, with a warning while the site builds rather than in visitors' browsers.
+ */
+function withLauncherOptions(dialog: LauncherDialogOptions): LauncherDialogOptions {
+  const { locales, ...own } = withLauncher(dialog, 'dialog.');
+  if (!locales) return own;
+  return {
+    ...own,
+    locales: Object.fromEntries(
+      Object.entries(locales).map(([locale, options]) => [
+        locale,
+        withLauncher(options, `dialog.locales.${locale}.`),
+      ]),
+    ),
+  };
 }
 
 /**
@@ -64,7 +98,7 @@ export function launcherScript({
   base = '/',
   spa = false,
 }: LauncherScriptOptions): string {
-  const { locales: perLocale, ...dialog } = options;
+  const { locales: perLocale, ...dialog } = withLauncherOptions(options);
   const mount = {
     endpoint,
     ...dialog,

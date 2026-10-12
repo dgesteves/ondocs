@@ -37,7 +37,7 @@ https://github.com/user-attachments/assets/555eb6d6-967b-48be-8b1e-e2da060ad87e
 
 One index, `ask-index.json`, built with your site from the pages it serves, feeds three things:
 
-- **An Ask box for people.** A ⌘K dialog that streams a short answer from your model, with numbered citations to the exact section. When nothing relevant is found, it says "I don't know" without calling the model. A page carries only its button, a few KB of JavaScript; the dialog loads the first time it is wanted.
+- **An Ask box for people.** A ⌘I dialog that streams a short answer from your model, with numbered citations to the exact section. When nothing relevant is found, it says "I don't know" without calling the model. A page carries only its button, a few KB of JavaScript; the dialog loads the first time it is wanted.
 - **An MCP server for agents.** `search`, `fetch` and `list_pages` over the same index, for Claude Code, Cursor, VS Code, ChatGPT and Claude. The agent brings its own model, and search is keyword-only by default, so it calls no model at all.
 - **`llms.txt`, `llms-full.txt` and a `.md` copy of every page**, written with the build.
 

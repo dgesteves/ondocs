@@ -66,7 +66,7 @@ import 'ondocs/embed/launcher.css';
 <AskDialog launcher suggestions={['How do I install it?']} />;
 ```
 
-`launcher` adds a floating "Ask AI" button. The dialog also opens with ⌘K on macOS and Ctrl+K elsewhere. The plugins and the script tag add the same dialog for you, opened with ⌘I or Ctrl+I so that ⌘K stays with your site's search.
+`launcher` adds a floating "Ask AI" button. The dialog also opens with ⌘I on macOS and Ctrl+I elsewhere, so ⌘K stays with your site's search. The plugins and the script tag add the same dialog for you, with the same shortcut.
 
 ## Try it without an API key
 
