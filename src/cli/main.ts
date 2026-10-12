@@ -10,6 +10,7 @@ import { buildIndex, checkIndex, embeddingModelId, type EmbeddingProviderOptions
 import { DEFAULT_CHUNKING } from '../chunk';
 import type { AskIndexFile } from '../index-file';
 import { embeddingFromSpec, EmbeddingSpecError } from '../node/embedding';
+import { nextRouting, type NextRouting } from '../node/next';
 import { llmsOutputs, writeLlmsFiles } from '../integration/llms';
 import type { LlmsPage } from '../llms';
 import { dev } from './dev';
@@ -88,10 +89,13 @@ const FRAMEWORKS: readonly (Framework | 'auto')[] = [
   'next',
   'none',
 ];
-const FRAMEWORK_NAMES: Record<Exclude<Framework, 'none'>, string> = {
+const FRAMEWORK_NAMES: Record<Exclude<Framework, 'none' | 'next'> | NextRouting, string> = {
   docusaurus: 'Docusaurus',
   starlight: 'Starlight',
-  next: 'Next.js-style (route groups, page.mdx)',
+  app: 'Next.js App Router (page.mdx)',
+  fumadocs: 'Fumadocs',
+  nextra: 'Nextra',
+  content: 'Next.js-style (route groups)',
 };
 
 interface Flags {
@@ -448,9 +452,8 @@ export async function main(args: string[], io: CliIO): Promise<number> {
       }
       const framework = requested === 'auto' ? await detectFramework(root) : requested;
       if (requested === 'auto' && framework !== 'none') {
-        log(
-          `Reading ${dir} with ${FRAMEWORK_NAMES[framework]} URLs (--framework none to turn off)`,
-        );
+        const name = FRAMEWORK_NAMES[framework === 'next' ? await nextRouting(root) : framework];
+        log(`Reading ${dir} with ${name} URLs (--framework none to turn off)`);
       }
       if (framework === 'docusaurus' && !baseUrl) {
         log(

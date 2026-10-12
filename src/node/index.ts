@@ -14,6 +14,7 @@ import { fromHtml } from '../loaders/html';
 import { fromMarkdown, parseFrontmatter } from '../loaders/markdown';
 import type { ChunkingOptions, SourceDocument } from '../types';
 import { matchesGlob } from './glob';
+import { NEXT_CONFIG, nextHeadingIds, nextPath, nextRouting, type NextRouting } from './next';
 
 export const DEFAULT_EXTENSIONS = ['.md', '.mdx', '.markdown', '.html', '.htm'] as const;
 
@@ -26,8 +27,11 @@ export const DEFAULT_EXTENSIONS = ['.md', '.mdx', '.markdown', '.html', '.htm'] 
  *   and `_`-prefixed files and folders as partials.
  * - `starlight`: frontmatter `slug` replaces the path, segments are slugified, `index` is the
  *   folder's page, and `_`-prefixed files are skipped.
- * - `next`: Next.js-style content (Fumadocs, Nextra): `(group)` folders are not part of the URL
- *   and `page.mdx` is its folder's page (app router).
+ * - `next`: a Next.js site, by the rules of the folder read: in an App Router folder (`app` or
+ *   `src/app`), `page.mdx` files are the pages, `(group)` folders are not part of the URL and
+ *   `_private` folders are not routed; in a content folder, `index.mdx` is its folder's page, and
+ *   `(group)` folders are not part of the URL for Fumadocs but are for Nextra. Headings take
+ *   custom ids as `## Title [#id]`.
  * - `none`: the path as it is.
  */
 export type Framework = 'docusaurus' | 'starlight' | 'next' | 'none';
@@ -35,7 +39,7 @@ export type Framework = 'docusaurus' | 'starlight' | 'next' | 'none';
 const FRAMEWORK_CONFIGS: [Framework, RegExp][] = [
   ['docusaurus', /^docusaurus\.config\.[cm]?[jt]s$/],
   ['starlight', /^astro\.config\.[cm]?[jt]s$/],
-  ['next', /^(?:next\.config\.[cm]?[jt]s|source\.config\.[cm]?ts)$/],
+  ['next', NEXT_CONFIG],
 ];
 
 /**
@@ -111,11 +115,23 @@ export function pathToUrl(
 }
 
 /** Whether a framework treats this path as a partial rather than a page. */
-function isHidden(path: string, framework: Framework): boolean {
+function isHidden(path: string, framework: Framework, routing: NextRouting): boolean {
   if (framework === 'docusaurus') return path.split('/').some((segment) => segment.startsWith('_'));
   // Astro skips `_` files, not `_` folders.
   if (framework === 'starlight') return basename(path).startsWith('_');
+  // Fumadocs and Nextra serve `_` files; in an App Router folder, only `page.mdx` files are pages.
+  if (framework === 'next') return nextPath(path, routing) === null;
   return false;
+}
+
+/**
+ * `path` under `baseUrl`, without the slashes around it: `/docs` and `guides/setup/` give
+ * `/docs/guides/setup`.
+ */
+function joinUrl(baseUrl: string, path: string): string {
+  const base = baseUrl.replace(/\/+$/, '');
+  const clean = path.replace(/^\/+|\/+$/g, '');
+  return clean ? `${base}/${clean}` : base || '/';
 }
 
 // Docusaurus's DefaultNumberPrefixParser: `01-intro` → `intro`, but dates and versions stay.
@@ -127,6 +143,10 @@ const stripNumberPrefix = (name: string) =>
 /**
  * The URL a framework serves a content file at, before `url`/`permalink` frontmatter, which
  * always wins. `relativePath` uses `/`.
+ *
+ * For `next`, whose rules depend on the folder, a path is read as an App Router path and a
+ * Fumadocs path at once: `(group)` folders are left out, and `index` and `page` are the folder's
+ * page. `loadDirectory` reads which kind of folder it is, and follows that one's rules.
  */
 export function frameworkUrl(
   relativePath: string,
@@ -134,11 +154,7 @@ export function frameworkUrl(
   framework: Framework,
   baseUrl = '/',
 ): string {
-  const base = baseUrl.replace(/\/+$/, '');
-  const toUrl = (path: string) => {
-    const clean = path.replace(/^\/+|\/+$/g, '');
-    return clean ? `${base}/${clean}` : base || '/';
-  };
+  const toUrl = (path: string) => joinUrl(baseUrl, path);
   const text = (value: unknown) => (typeof value === 'string' ? value.trim() : undefined);
   const dirs = relativePath.split('/');
   const name = (dirs.pop() ?? '').replace(/\.(?:mdx?|markdown|html?)$/i, '');
@@ -233,8 +249,9 @@ export async function loadDirectory(
   const ignore = options.ignore ?? [];
   const framework =
     options.framework === 'auto' ? await detectFramework(directory) : (options.framework ?? 'none');
+  const routing = framework === 'next' ? await nextRouting(directory) : 'content';
   const files = (await listFiles(directory, extensions))
-    .filter(({ path }) => !isHidden(path, framework))
+    .filter(({ path }) => !isHidden(path, framework, routing))
     .filter(({ path }) => !ignore.some((pattern) => matchesGlob(path, pattern)))
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
@@ -244,7 +261,9 @@ export async function loadDirectory(
     const ext = extname(path).toLowerCase();
     const markdown = ext !== '.html' && ext !== '.htm';
     let url = pathToUrl(path, options.baseUrl, { cleanUrls: options.cleanUrls ?? false });
-    if (framework !== 'none') {
+    if (framework === 'next') {
+      url = joinUrl(options.baseUrl ?? '/', nextPath(path, routing) ?? '');
+    } else if (framework !== 'none') {
       let frontmatter: Record<string, unknown> = {};
       try {
         frontmatter = markdown ? parseFrontmatter(source).data : {};
@@ -259,11 +278,15 @@ export async function loadDirectory(
       document =
         ext === '.html' || ext === '.htm'
           ? fromHtml(source, { ...meta, markdown: options.markdown ?? false })
-          : fromMarkdown(source, {
-              ...meta,
-              mdx: ext === '.mdx',
-              markdown: options.markdown ?? false,
-            });
+          : fromMarkdown(
+              // The index reads `[#id]` heading ids; a page's `.md` copy keeps them as written.
+              framework === 'next' && !options.markdown ? nextHeadingIds(source, routing) : source,
+              {
+                ...meta,
+                mdx: ext === '.mdx',
+                markdown: options.markdown ?? false,
+              },
+            );
     } catch (error) {
       // Invalid frontmatter YAML, most often: say which file.
       throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`, {

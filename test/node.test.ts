@@ -181,6 +181,12 @@ describe('framework URLs', () => {
       'next/content/docs/(root)/index.mdx': '# Home',
       'next/content/docs/(root)/_blocks.mdx': '# Blocks',
       'next/content/docs/getting-started/page.mdx': '# Getting started',
+      'next/app/(marketing)/pricing/page.mdx': '# Pricing',
+      'next/app/@modal/login/page.mdx': '# Log in',
+      'next/app/page.mdx': '# Home',
+      'next/app/_lib/page.mdx': '# Private',
+      'next/app/blog/[slug]/page.mdx': '# Post',
+      'next/app/notes.mdx': '# Notes',
       'plain/(notes)/a.md': '# A',
       'plain/_index.md': '# Section',
     });
@@ -192,15 +198,27 @@ describe('framework URLs', () => {
       'guides/empty-slug.md': '/guides/empty-slug',
       'guides/i18n.md': '/translations',
     });
-    // Fumadocs serves `_blocks` (ui.shadcn.com/docs/_blocks), so it stays.
+    // A content folder, as Fumadocs reads it: it serves `_blocks` (ui.shadcn.com/docs/_blocks),
+    // so it stays, and `page.mdx` is a page of its own.
     expect(
       Object.fromEntries(await ids(join(root, 'next/content/docs'), { ...auto, baseUrl: '/docs' })),
     ).toEqual({
       '(root)/_blocks.mdx': '/docs/_blocks',
       '(root)/cli.mdx': '/docs/cli',
       '(root)/index.mdx': '/docs',
-      'getting-started/page.mdx': '/docs/getting-started',
+      'getting-started/page.mdx': '/docs/getting-started/page',
     });
+    // The App Router: only `page.mdx` files, outside `_private` and `[dynamic]` folders, with
+    // `(group)` and `@slot` folders left out.
+    expect(Object.fromEntries(await ids(join(root, 'next/app'), auto))).toEqual({
+      '(marketing)/pricing/page.mdx': '/pricing',
+      '@modal/login/page.mdx': '/login',
+      'page.mdx': '/',
+    });
+    // frameworkUrl, which sees a path and not its folder, reads it as either.
+    expect(frameworkUrl('getting-started/page.mdx', {}, 'next', '/docs')).toBe(
+      '/docs/getting-started',
+    );
     // Without a framework config, paths are kept as they are (Hugo's _index.md is a section page).
     expect(await detectFramework(join(root, 'plain'))).toBe('none');
     expect(await ids(join(root, 'plain'), auto)).toEqual([
