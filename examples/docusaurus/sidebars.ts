@@ -18,6 +18,8 @@ const sidebars: SidebarsConfig = {
         'astro',
         'vitepress',
         'nextjs',
+        'fumadocs',
+        'nextra',
         'script-tag',
         'mcp',
         'llms-txt',

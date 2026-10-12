@@ -41,6 +41,8 @@ Search runs in memory inside one function you deploy: BM25 and vectors, merged w
 | Starlight, or any Astro site       | A plugin, or an integration | [Astro and Starlight](https://ondocs.vercel.app/docs/astro) |
 | VitePress                          | One wrapper in its config   | [VitePress](https://ondocs.vercel.app/docs/vitepress)       |
 | Next.js or another React app       | A route and a component     | [Next.js and React](https://ondocs.vercel.app/docs/nextjs)  |
+| Fumadocs                           | A route and a component     | [Fumadocs](https://ondocs.vercel.app/docs/fumadocs)         |
+| Nextra                             | A route and a component     | [Nextra](https://ondocs.vercel.app/docs/nextra)             |
 | Hugo, Jekyll, MkDocs or plain HTML | One script tag              | [Script tag](https://ondocs.vercel.app/docs/script-tag)     |
 
 Each answers from an endpoint you deploy as one function next to the site, rate-limited by default. `npx ondocs init` writes it for Vercel, Netlify, Cloudflare or GitHub Pages (as a Cloudflare Worker of its own, answering with Workers AI and no API key), and an Astro site with an SSR adapter needs none: see [Deploying](https://ondocs.vercel.app/docs/deployment).

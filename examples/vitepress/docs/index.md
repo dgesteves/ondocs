@@ -34,7 +34,7 @@ Hosted assistants such as Kapa, Inkeep, Algolia Ask AI and Biel.ai ingest your d
 
 ## When it fits
 
-ondocs fits documentation sites, product sites, blogs and changelogs: content of up to tens of thousands of chunks that changes when you deploy. It ships a plugin for Docusaurus, a plugin for Starlight, an integration for Astro, a plugin for VitePress, React components for Next.js and other React apps, and a script tag for everything else, such as Hugo, Jekyll, Eleventy or MkDocs.
+ondocs fits documentation sites, product sites, blogs and changelogs: content of up to tens of thousands of chunks that changes when you deploy. It ships a plugin for Docusaurus, a plugin for Starlight, an integration for Astro, a plugin for VitePress, React components for Next.js and other React apps, with guides for Fumadocs and Nextra, and a script tag for everything else, such as Hugo, Jekyll, Eleventy or MkDocs.
 
 ## When it is the wrong tool
 

@@ -29,7 +29,7 @@ Build the index from the folder that holds your pages, and commit `ask-index.jso
 }
 ```
 
-`--base-url /docs` makes `content/setup.md` cite `/docs/setup`. The CLI detects Next.js-style content (Fumadocs, Nextra) and leaves `(group)` folders out of URLs.
+`--base-url /docs` makes `content/setup.md` cite `/docs/setup`. The CLI detects a Next.js site and leaves `(group)` folders out of URLs. Fumadocs and Nextra have guides of their own: [Fumadocs](/integrations/fumadocs/) and [Nextra](/integrations/nextra/).
 
 ## Mount the route handler
 

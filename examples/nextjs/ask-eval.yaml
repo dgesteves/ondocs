@@ -31,6 +31,10 @@ questions:
     expect: /docs/script-tag
   - question: How do I move a site from ask-my-site to ondocs?
     expect: /docs/migrating
+  - question: How do I add the Ask dialog to a Fumadocs site?
+    expect: /docs/fumadocs
+  - question: How do I add ondocs to Nextra?
+    expect: /docs/nextra
 
   - question: What is the capital of France?
     unanswerable: true
