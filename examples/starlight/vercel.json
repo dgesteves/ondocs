@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "astro",
+  "installCommand": "pnpm --dir ../.. install --frozen-lockfile",
+  "buildCommand": "pnpm --dir ../.. build && pnpm build",
+  "outputDirectory": "dist",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    }
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "dependabot/**": false,
+      "changeset-release/**": false
+    }
+  }
+}

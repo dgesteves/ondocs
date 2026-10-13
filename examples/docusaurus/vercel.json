@@ -1,0 +1,24 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "docusaurus-2",
+  "installCommand": "pnpm --dir ../.. install --frozen-lockfile",
+  "buildCommand": "pnpm --dir ../.. build && pnpm build",
+  "outputDirectory": "build",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
+        }
+      ]
+    }
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "dependabot/**": false,
+      "changeset-release/**": false
+    }
+  }
+}

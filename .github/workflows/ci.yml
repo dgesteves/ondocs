@@ -61,22 +61,30 @@ jobs:
         run: node dist/cli.js eval examples/nextjs/ask-eval.yaml
       - name: Lint the example app
         run: pnpm --filter ask-my-site-example-nextjs lint
-      - name: Build the Docusaurus example; the plugin must write its index and llms files, and link each page's .md copy
+      # The three examples are the live demos on Vercel: each is built as its vercel.json says,
+      # after the install from the repository root that this job ran, and with no key.
+      - name: Build the Docusaurus example as Vercel builds its live demo; the plugin must write its index and llms files, and link each page's .md copy
         run: |
-          pnpm --filter ask-my-site-example-docusaurus build
+          (cd examples/docusaurus && sh -c "$(node -p "require('./vercel.json').buildCommand")")
+          test -s "examples/docusaurus/$(node -p "require('./examples/docusaurus/vercel.json').outputDirectory")/index.html"
+          grep -rq 'https://ondocs.vercel.app/api/ask' examples/docusaurus/build/assets/js
           node -e "const i=JSON.parse(require('fs').readFileSync('examples/docusaurus/build/ask-index.json','utf8'));if(i.documents.length<5)throw new Error('only '+i.documents.length+' pages indexed');console.log(i.documents.length,'pages,',i.chunks.length,'chunks')"
           grep -q '<link rel="alternate" type="text/markdown" href="/mcp.md"></head>' examples/docusaurus/build/mcp/index.html
           test -s examples/docusaurus/build/llms.txt && test -s examples/docusaurus/build/llms-full.txt && test -s examples/docusaurus/build/mcp.md
-      - name: Build the Starlight example; the plugin must write its index and llms files, and link each page's .md copy, without pagefind:false pages
+      - name: Build the Starlight example as Vercel builds its live demo; the plugin must write its index and llms files, and link each page's .md copy, without pagefind:false pages
         run: |
-          pnpm --filter ask-my-site-example-starlight build
+          (cd examples/starlight && sh -c "$(node -p "require('./vercel.json').buildCommand")")
+          test -s "examples/starlight/$(node -p "require('./examples/starlight/vercel.json').outputDirectory")/index.html"
+          grep -rq 'https://ondocs.vercel.app/api/ask' examples/starlight/dist/_astro
           node -e "const i=JSON.parse(require('fs').readFileSync('examples/starlight/dist/ask-index.json','utf8'));if(i.documents.length<5)throw new Error('only '+i.documents.length+' pages indexed');if(i.documents.some(d=>d.url.startsWith('/changelog')))throw new Error('indexed the pagefind: false changelog');console.log(i.documents.length,'pages,',i.chunks.length,'chunks')"
           grep -q '<link rel="alternate" type="text/markdown" href="/integrations/mcp.md"></head>' examples/starlight/dist/integrations/mcp/index.html
           if grep -q 'href="/changelog.md"' examples/starlight/dist/changelog/index.html; then echo 'The pagefind: false changelog links a .md copy'; exit 1; fi
           test -s examples/starlight/dist/llms.txt && test -s examples/starlight/dist/llms-full.txt && test -s examples/starlight/dist/integrations/mcp.md && test ! -e examples/starlight/dist/changelog.md
-      - name: Build the VitePress example; the plugin must write its index and llms files, and link each page's .md copy
+      - name: Build the VitePress example as Vercel builds its live demo; the plugin must write its index and llms files, and link each page's .md copy
         run: |
-          pnpm --filter ask-my-site-example-vitepress build
+          (cd examples/vitepress && sh -c "$(node -p "require('./vercel.json').buildCommand")")
+          test -s "examples/vitepress/$(node -p "require('./examples/vitepress/vercel.json').outputDirectory")/index.html"
+          grep -rq 'https://ondocs.vercel.app/api/ask' examples/vitepress/.vitepress/dist/assets
           node -e "const i=JSON.parse(require('fs').readFileSync('examples/vitepress/.vitepress/dist/ask-index.json','utf8'));if(i.documents.length<5)throw new Error('only '+i.documents.length+' pages indexed');console.log(i.documents.length,'pages,',i.chunks.length,'chunks')"
           grep -q '<link rel="alternate" type="text/markdown" href="/vitepress.md"></head>' examples/vitepress/.vitepress/dist/vitepress.html
           test -s examples/vitepress/.vitepress/dist/llms.txt && test -s examples/vitepress/.vitepress/dist/llms-full.txt && test -s examples/vitepress/.vitepress/dist/vitepress.md
