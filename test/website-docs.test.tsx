@@ -372,17 +372,21 @@ describe('a docs page', () => {
         vi.spyOn(process, 'cwd').mockReturnValue(join(root, repo));
         const { lastModified } = await import('../examples/nextjs/lib/git');
         return {
+          first: lastModified('readme.md')?.toISOString(),
           old: lastModified('old.md')?.toISOString(),
           new: lastModified('new.md')?.toISOString(),
           missing: lastModified('not-a-page.md'),
         };
       };
+      // The first commit has no parents either, but in a full clone that's where the file began.
       expect(await read('full')).toEqual({
+        first: '2025-12-01T00:00:00.000Z',
         old: '2026-01-02T03:04:05.000Z',
         new: '2026-02-03T04:05:06.000Z',
         missing: undefined,
       });
       expect(await read('shallow')).toEqual({
+        first: undefined,
         old: undefined,
         new: '2026-02-03T04:05:06.000Z',
         missing: undefined,
