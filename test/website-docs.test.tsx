@@ -204,6 +204,15 @@ describe('typography', () => {
     expect(out).toContain('The “<code>gate</code>” says “I don’t know” at 1.6 MB.');
     expect(out).toContain('<code>&quot;raw&quot;</code>');
   });
+
+  it('opens a quote at the start of each table cell, whatever the cell before ends with', async () => {
+    const out = await html(
+      '| Prop | Default |\n| --- | --- |\n| `title` | "Ask this site" |\n| `noAnswerMessage` | "I don\'t know…" |\n| `footer` | |',
+    );
+    expect(out).toContain('<td data-label="Default">“Ask this site”</td>');
+    expect(out).toContain('<td data-label="Default">“I don’t know…”</td>');
+    expect(out).not.toContain('”Ask');
+  });
 });
 
 describe('tables', () => {
