@@ -2,6 +2,7 @@
 title: The index file
 description: What ask-index.json holds, why vectors are int8, and how the file stays small and diffable.
 section: Reference
+label: Index file
 order: 33
 ---
 

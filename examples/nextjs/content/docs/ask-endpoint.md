@@ -2,6 +2,7 @@
 title: The ask endpoint
 description: createAskHandler options, the request and response, errors and the streaming protocol.
 section: Reference
+label: Ask endpoint
 order: 31
 ---
 

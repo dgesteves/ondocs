@@ -1,14 +1,12 @@
 ---
 # Generated from examples/nextjs/content/docs/introduction.md by scripts/sync-example-docs.mjs. Edit that file instead.
 title: 'Introduction'
-description: 'What ondocs is, who it is for, and when it is the wrong tool.'
+description: 'What ondocs is: a cited Ask box, an MCP server and llms.txt from one static index built with your site. Who it is for, and when it is the wrong tool.'
 ---
 
 # Introduction
 
 ondocs is a self-hosted "Ask AI" box for documentation sites. A visitor types a question and gets a short answer written from your own pages, with numbered citations that link to the exact section each claim came from. It is an open-source npm package under the MIT license, not a hosted service.
-
-It was published as `ask-my-site` until 0.6.0: [Migrating from ask-my-site](/migrating) lists what was renamed.
 
 ## How it works
 

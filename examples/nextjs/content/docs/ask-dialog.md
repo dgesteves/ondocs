@@ -2,6 +2,7 @@
 title: The ask dialog
 description: AskDialog props, the launcher button, shortcuts, theming, accessibility and the useAsk hook.
 section: Reference
+label: Ask dialog
 order: 32
 ---
 

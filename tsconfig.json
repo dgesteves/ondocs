@@ -18,7 +18,13 @@
     "allowJs": true,
     "checkJs": false,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    // The package's own name, from the source, as vitest.config.ts aliases it: the website's
+    // modules that test/ imports use it, and CI type-checks before it builds dist.
+    "paths": {
+      "ondocs": ["./src/index.ts"],
+      "ondocs/react": ["./src/react/index.ts"]
+    }
   },
   "include": ["src", "test", "bench", "scripts", "*.ts"]
 }

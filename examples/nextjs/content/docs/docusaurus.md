@@ -1,6 +1,6 @@
 ---
 title: Docusaurus
-description: The Docusaurus 3 plugin, which indexes the built site and adds the dialog.
+description: 'The Docusaurus 3 plugin: one line of config indexes the built site, adds the dialog behind a button and ⌘I, and writes llms.txt and .md copies.'
 section: Integrations
 order: 10
 ---

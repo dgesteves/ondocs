@@ -2,6 +2,7 @@
 title: Measure and improve answers
 description: Score retrieval in CI with ondocs eval, collect readers' feedback, and keep a log of the questions your docs do not answer.
 section: Guides
+label: Answer quality
 order: 26
 ---
 

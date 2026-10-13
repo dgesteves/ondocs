@@ -53,9 +53,11 @@ const SITES = {
     next: 'examples/nextjs',
     page: '/docs/getting-started',
     key: 'k',
-    // The website: Next.js and its own pages; its header has the button, not a launcher.
+    // The website: Next.js and its own pages; its header has the button, not a launcher. 167.7 KB
+    // before the shared header's theme switch and phone menu, 171.4 KB with them, and 176.7 KB
+    // with the docs shell (On this page, the docs bar, page actions, tabs).
     launcher: false,
-    budget: 170,
+    budget: 180,
   },
   embed: {
     dir: null,

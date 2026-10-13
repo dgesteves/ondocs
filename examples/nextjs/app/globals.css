@@ -1,21 +1,37 @@
 :root {
-  --ink: #0d0f12;
-  --ink-raised: #14181d;
-  --raised: #181c22;
-  --border: #262b33;
-  --border-strong: #353c47;
-  --fg: #f5f7fa;
-  --fg-soft: #dfe6ee;
-  --muted: #9aa6b4;
-  --subtle: #7c8796;
-  --cyan: #22d3ee;
-  --cyan-bright: #67e8f9;
-  --magenta: #f0468a;
-  --header-height: 64px;
+  /*
+   * The palette in two themes: dark (ink, raised surfaces, cyan and a sparing magenta) and light,
+   * from the sibling sites' light palette. It follows the OS until the visitor picks one: then
+   * .light or .dark on <html>, set before paint by the script in app/layout.tsx.
+   */
+  color-scheme: light dark;
+  --ink: light-dark(#ffffff, #0d0f12);
+  --ink-raised: light-dark(#f6f7f9, #14181d);
+  --raised: light-dark(#eef0f3, #181c22);
+  --border: light-dark(#e2e5ea, #262b33);
+  --border-strong: light-dark(#cdd2d9, #353c47);
+  --fg: light-dark(#0d0f12, #f5f7fa);
+  --fg-soft: light-dark(#1f2937, #dfe6ee);
+  --muted: light-dark(#4b5563, #9aa6b4);
+  --subtle: light-dark(#5f6875, #7c8796);
+  --cyan: light-dark(#0e7490, #22d3ee);
+  --cyan-bright: light-dark(#155e75, #67e8f9);
+  /* Cyan text on a cyan tint, which needs the darker cyan in light. */
+  --cyan-on-tint: light-dark(#155e75, #22d3ee);
+  --magenta: light-dark(#be185d, #f0468a);
+  --shadow: light-dark(rgb(13 15 18 / 0.14), rgb(0 0 0 / 0.6));
+  --header-height: 56px;
   --gutter: 24px;
   --container: 1320px;
   --sans: var(--font-geist-sans), system-ui, sans-serif;
   --mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+.light {
+  color-scheme: light;
+}
+
+.dark {
   color-scheme: dark;
 }
 
@@ -24,6 +40,7 @@
 }
 
 html {
+  background: var(--ink);
   scroll-padding-top: calc(var(--header-height) + 20px);
   -webkit-text-size-adjust: 100%;
 }
@@ -91,22 +108,23 @@ h3 {
   text-wrap: balance;
 }
 
-/* Header */
+/* Header: the same on the three sibling sites. On a phone the pages, the theme and GitHub move
+   into the menu (components/site-nav.tsx). */
 
 .site-header {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgb(13 15 18 / 0.8);
+  background: color-mix(in srgb, var(--ink) 95%, transparent);
+  -webkit-backdrop-filter: saturate(140%) blur(12px);
   backdrop-filter: saturate(140%) blur(12px);
   border-bottom: 1px solid var(--border);
 }
 
 .site-header-inner {
   display: flex;
-  gap: 16px;
+  gap: 10px;
   align-items: center;
-  justify-content: space-between;
   max-width: var(--container);
   height: var(--header-height);
   margin: 0 auto;
@@ -123,6 +141,7 @@ h3 {
   letter-spacing: -0.01em;
   color: var(--fg);
   text-decoration: none;
+  border-radius: 6px;
 }
 
 .brand-mark {
@@ -131,22 +150,35 @@ h3 {
   width: 26px;
   height: 26px;
   color: var(--cyan);
-  background: rgb(34 211 238 / 0.08);
-  border: 1px solid rgb(34 211 238 / 0.25);
+  background: color-mix(in srgb, var(--cyan) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cyan) 25%, transparent);
   border-radius: 7px;
+}
+
+.version-pill {
+  flex: none;
+  padding: 0 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--muted);
+  white-space: nowrap;
+  background: var(--ink-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
 }
 
 .header-nav {
   display: flex;
-  gap: 6px;
+  gap: 2px;
   align-items: center;
+  margin-left: auto;
 }
 
 .header-link {
   display: inline-flex;
-  gap: 8px;
   align-items: center;
-  height: 36px;
+  height: 32px;
   padding: 0 10px;
   font-size: 14px;
   color: var(--muted);
@@ -155,25 +187,30 @@ h3 {
 }
 
 .header-link:hover,
-.header-link[aria-current='page'] {
+.header-link[aria-current] {
   color: var(--fg);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: 6px;
 }
 
 .header-ask {
   display: inline-flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  min-width: 220px;
-  height: 36px;
-  margin-left: 8px;
-  padding: 0 8px 0 12px;
+  height: 32px;
+  padding: 0 6px 0 10px;
   font: inherit;
   font-size: 14px;
-  color: var(--muted);
+  color: var(--fg-soft);
   cursor: pointer;
   background: var(--raised);
   border: 1px solid var(--border-strong);
-  border-radius: 9px;
+  border-radius: 8px;
 }
 
 .header-ask .spark {
@@ -181,24 +218,15 @@ h3 {
   color: var(--cyan);
 }
 
-.header-ask .label-long,
-.header-ask .label-short {
-  flex: 1;
-  text-align: left;
-}
-
 .header-ask:hover {
   color: var(--fg);
-  border-color: rgb(34 211 238 / 0.45);
-}
-
-.label-short {
-  display: none;
+  border-color: color-mix(in srgb, var(--cyan) 45%, transparent);
 }
 
 .shortcut-hint {
-  padding: 1px 6px;
-  font-size: 12px;
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 18px;
   color: var(--muted);
   background: var(--ink);
   border: 1px solid var(--border-strong);
@@ -206,9 +234,180 @@ h3 {
 }
 
 /* No keyboard shortcut to advertise on a touch screen, or on a phone-sized one. */
-@media (hover: none), (max-width: 800px) {
+@media (hover: none), (max-width: 720px) {
   .shortcut-hint,
   .ask-footer-keys {
+    display: none;
+  }
+}
+
+.theme-switch {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 2px;
+  background: color-mix(in srgb, var(--raised) 60%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.theme-switch button {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--muted);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+}
+
+.theme-switch button:hover,
+.theme-switch button[aria-checked='true'] {
+  color: var(--fg);
+}
+
+.theme-switch button[aria-checked='true'] {
+  background: var(--border);
+}
+
+.theme-switch button:focus-visible {
+  outline-offset: -2px;
+}
+
+.header-icon {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.header-icon:hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
+.header-stars {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.header-menu-button {
+  display: none;
+  padding: 0;
+}
+
+/* The phone menu, a native popover under the header. */
+.site-menu {
+  inset: var(--header-height) 0 auto;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  max-height: calc(100dvh - var(--header-height));
+  margin: 0;
+  padding: 8px var(--gutter) 16px;
+  overflow-y: auto;
+  color: var(--fg);
+  background: var(--ink);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 24px 48px var(--shadow);
+}
+
+.site-menu::backdrop {
+  background: light-dark(rgb(13 15 18 / 0.3), rgb(0 0 0 / 0.5));
+}
+
+.site-menu-links {
+  display: grid;
+  padding: 4px 0;
+}
+
+.site-menu-links + .site-menu-links,
+.site-menu-theme {
+  border-top: 1px solid var(--border);
+}
+
+.site-menu-link {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 12px;
+  font-size: 15px;
+  color: var(--muted);
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+.site-menu-link:hover {
+  color: var(--fg);
+  background: var(--ink-raised);
+}
+
+.site-menu-link[aria-current] {
+  color: var(--fg);
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+
+.site-menu-note {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--subtle);
+}
+
+.site-menu-theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 4px;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .header-nav,
+  .header-theme,
+  .header-github {
+    display: none;
+  }
+
+  .header-actions {
+    margin-left: auto;
+  }
+
+  .header-menu-button {
+    display: inline-flex;
+    width: 36px;
+    height: 36px;
+  }
+
+  .header-ask {
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+  }
+
+  .header-ask .ask-button-text {
     display: none;
   }
 }
@@ -240,8 +439,8 @@ h3 {
   color: var(--ink);
   background: var(--cyan);
   box-shadow:
-    0 0 0 1px rgb(103 232 249 / 0.4) inset,
-    0 8px 30px -10px rgb(34 211 238 / 0.55);
+    0 0 0 1px color-mix(in srgb, var(--cyan-bright) 40%, transparent) inset,
+    0 8px 30px -10px color-mix(in srgb, var(--cyan) 55%, transparent);
 }
 
 .button-primary:hover {
@@ -249,9 +448,10 @@ h3 {
 }
 
 .button-primary .shortcut-hint {
-  color: rgb(13 15 18 / 0.75);
-  background: rgb(13 15 18 / 0.12);
-  border-color: rgb(13 15 18 / 0.25);
+  /* The ink is the color on the accent, in both themes. */
+  color: color-mix(in srgb, var(--ink) 80%, transparent);
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  border-color: color-mix(in srgb, var(--ink) 30%, transparent);
 }
 
 .button-secondary {
@@ -410,6 +610,58 @@ h3 {
   border: 0;
 }
 
+/* Transcripts and prose-like output wrap; source code scrolls sideways (lib/highlight.ts). */
+.code-wrap pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Tabs, as a code block's bar (npm, pnpm, yarn, bun) or above any content. */
+.tab-list {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.code-head .tab-list {
+  align-self: stretch;
+  margin-left: -14px;
+}
+
+.tab-list [role='tab'] {
+  height: 36px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.code-head .tab-list [role='tab'] {
+  height: 100%;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.tab-list [role='tab']:hover {
+  color: var(--fg);
+}
+
+.tab-list [role='tab'][aria-selected='true'] {
+  color: var(--fg);
+  box-shadow: inset 0 -2px 0 var(--cyan);
+}
+
+.tab-list [role='tab']:focus-visible {
+  outline-offset: -2px;
+}
+
 /* The dialog inherits the site's typefaces. */
 .ask-dialog {
   --ask-font: var(--sans);
@@ -524,6 +776,7 @@ h3 {
   margin: 0 0 12px;
   font-family: var(--mono);
   font-size: 11px;
+  font-weight: 500;
   color: var(--subtle);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -546,6 +799,12 @@ h3 {
   color: var(--cyan);
 }
 
+.site-footer .footer-version {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .footer-more li {
   display: grid;
   gap: 2px;
@@ -560,31 +819,14 @@ h3 {
     --gutter: 16px;
   }
 
-  .header-github span,
-  .header-ask .label-long {
-    display: none;
-  }
-
-  .header-ask .label-short {
-    display: inline;
-  }
-
-  .header-ask {
-    min-width: 0;
-    margin-left: 4px;
-  }
-
   .site-footer-inner {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 28px;
   }
 
-  .site-header-inner {
-    gap: 8px;
-  }
-
-  .header-nav {
-    gap: 2px;
+  .footer-about,
+  .footer-more {
+    grid-column: 1 / -1;
   }
 
   /* Answers wrap their code on a phone instead of scrolling it sideways. */

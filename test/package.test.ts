@@ -77,7 +77,7 @@ describe('package.json', () => {
     const minor = /^(\d+\.\d+)\./.exec(manifest.version ?? '')?.[1];
     const files = [
       'README.md',
-      'examples/nextjs/app/page.tsx',
+      'examples/nextjs/app/(home)/page.tsx',
       'examples/nextjs/content/docs/script-tag.md',
       'examples/nextjs/content/docs/migrating.md',
     ];

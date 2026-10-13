@@ -2,19 +2,37 @@ import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { cache } from 'react';
 
-import { createSlugger, decodeEntities, parseFrontmatter } from 'ondocs';
-import { Marked, type Tokens } from 'marked';
+import { parseFrontmatter } from 'ondocs';
 
-import { codeBlock } from './highlight';
+import { lastModified } from './git';
+import { renderMarkdown, type Heading } from './markdown';
 
 const DOCS_DIR = path.join(process.cwd(), 'content/docs');
 
-/** Sidebar sections, in order. A page names its own in `section` frontmatter. */
-export const SECTIONS = ['Get started', 'Integrations', 'Guides', 'Reference'] as const;
+/**
+ * Sidebar groups, in order. A page is in its `group` frontmatter, else its `section`, the one
+ * the other examples' sidebars share (scripts/sync-example-docs.mjs), under this site's name
+ * for it.
+ */
+export const SECTIONS = [
+  'Get started',
+  'Frameworks',
+  'For agents',
+  'Deploy & operate',
+  'Guides',
+  'Reference',
+] as const;
+
+const SECTION_GROUPS: Partial<Record<string, string>> = { Integrations: 'Frameworks' };
+
+/** The group the header's Integrations link opens, on the docs home, and is current in. */
+export const INTEGRATIONS_SECTION = 'Frameworks';
 
 export interface DocMeta {
   slug: string;
   title: string;
+  /** The sidebar's shorter name for it: `label` frontmatter, else the title. */
+  label: string;
   description: string;
   section: string;
   order: number;
@@ -27,7 +45,9 @@ export interface DocSection {
 
 export interface Doc extends DocMeta {
   html: string;
-  headings: { depth: number; text: string; id: string }[];
+  headings: Heading[];
+  /** When the page's file last changed in git, when the build has that history. */
+  updated: Date | undefined;
   /** The pages before and after it in sidebar order. */
   previous: DocMeta | null;
   next: DocMeta | null;
@@ -41,12 +61,15 @@ async function readDoc(slug: string): Promise<{ meta: DocMeta; body: string } | 
     return null;
   }
   const { data, body } = parseFrontmatter(source);
+  const title = typeof data.title === 'string' ? data.title : slug;
+  const section = typeof data.section === 'string' ? data.section : 'Reference';
   return {
     meta: {
       slug,
-      title: typeof data.title === 'string' ? data.title : slug,
+      title,
+      label: typeof data.label === 'string' ? data.label : title,
       description: typeof data.description === 'string' ? data.description : '',
-      section: typeof data.section === 'string' ? data.section : 'Reference',
+      section: typeof data.group === 'string' ? data.group : (SECTION_GROUPS[section] ?? section),
       order: typeof data.order === 'number' ? data.order : 99,
     },
     body,
@@ -87,75 +110,39 @@ export const getSections = cache(async (): Promise<DocSection[]> => {
   return sections;
 });
 
-/**
- * Renders a page with heading ids from ondocs's own slugger, the one the chunker uses, so
- * every citation anchor in an answer lands on a heading that exists.
- */
+/** What the sidebar and the docs bar need of each page: they are sent to the browser as props. */
+export interface NavSection {
+  title: string;
+  docs: { slug: string; label: string }[];
+}
+
+export const getNavSections = cache(async (): Promise<NavSection[]> =>
+  (await getSections()).map((section) => ({
+    title: section.title,
+    docs: section.docs.map(({ slug, label }) => ({ slug, label })),
+  })),
+);
+
+/** The id of a group on the docs home, which the header's Integrations link goes to. */
+export const sectionId = (title: string): string =>
+  title === INTEGRATIONS_SECTION
+    ? 'integrations'
+    : title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+
 export const getDoc = cache(async (slug: string): Promise<Doc | null> => {
   const doc = await readDoc(slug);
   if (!doc) return null;
-  const slugify = createSlugger();
-  const headings: Doc['headings'] = [];
-  // Code is highlighted before rendering, since marked's renderer is synchronous.
-  const highlighted = new Map<Tokens.Code, string>();
-  const marked = new Marked({
-    renderer: {
-      code(token) {
-        return highlighted.get(token) ?? '';
-      },
-      heading({ tokens, depth, text }) {
-        const id = slugify(text);
-        const label = decodeEntities(this.parser.parseInline(tokens).replace(/<[^>]+>/g, ''));
-        headings.push({ depth, text: label, id });
-        return `<h${String(depth)} id="${id}"><a class="anchor" href="#${id}" aria-hidden="true" tabindex="-1">#</a>${this.parser.parseInline(tokens)}</h${String(depth)}>\n`;
-      },
-      // Every cell carries its column's name, so reference tables can stack into one block per
-      // row on narrow screens. Tables of numbers (right-aligned columns) keep their grid.
-      table({ header, rows, align }) {
-        const attribute = (value: string | null) => (value ? ` align="${value}"` : '');
-        const labels = header.map((cell) =>
-          decodeEntities(this.parser.parseInline(cell.tokens).replace(/<[^>]+>/g, '')).replace(
-            /"/g,
-            '&quot;',
-          ),
-        );
-        const head = header
-          .map((cell) => `<th${attribute(cell.align)}>${this.parser.parseInline(cell.tokens)}</th>`)
-          .join('');
-        const body = rows
-          .map(
-            (row) =>
-              `<tr>${row
-                .map(
-                  (cell, i) =>
-                    `<td${attribute(cell.align)} data-label="${labels[i] ?? ''}">${this.parser.parseInline(cell.tokens)}</td>`,
-                )
-                .join('')}</tr>`,
-          )
-          .join('\n');
-        const numeric = align.includes('right');
-        const name = labels.slice(0, 3).join(', ');
-        return `<div class="table-scroll" tabindex="0" role="region" aria-label="Table: ${name}"><table${numeric ? '' : ' class="table-stack"'}><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>\n`;
-      },
-    },
-  });
-  const tokens = marked.lexer(doc.body);
-  const code: Tokens.Code[] = [];
-  void marked.walkTokens(tokens, (token) => {
-    if (token.type === 'code') code.push(token as Tokens.Code);
-  });
-  await Promise.all(
-    code.map(async (token) => {
-      highlighted.set(token, await codeBlock(token.text, token.lang ?? ''));
-    }),
-  );
-  const html = marked.parser(tokens);
+  const { html, headings } = await renderMarkdown(doc.body);
   const docs = await getDocs();
   const index = docs.findIndex((other) => other.slug === slug);
   return {
     ...doc.meta,
     html,
     headings,
+    updated: lastModified(path.join(DOCS_DIR, `${slug}.md`)),
     previous: docs[index - 1] ?? null,
     next: docs[index + 1] ?? null,
   };

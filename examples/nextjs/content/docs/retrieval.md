@@ -2,6 +2,7 @@
 title: How retrieval works
 description: BM25, cosine similarity, reciprocal rank fusion and the relevance gate that says "I don't know".
 section: Guides
+label: Retrieval
 order: 25
 ---
 

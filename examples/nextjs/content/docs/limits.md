@@ -2,6 +2,7 @@
 title: Limits and trade-offs
 description: Where ondocs stops being the right tool, and what it gives up for simplicity.
 section: Reference
+label: Limits
 order: 35
 ---
 

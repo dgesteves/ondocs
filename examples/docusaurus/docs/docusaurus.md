@@ -1,7 +1,7 @@
 ---
 # Generated from examples/nextjs/content/docs/docusaurus.md by scripts/sync-example-docs.mjs. Edit that file instead.
 title: 'Docusaurus'
-description: 'The Docusaurus 3 plugin, which indexes the built site and adds the dialog.'
+description: 'The Docusaurus 3 plugin: one line of config indexes the built site, adds the dialog behind a button and ⌘I, and writes llms.txt and .md copies.'
 ---
 
 The `ondocs/docusaurus` plugin adds ondocs to a Docusaurus 3 site with one line of config. After every `docusaurus build` it indexes the pages the site serves, and in the browser it adds the dialog with a floating "Ask AI" button.

@@ -2,6 +2,7 @@
 title: Deploying
 description: Write the endpoint for Vercel, Netlify, Cloudflare or GitHub Pages with one command, where the index lives, cold starts and cost.
 section: Guides
+group: Deploy & operate
 order: 22
 ---
 
