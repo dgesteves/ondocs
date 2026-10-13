@@ -6,10 +6,14 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { markOverflow, selectTab } from '../examples/nextjs/components/docs-enhancements';
+import {
+  markOverflow,
+  selectTab,
+  tabTarget,
+} from '../examples/nextjs/components/docs-enhancements';
 import { chatLinks } from '../examples/nextjs/components/page-actions';
 import {
   LONG_CODE,
@@ -101,6 +105,19 @@ describe('steps and tabs', () => {
     expect(one?.tabIndex).toBe(-1);
     expect(document.getElementById(one!.getAttribute('aria-controls')!)?.hidden).toBe(true);
     expect(document.getElementById(two!.getAttribute('aria-controls')!)?.hidden).toBe(false);
+  });
+
+  it('moves between tabs with the arrow keys, wrapping, and to the ends with Home and End', async () => {
+    document.body.innerHTML = await html(
+      ':::tabs\n@tab One\nFirst.\n\n@tab Two\nSecond.\n\n@tab Three\nThird.\n:::',
+    );
+    const [one, two, three] = [...document.querySelectorAll<HTMLElement>('[role="tab"]')];
+    expect(tabTarget(one!, 'ArrowRight')).toBe(two);
+    expect(tabTarget(three!, 'ArrowRight')).toBe(one);
+    expect(tabTarget(one!, 'ArrowLeft')).toBe(three);
+    expect(tabTarget(two!, 'Home')).toBe(one);
+    expect(tabTarget(one!, 'End')).toBe(three);
+    expect(tabTarget(two!, 'Enter')).toBeUndefined();
   });
 });
 
@@ -203,6 +220,15 @@ describe('typography', () => {
     ]);
     expect(out).toContain('The “<code>gate</code>” says “I don’t know” at 1.6 MB.');
     expect(out).toContain('<code>&quot;raw&quot;</code>');
+  });
+
+  it('opens a quote at the start of each table cell, whatever the cell before ends with', async () => {
+    const out = await html(
+      '| Prop | Default |\n| --- | --- |\n| `title` | "Ask this site" |\n| `noAnswerMessage` | "I don\'t know…" |\n| `footer` | |',
+    );
+    expect(out).toContain('<td data-label="Default">“Ask this site”</td>');
+    expect(out).toContain('<td data-label="Default">“I don’t know…”</td>');
+    expect(out).not.toContain('”Ask');
   });
 });
 
@@ -363,17 +389,21 @@ describe('a docs page', () => {
         vi.spyOn(process, 'cwd').mockReturnValue(join(root, repo));
         const { lastModified } = await import('../examples/nextjs/lib/git');
         return {
+          first: lastModified('readme.md')?.toISOString(),
           old: lastModified('old.md')?.toISOString(),
           new: lastModified('new.md')?.toISOString(),
           missing: lastModified('not-a-page.md'),
         };
       };
+      // The first commit has no parents either, but in a full clone that's where the file began.
       expect(await read('full')).toEqual({
+        first: '2025-12-01T00:00:00.000Z',
         old: '2026-01-02T03:04:05.000Z',
         new: '2026-02-03T04:05:06.000Z',
         missing: undefined,
       });
       expect(await read('shallow')).toEqual({
+        first: undefined,
         old: undefined,
         new: '2026-02-03T04:05:06.000Z',
         missing: undefined,
@@ -403,6 +433,34 @@ describe('a docs page', () => {
     render(<Toc headings={headings} />, { container });
     await act(() => Promise.resolve());
     expect(screen.getByRole('link', { current: 'location' }).textContent).toBe('build');
+  });
+
+  it('closes the docs bar’s lists on Escape, and on a click outside them', async () => {
+    const { DocsBar } = await import('../examples/nextjs/components/docs-nav');
+    const sections = [
+      { title: 'Get started', docs: [{ slug: 'getting-started', label: 'Start' }] },
+    ];
+    const headings = [{ depth: 2, text: 'Install', id: 'install' }];
+    render(<DocsBar sections={sections} headings={headings} />);
+    const [pages, toc] = screen.getAllByRole('button');
+    const open = () => [pages, toc].map((button) => button?.getAttribute('aria-expanded'));
+
+    fireEvent.click(pages!);
+    expect(open()).toEqual(['true', 'false']);
+    // Inside the list, it stays open.
+    fireEvent.pointerDown(screen.getByRole('link', { name: 'Start' }));
+    expect(open()).toEqual(['true', 'false']);
+    fireEvent.pointerDown(document.body);
+    expect(open()).toEqual(['false', 'false']);
+
+    // Opening the other one closes the first, as the press lands outside it.
+    fireEvent.click(pages!);
+    fireEvent.pointerDown(toc!);
+    fireEvent.click(toc!);
+    expect(open()).toEqual(['false', 'true']);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(open()).toEqual(['false', 'false']);
+    expect(document.activeElement).toBe(toc);
   });
 });
 

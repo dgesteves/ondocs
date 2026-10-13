@@ -239,7 +239,11 @@ export async function renderMarkdown(
   const code: Tokens.Code[] = [];
   // The character before the next piece of prose, for curly quotes across bold, links and code.
   let prev = ' ';
+  // Each table cell's first token: a cell starts its prose afresh, as a paragraph does. The walk
+  // visits the cells' tokens but never the cells, so their first tokens mark where each starts.
+  const cellStarts = new WeakSet<Token>();
   void marked.walkTokens(tokens, (token) => {
+    if (cellStarts.has(token)) prev = ' ';
     switch (token.type) {
       case 'code':
         code.push(token as Tokens.Code);
@@ -262,12 +266,20 @@ export async function renderMarkdown(
           prev = text.at(-1) ?? prev;
         }
         break;
+      case 'table': {
+        const { header, rows } = token as Tokens.Table;
+        for (const cell of [...header, ...rows.flat()]) {
+          const first = cell.tokens.at(0);
+          if (first) cellStarts.add(first);
+        }
+        prev = ' ';
+        break;
+      }
       case 'br':
       case 'paragraph':
       case 'heading':
       case 'list_item':
       case 'blockquote':
-      case 'table':
       case 'space':
         prev = ' ';
         break;

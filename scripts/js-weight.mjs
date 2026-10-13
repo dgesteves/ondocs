@@ -54,8 +54,9 @@ const SITES = {
     page: '/docs/getting-started',
     key: 'k',
     // The website: Next.js and its own pages; its header has the button, not a launcher. 167.7 KB
-    // before the shared header's theme switch and phone menu, 171.4 KB with them, and 176.7 KB
-    // with the docs shell (On this page, the docs bar, page actions, tabs).
+    // before the shared header's theme switch and phone menu, 171.4 KB with them, 178 KB with the
+    // docs shell (On this page, the docs bar, page actions, tabs), and 174.5 KB once ondocs's
+    // package.json, which client code reached through the site's constants, left the bundle.
     launcher: false,
     budget: 180,
   },

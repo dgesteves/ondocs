@@ -18,9 +18,9 @@ import {
   INSTALL,
   MCP_URL,
   SUGGESTIONS,
-  VERSION,
 } from '../../lib/site';
 import { gzippedSize } from '../../lib/sizes';
+import { VERSION } from '../../lib/version';
 
 import './landing.css';
 

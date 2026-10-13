@@ -27,6 +27,23 @@ export function selectTab(tab: HTMLElement): void {
   }
 }
 
+/**
+ * The tab a key moves to from this one, as ARIA's tabs pattern has it: the arrow keys to the
+ * next or previous, wrapping around, and Home and End to the first and last.
+ */
+export function tabTarget(tab: HTMLElement, key: string): HTMLElement | undefined {
+  const tabs = [...(tab.parentElement?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
+  const index = tabs.indexOf(tab);
+  const moves: Partial<Record<string, number>> = {
+    ArrowRight: (index + 1) % tabs.length,
+    ArrowLeft: (index - 1 + tabs.length) % tabs.length,
+    Home: 0,
+    End: tabs.length - 1,
+  };
+  const target = moves[key];
+  return target === undefined ? undefined : tabs[target];
+}
+
 /** Every group with this `data-sync` key shows the tab with this value. */
 function selectEverywhere(sync: string, value: string) {
   for (const tab of document.querySelectorAll<HTMLElement>(
@@ -117,10 +134,8 @@ export function DocsEnhancements() {
         event.target instanceof Element
           ? event.target.closest<HTMLElement>('[data-tabs] [role="tab"]')
           : null;
-      const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-      if (!tab || !step) return;
-      const tabs = [...(tab.parentElement?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
-      const next = tabs.at((tabs.indexOf(tab) + step) % tabs.length);
+      if (!tab) return;
+      const next = tabTarget(tab, event.key);
       if (!next) return;
       event.preventDefault();
       choose(next);

@@ -10,8 +10,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { githubStars, MIN_STARS, starLabel } from '../examples/nextjs/lib/github';
 import { jsonLd, softwareSourceCode } from '../examples/nextjs/lib/json-ld';
-import { HOME_DESCRIPTION, VERSION } from '../examples/nextjs/lib/site';
+import { HOME_DESCRIPTION } from '../examples/nextjs/lib/site';
 import { THEME_KEY, THEME_SCRIPT } from '../examples/nextjs/lib/theme';
+import { VERSION } from '../examples/nextjs/lib/version';
 
 const site = join(import.meta.dirname, '../examples/nextjs');
 const { pathname, navigation } = vi.hoisted(() => {
@@ -145,6 +146,12 @@ describe('the GitHub star count', () => {
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.github.com/repos/dgesteves/ondocs');
     expect(new Headers(init.headers).has('authorization')).toBe(false);
+    // Fresh in each build, rather than from a data cache that outlives the deployment, and the
+    // pages stay static all the same.
+    expect(init.cache).toBe('no-store');
+    expect(readFileSync(join(site, 'app/layout.tsx'), 'utf8')).toContain(
+      "export const dynamic = 'force-static';",
+    );
 
     for (const failure of [
       () => Promise.reject(new Error('offline')),
@@ -311,6 +318,26 @@ describe('the SEO plumbing', () => {
   });
 });
 
+describe('the share cards', () => {
+  it('draw Geist unkerned, as Satori lays their words out, and spell out ⌘', async () => {
+    vi.spyOn(process, 'cwd').mockReturnValue(site);
+    const { cardText, ogFonts } = await import('../examples/nextjs/lib/og');
+    const fonts = await ogFonts();
+    expect(fonts.map((font) => font.name)).toEqual(['Geist', 'Geist', 'Geist Mono']);
+    // The font's tables, from its table directory.
+    const tables = (font: Buffer) =>
+      Array.from({ length: font.readUInt16BE(4) }, (_, i) =>
+        font.toString('latin1', 12 + i * 16, 16 + i * 16),
+      );
+    for (const { name, data } of fonts) {
+      // Geist's kerning is hidden, and nothing else: its glyphs and substitutions are all there.
+      expect(tables(data).includes('GPOS'), name).toBe(name !== 'Geist');
+      expect(tables(data), name).toEqual(expect.arrayContaining(['GSUB', 'glyf', 'hmtx', 'cmap']));
+    }
+    expect(cardText('behind a button and ⌘I, and')).toBe('behind a button and Cmd+I, and');
+  });
+});
+
 describe('Vercel Web Analytics', () => {
   it('is rendered once, with no options, at the end of <body>', () => {
     const layout = readFileSync(join(site, 'app/layout.tsx'), 'utf8');
@@ -331,6 +358,36 @@ describe('Vercel Web Analytics', () => {
         .filter((file) => readFileSync(join(site, file), 'utf8').includes('@vercel/analytics')),
     );
     expect(users).toEqual(['app/layout.tsx']);
+  });
+});
+
+describe('the client bundle', () => {
+  it('has no package.json: no module a client component reaches imports one', () => {
+    const sources = ['app', 'components', 'lib'].flatMap((dir) =>
+      readdirSync(join(site, dir), { recursive: true, encoding: 'utf8' })
+        .filter((file) => /\.tsx?$/.test(file))
+        .map((file) => join(site, dir, file)),
+    );
+    const resolve = (from: string, specifier: string) =>
+      ['.ts', '.tsx', '/index.ts', '/index.tsx']
+        .map((extension) => join(from, '..', specifier) + extension)
+        .find((file) => sources.includes(file));
+    const reached = new Set(
+      sources.filter((file) => readFileSync(file, 'utf8').startsWith("'use client';")),
+    );
+    expect(reached.size).toBeGreaterThan(5);
+    for (const file of reached) {
+      for (const [, specifier = ''] of readFileSync(file, 'utf8').matchAll(
+        /^import (?!type )[^;]*?from '(\.{1,2}\/[^']+)';$/gm,
+      )) {
+        const target = resolve(file, specifier);
+        if (target) reached.add(target);
+      }
+    }
+    const withPackage = [...reached].filter((file) =>
+      /from '[^']*package\.json'/.test(readFileSync(file, 'utf8')),
+    );
+    expect(withPackage.map((file) => file.slice(site.length + 1))).toEqual([]);
   });
 });
 

@@ -1,4 +1,5 @@
-import { GITHUB_URL, HOME_DESCRIPTION, NPM_URL, SITE_URL, VERSION } from './site';
+import { GITHUB_URL, HOME_DESCRIPTION, NPM_URL, SITE_URL } from './site';
+import { VERSION } from './version';
 
 /** The project as schema.org's SoftwareSourceCode, for the home page's JSON-LD. */
 export function softwareSourceCode() {
