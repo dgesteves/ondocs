@@ -4,6 +4,7 @@ import { defineConfig } from 'vitepress';
 
 import { sidebar } from './sidebar';
 import { sourceUrls } from './source-urls';
+import { suggestions } from './suggestions';
 
 /** The website's URL of each page here. */
 const website = new Map(
@@ -47,7 +48,9 @@ export default withOndocs(
     // The same docs, served to agents by the website's MCP endpoint: llms.txt points at it.
     mcp: { url: 'https://ondocs.vercel.app/api/mcp', name: 'ondocs' },
     dialog: {
-      suggestions: ['How do I add it to VitePress?', 'Do I need a vector database?'],
+      // "Ask AI" in the nav bar, after the search box, which leaves the floating button off.
+      navbar: true,
+      suggestions,
       // The website's citations carry its URLs: these send them to the same pages here. An
       // endpoint at ASK_ENDPOINT answers from this site's own index, at its own URLs.
       ...(process.env.ASK_ENDPOINT ? {} : { sourceUrls }),

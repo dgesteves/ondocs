@@ -154,8 +154,44 @@ const ROUTE_MODEL = /^(?:mock|openai:.+|[\w-]+\/.+)$/;
 /** About 500 answers a day, at some 3,000 tokens each. */
 const DEFAULT_ROUTE_BUDGET = { requestsPerDay: 500, tokensPerDay: 1_500_000 };
 
+/**
+ * The header button of a framework built on Astro (Starlight's `dialog.navbar`), which its own
+ * component renders from `virtual:ondocs/starlight/navbar`.
+ */
+export interface NavbarButtons {
+  /** The module of the search component the button goes after, rendered first. */
+  search: string;
+  /** Whether to render that search component. */
+  renderSearch: boolean;
+  /** The shortcut's key, upper case, or `''` with none. */
+  shortcut: string;
+  /** The button's label and the Ctrl key's, by locale path prefix (`''` for the root locale). */
+  buttons: Record<string, { label: string; controlKey: string }>;
+}
+
+/** The module the Starlight plugin's `Search.astro` reads the navbar button from. */
+const NAVBAR_MODULE = 'virtual:ondocs/starlight/navbar';
+
+/** The source of `virtual:ondocs/starlight/navbar`: the search component, and the button's data. */
+export function navbarModuleCode({
+  search,
+  renderSearch,
+  shortcut,
+  buttons,
+}: NavbarButtons): string {
+  return [
+    `export { default } from ${JSON.stringify(search)};`,
+    `export const renderSearch = ${JSON.stringify(renderSearch)};`,
+    `export const shortcut = ${JSON.stringify(shortcut)};`,
+    `export const buttons = ${JSON.stringify(buttons)};`,
+    '',
+  ].join('\n');
+}
+
 /** What a framework built on Astro, such as Starlight, sets on top of the site's options. */
 export interface IntegrationPreset {
+  /** A button in the header, which the framework's own component renders. */
+  navbar?: NavbarButtons;
   /** The selector of each page's content, instead of `content`. */
   content?: string;
   /** The selector of what to leave out, instead of `ignore`. */
@@ -290,6 +326,9 @@ export function createIntegration(
               quietUseClient(),
               virtualModule(MCP_MODULE, mcp ?? null),
               ...(routeModule ? [virtualSource(ROUTE_MODULE, routeModule)] : []),
+              ...(preset.navbar
+                ? [virtualSource(NAVBAR_MODULE, navbarModuleCode(preset.navbar))]
+                : []),
             ],
             // Vite's dev server does not see injected scripts when it scans for dependencies to
             // prebundle, and would find the dialog's on the first page load, then reload it.

@@ -5,7 +5,9 @@ import { useHistory } from '@docusaurus/router';
 import { useAllPluginInstancesData } from '@docusaurus/useGlobalData';
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 
+import { listenForOpen } from '../../embed/open';
 import type { OndocsGlobalData } from '../index';
+import { loadAskDialog } from '../../react/ask-dialog';
 import { AskWithLauncher, useColorScheme } from '../../react/launcher';
 
 export interface Props {
@@ -16,7 +18,8 @@ export interface Props {
 /**
  * The ask dialog and its floating launcher, rendered in the browser only. The plugin's `Root`
  * renders it; a site whose `Root` comes from another plugin can swizzle `Root` and render
- * `<Ondocs />` itself. Rendered twice, it shows once.
+ * `<Ondocs />` itself. Rendered twice, it shows once. The navbar button, `openAskDialog()` and
+ * any element with `data-ondocs-open` open it too.
  */
 export default function Ondocs({ pluginId }: Props): ReactNode {
   const instances = useAllPluginInstancesData('ondocs') as
@@ -32,6 +35,17 @@ function Ask({ endpoint, dialog, locale }: OndocsGlobalData): ReactNode {
   // attribute Docusaurus sets on `<html>` instead of its hook.
   const theme = useColorScheme('auto');
   const first = useFirstInstance();
+  // Open, and with the question it was opened with, from outside the dialog.
+  const [opened, setOpened] = useState<{ open: boolean; question?: string }>({ open: false });
+  useEffect(() => {
+    if (!first) return;
+    return listenForOpen(
+      (question) => {
+        setOpened({ open: true, question });
+      },
+      () => void loadAskDialog(),
+    );
+  }, [first]);
   if (!first) return null;
 
   return (
@@ -40,6 +54,11 @@ function Ask({ endpoint, dialog, locale }: OndocsGlobalData): ReactNode {
       endpoint={endpoint}
       {...(locale ? { locale } : {})}
       theme={theme}
+      open={opened.open}
+      {...(opened.question ? { question: opened.question } : {})}
+      onOpenChange={(open) => {
+        setOpened({ open });
+      }}
       onNavigate={(url, event) => {
         // Same-site links route without a full page load.
         if (url.startsWith('/') && !url.startsWith('//')) {

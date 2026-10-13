@@ -575,9 +575,53 @@ describe('ondocs/docusaurus', () => {
       dialog: { shortcut: false, title: 'Ask Acme Docs' },
     });
     // Root renders Ondocs, which a site can also render from its own swizzled Root.
-    for (const component of ['Root.tsx', 'Ondocs.tsx', 'OndocsMcp.tsx']) {
+    for (const component of ['Root.tsx', 'Ondocs.tsx', 'OndocsMcp.tsx', 'Navbar/Search.tsx']) {
       expect(existsSync(join(plugin.getThemePath(), component))).toBe(true);
     }
     expect(existsSync(plugin.getClientModules()[1]!)).toBe(true);
+    // Without dialog.navbar, nothing for the navbar's shortcut hint.
+    expect(plugin.injectHtmlTags()).toEqual({});
+  });
+
+  it('puts the button in the navbar with dialog.navbar, and the floating one away', async () => {
+    const { context } = await site();
+    const load = (dialog: Parameters<typeof ondocs>[1]) => {
+      const plugin = ondocs(context, dialog);
+      const setGlobalData = vi.fn();
+      plugin.contentLoaded({ actions: { setGlobalData } });
+      return { data: setGlobalData.mock.calls[0]?.[0] as unknown, plugin };
+    };
+    const { data, plugin } = load({ dialog: { navbar: true } });
+    expect(data).toEqual({
+      endpoint: '/api/ask',
+      dialog: { launcher: false, title: 'Ask Acme Docs' },
+      navbar: 'Ask AI',
+    });
+    // Before the page renders, Apple devices are marked for the ⌘ in the shortcut hint.
+    const script = plugin.injectHtmlTags().headTags?.[0] as { tagName: string; innerHTML: string };
+    expect(script.tagName).toBe('script');
+    expect(script.innerHTML).toBe(
+      "document.documentElement.toggleAttribute('data-ondocs-mac',/Mac|iPhone|iPad/.test(navigator.platform))",
+    );
+    // A label of its own, and the floating button kept when the site asks for both.
+    expect(load({ dialog: { navbar: 'Ask the docs', launcher: true } }).data).toMatchObject({
+      dialog: { launcher: true },
+      navbar: 'Ask the docs',
+    });
+    // The launcher's label, in this build's locale, by default.
+    const french = { ...context, i18n: { currentLocale: 'fr', defaultLocale: 'en' } };
+    const setGlobalData = vi.fn();
+    ondocs(french, {
+      dialog: {
+        navbar: true,
+        labels: { launcher: 'Ask' },
+        locales: { fr: { labels: { launcher: 'Demander' } } },
+      },
+    }).contentLoaded({ actions: { setGlobalData } });
+    expect(setGlobalData.mock.calls[0]?.[0]).toMatchObject({ navbar: 'Demander', locale: 'fr' });
+    expect(load({ dialog: { navbar: false } }).data).toEqual({
+      endpoint: '/api/ask',
+      dialog: { title: 'Ask Acme Docs' },
+    });
   });
 });

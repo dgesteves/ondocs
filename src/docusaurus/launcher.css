@@ -57,6 +57,112 @@
   }
 }
 
+/*
+ * The "Ask AI" button in the navbar (`dialog.navbar`), after the search box, in the navbar's
+ * search container, which Docusaurus keeps in the navbar on phones. Filled like Infima's primary
+ * button, in either color mode, and on a phone the icon alone.
+ */
+.ondocs-navbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.ondocs-button {
+  --ask-button-bg: var(--ifm-color-primary, #2e8555);
+  --ask-button-fg: var(--ifm-font-color-base-inverse, #fff);
+  --ask-button-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2.5c.6 4.9 3.6 7.9 8.5 8.5-4.9.6-7.9 3.6-8.5 8.5-.6-4.9-3.6-7.9-8.5-8.5 4.9-.6 7.9-3.6 8.5-8.5Z'/%3E%3C/svg%3E");
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  box-sizing: border-box;
+  height: 2.25rem;
+  margin: 0;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ask-button-bg);
+  color: var(--ask-button-fg);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--ifm-transition-fast, 200ms);
+}
+.ondocs-button:hover {
+  background: var(--ifm-color-primary-dark, var(--ask-button-bg));
+}
+.ondocs-button:focus-visible {
+  outline: 2px solid var(--ask-button-bg);
+  outline-offset: 2px;
+}
+/* The sparkle (or `--ask-button-icon`), drawn in the label's color. */
+.ondocs-button::before {
+  content: '';
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  background: currentColor;
+  -webkit-mask: var(--ask-button-icon) center / contain no-repeat;
+  mask: var(--ask-button-icon) center / contain no-repeat;
+}
+@media (forced-colors: active) {
+  .ondocs-button::before {
+    background: ButtonText;
+    forced-color-adjust: none;
+  }
+}
+/* The shortcut, outlined rather than tinted, so it keeps the label's contrast. ⌘ or Ctrl comes
+   from here, by the attribute the plugin's script sets on <html> before the page renders. */
+.ondocs-button > kbd {
+  display: none;
+  margin: 0 0 0 0.1rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+  border-radius: 0.35rem;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.ondocs-button > kbd::before {
+  content: attr(data-control) '\00a0';
+}
+:root[data-ondocs-mac] .ondocs-button > kbd::before {
+  content: '\2318';
+}
+/* With a keyboard, beside the desktop navbar. */
+@media (hover: hover) and (min-width: 997px) {
+  .ondocs-button > kbd {
+    display: inline-block;
+  }
+}
+/* On a phone, the icon alone; the label stays its accessible name. */
+@media (max-width: 575.98px) {
+  .ondocs-button {
+    width: 2.25rem;
+    padding: 0;
+  }
+  .ondocs-button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+@media print {
+  .ondocs-button {
+    display: none;
+  }
+}
+
 /* <OndocsMcp />: its links are Infima buttons; space them like a button group. */
 .ask-mcp-links {
   display: flex;

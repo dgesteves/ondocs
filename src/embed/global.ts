@@ -7,7 +7,8 @@
 //     data-endpoint="/api/ask" defer></script>
 //
 // Once the page has loaded it mounts with its tag's `data-*` attributes (see `scriptOptions`),
-// unless the tag has `data-manual`. `window.Ondocs.mount(options)` mounts it by hand.
+// unless the tag has `data-manual`. `window.Ondocs.mount(options)` mounts it by hand, and
+// `window.Ondocs.open(question?)` opens it, as a `data-ondocs-open` element does.
 // `data-dialog-src` gives the dialog's URL, for a copy hosted elsewhere.
 import launcherStyles from './launcher.css';
 import {
@@ -16,10 +17,13 @@ import {
   type MountAskDialogOptions,
   type MountedAskDialog,
 } from './mount';
+import { openAskDialog } from './open';
 import { scriptOptions } from './script';
 
 interface OndocsGlobal {
   mount: (options?: MountAskDialogOptions) => MountedAskDialog;
+  /** Opens the dialog the page has, and asks `question` in it when one is given. */
+  open: (question?: string) => void;
 }
 
 declare global {
@@ -76,7 +80,7 @@ function mount(options?: MountAskDialogOptions): MountedAskDialog {
   return mountWithLoader(options ?? {}, loadDialog);
 }
 
-const api: OndocsGlobal = { mount };
+const api: OndocsGlobal = { mount, open: openAskDialog };
 window.Ondocs = api;
 
 // The name from before ask-my-site became ondocs still works, and says once to use the new one.

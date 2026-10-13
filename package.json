@@ -76,6 +76,7 @@
       "default": "./dist/embed.js"
     },
     "./embed/launcher.css": "./dist/embed/launcher.css",
+    "./embed/button.css": "./dist/embed/button.css",
     "./docusaurus": {
       "types": "./dist/docusaurus/index.d.ts",
       "default": "./dist/docusaurus/index.js"
@@ -97,6 +98,7 @@
       "default": "./dist/starlight/index.js"
     },
     "./starlight/launcher.css": "./dist/starlight/launcher.css",
+    "./starlight/Search.astro": "./dist/starlight/Search.astro",
     "./vitepress": {
       "types": "./dist/vitepress/index.d.ts",
       "default": "./dist/vitepress/index.js"
@@ -123,7 +125,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:package": "publint --strict && attw --pack . --profile esm-only --exclude-entrypoints ./react/styles.css ./embed/launcher.css ./starlight/launcher.css ./vitepress/launcher.css ./astro/McpInstall.astro && pnpm --filter './packages/*' exec publint --strict && pnpm --filter './packages/*' exec attw --pack . --profile esm-only",
+    "check:package": "publint --strict && attw --pack . --profile esm-only --exclude-entrypoints ./react/styles.css ./embed/launcher.css ./embed/button.css ./starlight/launcher.css ./vitepress/launcher.css ./astro/McpInstall.astro ./starlight/Search.astro && pnpm --filter './packages/*' exec publint --strict && pnpm --filter './packages/*' exec attw --pack . --profile esm-only",
     "bench": "pnpm build && node --expose-gc bench/run.mjs",
     "assets": "node scripts/assets/architecture.mjs",
     "screenshot": "node scripts/assets/screenshot.mjs",

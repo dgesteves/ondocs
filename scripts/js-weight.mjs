@@ -69,6 +69,12 @@ const SITES = {
   },
 };
 
+/**
+ * The button that opens the dialog: the floating launcher, or the button in the navbar that the
+ * plugins' `dialog.navbar` puts there instead, as on the three live demos.
+ */
+const BUTTON = '.ondocs-launcher, .ondocs-button';
+
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -179,7 +185,7 @@ async function measure(name, dir, baseline) {
         .map((script) => script.textContent ?? ''),
     );
     const inlineBytes = inline.reduce((sum, code) => sum + gzipSync(code, { level: 9 }).length, 0);
-    const launcher = await page.locator('.ondocs-launcher').count();
+    const launcher = await page.locator(`:is(${BUTTON}):visible`).count();
     if (baseline) {
       const initial = [...scripts.values()].reduce(
         (total, script) => total + (script.bytes ?? 0),
@@ -230,7 +236,7 @@ async function measure(name, dir, baseline) {
     );
     let launcherFocusReturned = null;
     if (launcher > 0) {
-      await page.click('.ondocs-launcher');
+      await page.locator(`:is(${BUTTON}):visible`).first().click();
       await page.waitForSelector('.ask-dialog', { timeout: 10_000 });
       await page.waitForFunction(
         () => document.activeElement?.classList.contains('ask-input'),
@@ -242,7 +248,7 @@ async function measure(name, dir, baseline) {
       await page.keyboard.press('Escape');
       await page.waitForSelector('.ask-dialog', { state: 'detached', timeout: 5000 });
       launcherFocusReturned = await focusOn(
-        () => document.activeElement?.classList.contains('ondocs-launcher') ?? false,
+        () => document.activeElement?.matches('.ondocs-launcher, .ondocs-button') ?? false,
       );
     }
     await page.unroute('**/*.js');
@@ -293,7 +299,7 @@ else {
       continue;
     }
     console.log(
-      `${result.site.padEnd(11)} ${String(result.initialKB).padStart(6)} KB before interaction (budget ${String(result.budgetKB)}), +${String(result.onOpenKB)} KB on open; launcher ${result.launcher ? 'shown' : 'missing'}; shortcut while loading: input ${result.dialogFocused ? 'focused' : 'NOT focused'}, focus ${result.focusReturned ? 'back on the page' : 'NOT back'} after Escape${result.launcher ? `, ${result.launcherFocusReturned ? 'and back on the button' : 'NOT back on the button'} after a click` : ''}`,
+      `${result.site.padEnd(11)} ${String(result.initialKB).padStart(6)} KB before interaction (budget ${String(result.budgetKB)}), +${String(result.onOpenKB)} KB on open; button ${result.launcher ? 'shown' : 'missing'}; shortcut while loading: input ${result.dialogFocused ? 'focused' : 'NOT focused'}, focus ${result.focusReturned ? 'back on the page' : 'NOT back'} after Escape${result.launcher ? `, ${result.launcherFocusReturned ? 'and back on the button' : 'NOT back on the button'} after a click` : ''}`,
     );
   }
 }
@@ -309,7 +315,7 @@ const failures = results.filter(
 if (check && failures.length > 0) {
   for (const failure of failures) {
     console.error(
-      `✗ ${failure.site}: ${String(failure.initialKB)} KB of JavaScript before interaction (budget ${String(failure.budgetKB)} KB)${failure.launcher || SITES[failure.site].launcher === false ? '' : ', no launcher'}${failure.dialogFocused ? '' : ', the dialog input did not get focus'}${failure.focusReturned ? '' : ', focus did not come back after Escape'}${failure.launcherFocusReturned === false ? ', focus did not come back to the button' : ''}`,
+      `✗ ${failure.site}: ${String(failure.initialKB)} KB of JavaScript before interaction (budget ${String(failure.budgetKB)} KB)${failure.launcher || SITES[failure.site].launcher === false ? '' : ', no button'}${failure.dialogFocused ? '' : ', the dialog input did not get focus'}${failure.focusReturned ? '' : ', focus did not come back after Escape'}${failure.launcherFocusReturned === false ? ', focus did not come back to the button' : ''}`,
     );
   }
   process.exit(1);

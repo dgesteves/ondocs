@@ -14,6 +14,24 @@ export interface LauncherDialogOptions extends OndocsDialogOptions {
   theme?: OndocsTheme;
   /** Options for each locale, by its path prefix (`fr`, `pt-br`), over these. */
   locales?: Record<string, LocaleDialogOptions>;
+  /**
+   * An "Ask AI" button in the site's navbar, which the plugin renders: `true`, or its label.
+   * `launcherScript` only reads it to leave the floating button off, unless `launcher` is set.
+   */
+  navbar?: boolean | string;
+}
+
+/**
+ * `dialog` as `mountAskDialog` takes it: without `navbar`, the button the plugin puts in the
+ * navbar, and with it, without the floating button unless `launcher` asks for one.
+ */
+function withoutNavbar<Options extends { navbar?: boolean | string; launcher?: boolean | string }>(
+  dialog: Options,
+): Omit<Options, 'navbar'> {
+  const { navbar, ...rest } = dialog;
+  return navbar === undefined || navbar === false || rest.launcher !== undefined
+    ? rest
+    : { ...rest, launcher: false };
 }
 
 /**
@@ -98,7 +116,7 @@ export function launcherScript({
   base = '/',
   spa = false,
 }: LauncherScriptOptions): string {
-  const { locales: perLocale, ...dialog } = withLauncherOptions(options);
+  const { locales: perLocale, ...dialog } = withoutNavbar(withLauncherOptions(options));
   const mount = {
     endpoint,
     ...dialog,

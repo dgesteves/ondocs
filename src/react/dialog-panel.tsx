@@ -251,6 +251,7 @@ export function DialogPanel({
   links = 'all',
   challenge,
   sourceUrls,
+  question,
   ...askOptions
 }: DialogPanelProps): ReactNode {
   const labels = resolveLabels(given);
@@ -303,6 +304,24 @@ export function DialogPanel({
     setQuery(trimmed);
     void state.ask(trimmed);
   };
+
+  // A question from outside the dialog (`question`) is asked as the dialog opens with it, and
+  // again when it changes while the dialog is open, each in a new thread.
+  const askedRef = useRef<string | undefined>(undefined);
+  const { reset, ask } = state;
+  useEffect(() => {
+    if (!open) {
+      askedRef.current = undefined;
+      return;
+    }
+    const next = question?.trim();
+    if (!next || next === askedRef.current) return;
+    askedRef.current = next;
+    reset();
+    showQuestionStart.current = true;
+    setQuery(next);
+    void ask(next);
+  }, [open, question, reset, ask]);
 
   const navigate = (url: string, event: MouseEvent<HTMLAnchorElement>): void => {
     onNavigate?.(url, event);

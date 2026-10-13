@@ -24,7 +24,7 @@ The script mounts itself once the page has loaded. It opens the dialog from a fl
 
 ## Script size
 
-The embed script, `embed.global.js`, is 2.9 KB gzipped: the button, the shortcut and their styles. The dialog, with React and its styles, is a second file next to it, `embed-dialog.global.js` (95 KB gzipped), which the script loads the first time the dialog is wanted: a pointer over or focus on the button, the shortcut, or `open()`. A shortcut pressed while it loads still opens the dialog once it arrives. The page needs nothing else, and `defer` loads the script without blocking the page.
+The embed script, `embed.global.js`, is 3.3 KB gzipped: the button, the shortcut and their styles. The dialog, with React and its styles, is a second file next to it, `embed-dialog.global.js` (95 KB gzipped), which the script loads the first time the dialog is wanted: a pointer over or focus on the button, the shortcut, or `open()`. A shortcut pressed while it loads still opens the dialog once it arrives. The page needs nothing else, and `defer` loads the script without blocking the page.
 
 If you host the script yourself, copy both files to the same folder, or point at the dialog's file with `data-dialog-src`.
 
@@ -68,15 +68,19 @@ To try it first, run `npx ondocs dev` beside the index and set `data-endpoint="h
 
 ## Open it from your own search box
 
-With `data-manual`, the script waits for you to call `window.Ondocs.mount(options)`, which takes the same options as the attributes and returns `{ open, close, unmount }`. Use it to open the dialog from your own button:
+Any element with a `data-ondocs-open` attribute opens the dialog, and its value, if it has one, is a question for it to ask. Put the button in your header and hide the floating one:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/ondocs@0.10/dist/embed.global.js" data-manual></script>
-<script type="module">
-  const ask = window.Ondocs.mount({ endpoint: '/api/ask', launcher: false });
-  document.querySelector('#ask-button').addEventListener('click', () => ask.open());
-</script>
+<script
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.10/dist/embed.global.js"
+  data-endpoint="/api/ask"
+  data-launcher="false"
+  defer
+></script>
+<button type="button" data-ondocs-open>Ask AI</button>
 ```
+
+From a script, `window.Ondocs.open(question?)` opens it. With `data-manual`, the script waits for you to call `window.Ondocs.mount(options)`, which takes the same options as the attributes and returns `{ open, close, unmount }`; `open` takes a question too. See [Open it from your own button](/ask-dialog#open-it-from-your-own-button) for forms and the button's look.
 
 ## With a bundler
 

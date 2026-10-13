@@ -10,3 +10,26 @@
   --ask-launcher-accent: var(--vp-c-brand-1);
   --ask-launcher-shadow: var(--vp-shadow-3);
 }
+
+/*
+ * The "Ask AI" button in the nav bar (`dialog.navbar`), after the search box, in the brand color
+ * with the brand button's label color. In light mode a shade darker than the brand button's
+ * brand-3, which gives its white label only 4.48:1 in the default theme; brand-2 gives 5.9:1. In
+ * dark mode, brand-3, as the brand button. VitePress marks Apple devices with a `mac` class on
+ * <html> before the page renders, which picks ⌘ over Ctrl for the shortcut.
+ */
+.Layout .ondocs-button {
+  --ask-button-bg: var(--vp-c-brand-2);
+  --ask-button-fg: var(--vp-button-brand-text);
+  --ask-button-hover-bg: var(--vp-c-brand-1);
+}
+.dark .Layout .ondocs-button {
+  --ask-button-bg: var(--vp-c-brand-3);
+  --ask-button-hover-bg: var(--vp-c-brand-2);
+}
+.VPNavBarSearch .ondocs-button:not(:first-child) {
+  margin-left: 12px;
+}
+html.mac .ondocs-button > kbd::before {
+  content: '\2318';
+}

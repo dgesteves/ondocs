@@ -1,0 +1,130 @@
+---
+// The question box at the top of the first page. Plain markup: the form and the chips open the
+// dialog through their data-ondocs-open attribute, which the ondocs plugin listens for. Marked
+// data-pagefind-ignore, so Starlight's search, and so the index, leave it out.
+import { suggestions } from '../../suggestions.mjs';
+---
+
+<section class="demo-ask" aria-label="Ask these docs" data-pagefind-ignore>
+  <p class="demo-ask__title">
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path
+        d="M12 2.5c.6 4.9 3.6 7.9 8.5 8.5-4.9.6-7.9 3.6-8.5 8.5-.6-4.9-3.6-7.9-8.5-8.5 4.9-.6 7.9-3.6 8.5-8.5Z"
+        fill="currentColor"></path>
+    </svg>
+    Try it: ask these docs a question
+  </p>
+  <form class="demo-ask__form" data-ondocs-open>
+    <input
+      class="demo-ask__input"
+      name="question"
+      type="text"
+      placeholder="Ask these docs a question…"
+      aria-label="Ask these docs a question"
+      maxlength="500"
+      autocomplete="off"
+      enterkeyhint="send"
+    />
+    <button class="demo-ask__submit" type="submit">Ask</button>
+  </form>
+  <div class="demo-ask__chips">
+    <span>Or try:</span>
+    {
+      suggestions.map((question) => (
+        <button type="button" class="demo-ask__chip" data-ondocs-open={question}>
+          {question}
+        </button>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .demo-ask {
+    margin-top: 1.5rem;
+    padding: 1.1rem 1.25rem 1.2rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    background: var(--sl-color-gray-7, var(--sl-color-gray-6));
+  }
+  .demo-ask__title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 0.75rem;
+    color: var(--sl-color-white);
+    font-size: var(--sl-text-lg);
+    font-weight: 600;
+  }
+  .demo-ask__title svg {
+    flex: none;
+    color: var(--sl-color-text-accent);
+  }
+  .demo-ask__form {
+    display: flex;
+    gap: 0.5rem;
+    margin: 0;
+  }
+  .demo-ask__input {
+    flex: 1;
+    min-width: 0;
+    height: 2.75rem;
+    padding: 0 0.9rem;
+    border: 1px solid var(--sl-color-gray-4);
+    border-radius: 0.5rem;
+    background: var(--sl-color-black);
+    color: var(--sl-color-white);
+    font: inherit;
+  }
+  .demo-ask__input::placeholder {
+    color: var(--sl-color-gray-3);
+  }
+  .demo-ask__input:focus-visible {
+    border-color: var(--sl-color-text-accent);
+    outline: 2px solid var(--sl-color-text-accent);
+    outline-offset: 0;
+  }
+  .demo-ask__submit {
+    flex: none;
+    height: 2.75rem;
+    margin: 0;
+    padding: 0 1.25rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: var(--sl-color-text-accent);
+    color: var(--sl-color-black);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .demo-ask__chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.85rem;
+    font-size: var(--sl-text-sm);
+  }
+  .demo-ask__chips > span {
+    color: var(--sl-color-gray-2);
+  }
+  .demo-ask__chip {
+    margin: 0;
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 999rem;
+    background: var(--sl-color-black);
+    color: var(--sl-color-white);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .demo-ask__chip:hover {
+    border-color: var(--sl-color-text-accent);
+  }
+  .demo-ask__submit:focus-visible,
+  .demo-ask__chip:focus-visible {
+    outline: 2px solid var(--sl-color-text-accent);
+    outline-offset: 2px;
+  }
+</style>

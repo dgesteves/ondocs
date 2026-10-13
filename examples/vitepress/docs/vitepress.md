@@ -51,6 +51,16 @@ The plugin adds a floating "Ask AI" button and opens the dialog with ⌘I or Ctr
 
 Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. `dialog: { links: 'sources' }` keeps only the answer's links to its source pages.
 
+## Ask AI in the VitePress nav bar
+
+`dialog: { navbar: true }` puts the "Ask AI" button in the default theme's nav bar instead of the corner: after the search box, or where it would be without search, in the brand color and with the shortcut on it, ⌘I on a Mac and Ctrl I elsewhere. On a phone it is an icon that stays in the nav bar, not in the menu. Pass a string for another label, as in `navbar: 'Ask the docs'`; by default it is `labels.launcher`, in each locale. The floating button is off with it, unless you also set `launcher: true`.
+
+```ts
+export default withOndocs(defineConfig({ title: 'Acme Docs' }), { dialog: { navbar: true } });
+```
+
+The plugin adds the button to the theme's nav bar search as Vite builds it, so there is still no theme file to write. A theme of your own, or one that replaces the nav bar, gets no button from the option: give a button the `data-ondocs-open` attribute, in a layout slot such as `nav-bar-content-after`, and it opens the dialog. See [Open it from your own button](/ask-dialog#open-it-from-your-own-button).
+
 ## Locales in VitePress
 
 Each locale in VitePress's `locales` gets an index of its own, with the pages under its key: `.vitepress/dist/ask-index.json` for the root locale and `.vitepress/dist/fr/ask-index.json` for `fr`, served at `/fr/ask-index.json`. The llms files are written per locale the same way, titled after the locale's `title` and `description`.
@@ -71,16 +81,16 @@ To try it locally, build the site once, run `npx ondocs dev`, which answers from
 
 ## VitePress options
 
-| Option                                       | Default                            | What it does                                                                                 |
-| -------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------- |
-| `endpoint`                                   | `ASK_ENDPOINT`, else `/api/ask`    | Where the dialog posts questions; `ASK_ENDPOINT` overrides it.                               |
-| `embedding`, `dimensions`                    | OpenAI when a key is set           | The embedding model, named as the CLI names it.                                              |
-| `embeddingModel`, `embeddingProviderOptions` | none                               | An AI SDK model object and its options, instead of `embedding`.                              |
-| `chunking`                                   | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                       |
-| `content`, `ignore`                          | `.vp-doc`                          | What to read from each page, and what to skip besides heading anchors and code labels.       |
-| `indexFile`                                  | `ask-index.json`                   | Where the index is written in `.vitepress/dist/` and served from.                            |
-| `exclude`                                    | `[]`                               | Path prefixes to leave out, relative to `base` and the locale.                               |
-| `dialog`                                     |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `theme`, `labels`, `locales`. |
-| `siteUrl`                                    | `sitemap.hostname`                 | The site's URL, for absolute links in `llms.txt` and an `mcp` path.                          |
-| `mcp`                                        | none                               | The [MCP endpoint](/mcp)'s URL or path, which `llms.txt` points agents at.                   |
-| `llmsTxt`                                    | on                                 | Write [llms.txt, llms-full.txt and .md copies](/llms-txt); `false` turns them off.           |
+| Option                                       | Default                            | What it does                                                                                           |
+| -------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `endpoint`                                   | `ASK_ENDPOINT`, else `/api/ask`    | Where the dialog posts questions; `ASK_ENDPOINT` overrides it.                                         |
+| `embedding`, `dimensions`                    | OpenAI when a key is set           | The embedding model, named as the CLI names it.                                                        |
+| `embeddingModel`, `embeddingProviderOptions` | none                               | An AI SDK model object and its options, instead of `embedding`.                                        |
+| `chunking`                                   | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                                 |
+| `content`, `ignore`                          | `.vp-doc`                          | What to read from each page, and what to skip besides heading anchors and code labels.                 |
+| `indexFile`                                  | `ask-index.json`                   | Where the index is written in `.vitepress/dist/` and served from.                                      |
+| `exclude`                                    | `[]`                               | Path prefixes to leave out, relative to `base` and the locale.                                         |
+| `dialog`                                     |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar`, `theme`, `labels`, `locales`. |
+| `siteUrl`                                    | `sitemap.hostname`                 | The site's URL, for absolute links in `llms.txt` and an `mcp` path.                                    |
+| `mcp`                                        | none                               | The [MCP endpoint](/mcp)'s URL or path, which `llms.txt` points agents at.                             |
+| `llmsTxt`                                    | on                                 | Write [llms.txt, llms-full.txt and .md copies](/llms-txt); `false` turns them off.                     |

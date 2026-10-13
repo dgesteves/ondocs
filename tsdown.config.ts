@@ -40,9 +40,11 @@ export default defineConfig([
       cli: 'src/cli/bin.ts',
       'docusaurus/index': 'src/docusaurus/index.ts',
       // The plugin finds its theme next to itself, and Docusaurus resolves theme components by
-      // file name: dist/docusaurus/theme/Root.js, Ondocs.js and OndocsMcp.js, and AskMySite.js
-      // and AskMySiteMcp.js, their names from before ask-my-site became ondocs.
+      // file name: dist/docusaurus/theme/Root.js, Ondocs.js and OndocsMcp.js, Navbar/Search.js
+      // (the navbar's search box, with the navbar button), and AskMySite.js and AskMySiteMcp.js,
+      // their names from before ask-my-site became ondocs.
       'docusaurus/theme/Root': 'src/docusaurus/theme/Root.tsx',
+      'docusaurus/theme/Navbar/Search': 'src/docusaurus/theme/Navbar/Search.tsx',
       'docusaurus/theme/Ondocs': 'src/docusaurus/theme/Ondocs.tsx',
       'docusaurus/theme/OndocsMcp': 'src/docusaurus/theme/OndocsMcp.tsx',
       'docusaurus/theme/AskMySite': 'src/docusaurus/theme/AskMySite.tsx',
@@ -79,12 +81,14 @@ export default defineConfig([
     copy: [
       { from: 'src/react/styles.css', to: 'dist' },
       { from: 'src/embed/launcher.css', to: 'dist/embed' },
+      { from: 'src/embed/button.css', to: 'dist/embed' },
       { from: 'src/starlight/launcher.css', to: 'dist/starlight' },
       { from: 'src/vitepress/launcher.css', to: 'dist/vitepress' },
       { from: 'src/docusaurus/launcher.css', to: 'dist/docusaurus' },
       { from: 'src/docusaurus/theme.d.ts', to: 'dist/docusaurus' },
       // Compiled by the site's Astro, as Astro components in packages are.
       { from: 'src/astro/McpInstall.astro', to: 'dist/astro' },
+      { from: 'src/starlight/Search.astro', to: 'dist/starlight' },
     ],
   },
   {

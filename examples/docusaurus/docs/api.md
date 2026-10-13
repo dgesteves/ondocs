@@ -13,7 +13,7 @@ The package has one CLI and these imports. Each is tree-shakeable, and only `ond
 | `ondocs/integration`            | The build helpers the plugins are made of, for [writing an integration](./writing-an-integration.md)            |
 | `ondocs/server`                 | `createAskHandler`, `createMcpHandler`, `remoteIndex`, the rate limiters, the budget and answer cache stores    |
 | `ondocs/react`                  | `AskDialog`, `useAsk`, `AskAnswer`, `McpInstall` and `loadAskDialog`; needs `@radix-ui/react-dialog` and `cmdk` |
-| `ondocs/embed`                  | `mountAskDialog`: the dialog and its button without writing React                                               |
+| `ondocs/embed`                  | `mountAskDialog`: the dialog and its button without writing React; `openAskDialog`, to open any page's dialog   |
 | `ondocs/docusaurus`             | The [Docusaurus plugin](./docusaurus.md)                                                                        |
 | `ondocs/astro`                  | The [Astro integration](./astro.md)                                                                             |
 | `ondocs/starlight`              | The [Starlight plugin](./astro.md)                                                                              |

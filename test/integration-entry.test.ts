@@ -235,6 +235,18 @@ describe('launcherScript', () => {
     );
   });
 
+  it('leaves the floating button off for a navbar button, unless launcher asks for it', () => {
+    const mount = (dialog: Parameters<typeof launcherScript>[0]['dialog']) =>
+      launcherScript({ endpoint: '/api/ask', dialog }).split('\n')[1];
+    expect(mount({ navbar: true })).toBe(
+      'mountAskDialog({"endpoint":"/api/ask","launcher":false});',
+    );
+    expect(mount({ navbar: 'Ask the docs', launcher: 'Ask' })).toBe(
+      'mountAskDialog({"endpoint":"/api/ask","launcher":"Ask"});',
+    );
+    expect(mount({ navbar: false })).toBe('mountAskDialog({"endpoint":"/api/ask"});');
+  });
+
   it('picks each locale’s options from the page’s path under base', () => {
     const script = launcherScript({
       endpoint: '/api/ask',

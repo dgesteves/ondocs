@@ -3,6 +3,7 @@ import ondocs from 'ondocs/starlight';
 import { defineConfig } from 'astro/config';
 
 import { sourceUrls } from './source-urls.mjs';
+import { suggestions } from './suggestions.mjs';
 
 export default defineConfig({
   // The live demo's address, for llms.txt and the pages' own links.
@@ -23,6 +24,9 @@ export default defineConfig({
       ],
       // The live demo's banner on every page, and each page's canonical link on the website.
       routeMiddleware: './src/route-data.ts',
+      // The first page's title, with the question box above it.
+      components: { PageTitle: './src/components/PageTitle.astro' },
+      customCss: ['./src/styles/demo.css'],
       plugins: [
         ondocs({
           // With OPENAI_API_KEY the plugin embeds with OpenAI (its default); without it, this
@@ -36,7 +40,9 @@ export default defineConfig({
           // to connect to it.
           mcp: { url: 'https://ondocs.vercel.app/api/mcp', name: 'ondocs' },
           dialog: {
-            suggestions: ['How do I add it to Starlight?', 'Do I need a vector database?'],
+            // "Ask AI" in the header, after the search box, which leaves the floating button off.
+            navbar: true,
+            suggestions,
             // The website's citations carry its URLs: these send them to the same pages here.
             // An endpoint at ASK_ENDPOINT answers from this site's own index, at its own URLs.
             ...(process.env.ASK_ENDPOINT ? {} : { sourceUrls }),
