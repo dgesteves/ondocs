@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 // The website's docs shell (examples/nextjs): its Markdown renderer, the sidebar's groups, and the
 // behaviors on the docs pages.
-import { readdirSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { act, cleanup, render, screen } from '@testing-library/react';
@@ -9,7 +11,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { markOverflow, selectTab } from '../examples/nextjs/components/docs-enhancements';
 import { chatLinks } from '../examples/nextjs/components/page-actions';
-import { lastModified } from '../examples/nextjs/lib/git';
 import {
   LONG_CODE,
   codeParts,
@@ -321,9 +322,65 @@ describe('a docs page', () => {
     expect(links.claude.startsWith('https://claude.ai/new?')).toBe(true);
   });
 
-  it('gets its date from git, and none for a file git doesn’t know', () => {
-    expect(lastModified(join(site, 'content/docs/mcp.md'))).toBeInstanceOf(Date);
-    expect(lastModified(join(site, 'content/docs/not-a-page.md'))).toBeUndefined();
+  it('gets its date from git, and none past a shallow clone’s history or for a file git doesn’t know', async () => {
+    // A repository of the test's own, so the result doesn't depend on how deep CI clones this one.
+    const root = mkdtempSync(join(tmpdir(), 'ondocs-git-'));
+    const git = (cwd: string, args: string[], date?: string) =>
+      execFileSync(
+        'git',
+        [
+          '-c',
+          'user.name=Test',
+          '-c',
+          'user.email=test@example.com',
+          '-c',
+          'commit.gpgsign=false',
+          ...args,
+        ],
+        {
+          cwd,
+          stdio: 'ignore',
+          env: date
+            ? { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date }
+            : process.env,
+        },
+      );
+    const commit = (date: string, file: string) => {
+      writeFileSync(join(root, 'full', file), date);
+      git(join(root, 'full'), ['add', file]);
+      git(join(root, 'full'), ['commit', '-q', '-m', file], date);
+    };
+    try {
+      git(root, ['init', '-q', 'full']);
+      commit('2025-12-01T00:00:00Z', 'readme.md');
+      commit('2026-01-02T03:04:05Z', 'old.md');
+      commit('2026-02-03T04:05:06Z', 'new.md');
+      // Two commits deep, as a host clones: the history stops at old.md's commit.
+      git(root, ['clone', '-q', '--depth', '2', `file://${join(root, 'full')}`, 'shallow']);
+
+      const read = async (repo: string) => {
+        vi.resetModules();
+        vi.spyOn(process, 'cwd').mockReturnValue(join(root, repo));
+        const { lastModified } = await import('../examples/nextjs/lib/git');
+        return {
+          old: lastModified('old.md')?.toISOString(),
+          new: lastModified('new.md')?.toISOString(),
+          missing: lastModified('not-a-page.md'),
+        };
+      };
+      expect(await read('full')).toEqual({
+        old: '2026-01-02T03:04:05.000Z',
+        new: '2026-02-03T04:05:06.000Z',
+        missing: undefined,
+      });
+      expect(await read('shallow')).toEqual({
+        old: undefined,
+        new: '2026-02-03T04:05:06.000Z',
+        missing: undefined,
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('marks the section being read in On this page', async () => {

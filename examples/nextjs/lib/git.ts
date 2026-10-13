@@ -1,8 +1,14 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 
+// Run in the build's working directory, which relative paths are from.
 const git = (args: string[]): string =>
-  execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  execFileSync('git', args, {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }).trim();
 
 let boundary: Set<string> | undefined;
 
@@ -10,7 +16,7 @@ let boundary: Set<string> | undefined;
 function shallowBoundary(): Set<string> {
   if (boundary) return boundary;
   try {
-    const file = git(['rev-parse', '--git-path', 'shallow']);
+    const file = path.resolve(process.cwd(), git(['rev-parse', '--git-path', 'shallow']));
     boundary = new Set(
       existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(Boolean) : [],
     );
