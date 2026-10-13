@@ -107,16 +107,25 @@ const compactStyles: ShikiTransformer = {
   },
 };
 
-/** A diff's added and removed lines, marked for the site's add and delete colours. */
+/**
+ * A diff's added and removed lines in the family's add and delete colours, as signoff-ui's
+ * DiffReview shows them: cyan for added, magenta for removed, text and tint (app/globals.css).
+ * File headers (`+++`, `---`) keep the grammar's colours.
+ */
 const diffLines = (code: string): ShikiTransformer => {
-  const lines = code.split('\n');
+  const kinds = code.split('\n').map((line) => {
+    if (line.startsWith('+') && !line.startsWith('+++')) return 'add';
+    if (line.startsWith('-') && !line.startsWith('---')) return 'del';
+    return null;
+  });
   return {
     line(node, line) {
-      const first = lines[line - 1]?.[0];
-      if (first === '+' && !lines[line - 1]?.startsWith('+++'))
-        this.addClassToHast(node, 'diff-add');
-      if (first === '-' && !lines[line - 1]?.startsWith('---'))
-        this.addClassToHast(node, 'diff-del');
+      const kind = kinds[line - 1];
+      if (kind) this.addClassToHast(node, `diff-${kind}`);
+    },
+    span(node, line) {
+      const kind = kinds[line - 1];
+      if (kind) node.properties.style = `color:var(--code-${kind})`;
     },
   };
 };

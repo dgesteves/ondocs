@@ -199,8 +199,19 @@ describe('code blocks', () => {
     expect(yaml).toContain('light-dark(#9D174D, #F9A8D4)');
     expect(yaml).toContain('<span class="code-label code-label-language">YAML</span>');
     const diff = await html('```diff\n--- a.ts\n+++ b.ts\n-old\n+new\n same\n```');
-    expect(diff.match(/class="line diff-add"/g)).toHaveLength(1);
-    expect(diff.match(/class="line diff-del"/g)).toHaveLength(1);
+    // Added and removed lines in the family's add and delete colours (cyan, magenta), as
+    // signoff-ui's DiffReview, every token of them; the file headers keep the grammar's.
+    expect(
+      diff.match(
+        /class="line diff-add">(?:<span style="color:var\(--code-add\)">[^<]*<\/span>)+<\/span>/g,
+      ),
+    ).toHaveLength(1);
+    expect(
+      diff.match(
+        /class="line diff-del">(?:<span style="color:var\(--code-del\)">[^<]*<\/span>)+<\/span>/g,
+      ),
+    ).toHaveLength(1);
+    expect(diff).not.toMatch(/diff-(?:add|del)">[^\n]*(?:\+\+\+|---)/);
     expect(await html('```css\n.a { color: red; }\n```')).toContain('light-dark(');
     expect(await html('```md\n# Title\n```')).toContain('light-dark(');
   });
