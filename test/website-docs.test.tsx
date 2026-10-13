@@ -6,10 +6,14 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { markOverflow, selectTab } from '../examples/nextjs/components/docs-enhancements';
+import {
+  markOverflow,
+  selectTab,
+  tabTarget,
+} from '../examples/nextjs/components/docs-enhancements';
 import { chatLinks } from '../examples/nextjs/components/page-actions';
 import {
   LONG_CODE,
@@ -101,6 +105,19 @@ describe('steps and tabs', () => {
     expect(one?.tabIndex).toBe(-1);
     expect(document.getElementById(one!.getAttribute('aria-controls')!)?.hidden).toBe(true);
     expect(document.getElementById(two!.getAttribute('aria-controls')!)?.hidden).toBe(false);
+  });
+
+  it('moves between tabs with the arrow keys, wrapping, and to the ends with Home and End', async () => {
+    document.body.innerHTML = await html(
+      ':::tabs\n@tab One\nFirst.\n\n@tab Two\nSecond.\n\n@tab Three\nThird.\n:::',
+    );
+    const [one, two, three] = [...document.querySelectorAll<HTMLElement>('[role="tab"]')];
+    expect(tabTarget(one!, 'ArrowRight')).toBe(two);
+    expect(tabTarget(three!, 'ArrowRight')).toBe(one);
+    expect(tabTarget(one!, 'ArrowLeft')).toBe(three);
+    expect(tabTarget(two!, 'Home')).toBe(one);
+    expect(tabTarget(one!, 'End')).toBe(three);
+    expect(tabTarget(two!, 'Enter')).toBeUndefined();
   });
 });
 
@@ -416,6 +433,34 @@ describe('a docs page', () => {
     render(<Toc headings={headings} />, { container });
     await act(() => Promise.resolve());
     expect(screen.getByRole('link', { current: 'location' }).textContent).toBe('build');
+  });
+
+  it('closes the docs bar’s lists on Escape, and on a click outside them', async () => {
+    const { DocsBar } = await import('../examples/nextjs/components/docs-nav');
+    const sections = [
+      { title: 'Get started', docs: [{ slug: 'getting-started', label: 'Start' }] },
+    ];
+    const headings = [{ depth: 2, text: 'Install', id: 'install' }];
+    render(<DocsBar sections={sections} headings={headings} />);
+    const [pages, toc] = screen.getAllByRole('button');
+    const open = () => [pages, toc].map((button) => button?.getAttribute('aria-expanded'));
+
+    fireEvent.click(pages!);
+    expect(open()).toEqual(['true', 'false']);
+    // Inside the list, it stays open.
+    fireEvent.pointerDown(screen.getByRole('link', { name: 'Start' }));
+    expect(open()).toEqual(['true', 'false']);
+    fireEvent.pointerDown(document.body);
+    expect(open()).toEqual(['false', 'false']);
+
+    // Opening the other one closes the first, as the press lands outside it.
+    fireEvent.click(pages!);
+    fireEvent.pointerDown(toc!);
+    fireEvent.click(toc!);
+    expect(open()).toEqual(['false', 'true']);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(open()).toEqual(['false', 'false']);
+    expect(document.activeElement).toBe(toc);
   });
 });
 

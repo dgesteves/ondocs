@@ -158,7 +158,9 @@ function BarMenu({
   children: ReactNode;
 }) {
   const panelId = useId();
+  const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  // Escape closes the list, and so does a click or tap anywhere outside it and its button.
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -167,13 +169,18 @@ function BarMenu({
         button.current?.focus();
       }
     };
+    const onPointer = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) onClose();
+    };
     document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer);
     return () => {
       document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer);
     };
   }, [open, onClose]);
   return (
-    <div className={`docs-bar-item ${className}`}>
+    <div ref={root} className={`docs-bar-item ${className}`}>
       <button
         ref={button}
         type="button"
