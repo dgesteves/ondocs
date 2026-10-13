@@ -29,7 +29,7 @@
 
 <!-- npm-readme:video -->
 
-https://github.com/user-attachments/assets/555eb6d6-967b-48be-8b1e-e2da060ad87e
+https://github.com/user-attachments/assets/2491c5ea-de70-471c-b11e-30591c074e6f
 
 <sub>The <a href="https://ondocs.vercel.app">live demo</a>: a question, a streamed answer with citations, and a citation opening the section it came from. On that docs page, the Ask button answers a setup question with the exact config. Then the one-line setup for Docusaurus, Starlight and any other site.</sub>
 
