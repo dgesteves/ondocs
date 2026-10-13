@@ -10,8 +10,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { githubStars, MIN_STARS, starLabel } from '../examples/nextjs/lib/github';
 import { jsonLd, softwareSourceCode } from '../examples/nextjs/lib/json-ld';
-import { HOME_DESCRIPTION, VERSION } from '../examples/nextjs/lib/site';
+import { HOME_DESCRIPTION } from '../examples/nextjs/lib/site';
 import { THEME_KEY, THEME_SCRIPT } from '../examples/nextjs/lib/theme';
+import { VERSION } from '../examples/nextjs/lib/version';
 
 const site = join(import.meta.dirname, '../examples/nextjs');
 const { pathname, navigation } = vi.hoisted(() => {
@@ -331,6 +332,36 @@ describe('Vercel Web Analytics', () => {
         .filter((file) => readFileSync(join(site, file), 'utf8').includes('@vercel/analytics')),
     );
     expect(users).toEqual(['app/layout.tsx']);
+  });
+});
+
+describe('the client bundle', () => {
+  it('has no package.json: no module a client component reaches imports one', () => {
+    const sources = ['app', 'components', 'lib'].flatMap((dir) =>
+      readdirSync(join(site, dir), { recursive: true, encoding: 'utf8' })
+        .filter((file) => /\.tsx?$/.test(file))
+        .map((file) => join(site, dir, file)),
+    );
+    const resolve = (from: string, specifier: string) =>
+      ['.ts', '.tsx', '/index.ts', '/index.tsx']
+        .map((extension) => join(from, '..', specifier) + extension)
+        .find((file) => sources.includes(file));
+    const reached = new Set(
+      sources.filter((file) => readFileSync(file, 'utf8').startsWith("'use client';")),
+    );
+    expect(reached.size).toBeGreaterThan(5);
+    for (const file of reached) {
+      for (const [, specifier = ''] of readFileSync(file, 'utf8').matchAll(
+        /^import (?!type )[^;]*?from '(\.{1,2}\/[^']+)';$/gm,
+      )) {
+        const target = resolve(file, specifier);
+        if (target) reached.add(target);
+      }
+    }
+    const withPackage = [...reached].filter((file) =>
+      /from '[^']*package\.json'/.test(readFileSync(file, 'utf8')),
+    );
+    expect(withPackage.map((file) => file.slice(site.length + 1))).toEqual([]);
   });
 });
 

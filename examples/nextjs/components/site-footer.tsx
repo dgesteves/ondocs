@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
-import { GITHUB_URL, NPM_URL, VERSION } from '../lib/site';
+import { GITHUB_URL, NPM_URL } from '../lib/site';
+import { VERSION } from '../lib/version';
 import { Spark } from './icons';
 
 const MORE = [

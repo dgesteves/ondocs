@@ -2,7 +2,8 @@ import Link from 'next/link';
 
 import { INTEGRATIONS_SECTION, getSections } from '../lib/docs';
 import { githubStars, starLabel } from '../lib/github';
-import { GITHUB_URL, NPM_URL, VERSION } from '../lib/site';
+import { GITHUB_URL, NPM_URL } from '../lib/site';
+import { VERSION } from '../lib/version';
 import { AskButton } from './ask';
 import { GitHubIcon, Spark, StarIcon } from './icons';
 import { NavLinks, SiteMenu, type NavItem } from './site-nav';
