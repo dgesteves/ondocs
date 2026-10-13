@@ -28,6 +28,12 @@ const SECTION_GROUPS: Partial<Record<string, string>> = { Integrations: 'Framewo
 /** The group the header's Integrations link opens, on the docs home, and is current in. */
 export const INTEGRATIONS_SECTION = 'Frameworks';
 
+/**
+ * How many cards a row a section of the docs home has: three when its count divides by three,
+ * else two, so no row is left with one card alone.
+ */
+export const cardColumns = (count: number): 2 | 3 => (count % 3 === 0 ? 3 : 2);
+
 export interface DocMeta {
   slug: string;
   title: string;

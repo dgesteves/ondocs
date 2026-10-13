@@ -343,6 +343,17 @@ describe('the sidebar', () => {
     expect(sectionId('Deploy & operate')).toBe('deploy-operate');
   });
 
+  it('lays the docs home’s cards out so no row is left with one card', async () => {
+    const { cardColumns, getSections, INTEGRATIONS_SECTION } = await docs();
+    expect([2, 3, 4, 6, 9, 10].map(cardColumns)).toEqual([2, 3, 2, 3, 3, 2]);
+    // Every card section on the docs home fills its last row (the frameworks are a list of chips).
+    for (const section of await getSections()) {
+      if (section.title === INTEGRATIONS_SECTION) continue;
+      const count = section.docs.length;
+      expect([section.title, count % cardColumns(count)]).toEqual([section.title, 0]);
+    }
+  });
+
   it('uses short labels where a title is long', async () => {
     const all = await (await docs()).getDocs();
     const label = (slug: string) => all.find((doc) => doc.slug === slug)?.label;

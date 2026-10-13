@@ -10,6 +10,7 @@ import { McpInstall } from '../../components/mcp-install';
 import { mode } from '../../lib/ai';
 import { codeBlock } from '../../lib/highlight';
 import { jsonLd, softwareSourceCode } from '../../lib/json-ld';
+import { mcpSample } from '../../lib/mcp-sample';
 import { sampleAnswer } from '../../lib/sample-answer';
 import {
   GITHUB_URL,
@@ -268,9 +269,9 @@ function CellText({ cell }: { cell: Cell }) {
   );
 }
 
-function Install({ large = false }: { large?: boolean }) {
+function Install() {
   return (
-    <div className={large ? 'install install-large' : 'install'}>
+    <div className="install">
       <code>
         <span className="install-prompt" aria-hidden="true">
           $
@@ -290,8 +291,23 @@ function Install({ large = false }: { large?: boolean }) {
   );
 }
 
+/** What the For agents section shows an agent searching for. */
+const AGENT_QUERY = 'GitHub Pages without an API key';
+
 export default async function Home() {
-  const [tabs, initial] = await Promise.all([setupTabs(), sampleAnswer(SUGGESTIONS[0] ?? '')]);
+  const [tabs, initial, agent, tryIt] = await Promise.all([
+    setupTabs(),
+    sampleAnswer(SUGGESTIONS[0] ?? ''),
+    mcpSample(AGENT_QUERY),
+    codeBlock(`$ ${INSTALL}\n$ npx ondocs index ./docs -e mock\n$ npx ondocs dev`, 'console'),
+  ]);
+  const agentResult = agent
+    ? await codeBlock(
+        JSON.stringify({ results: agent.results }, null, 2),
+        'json',
+        `search({ query: "${agent.query}" })`,
+      )
+    : null;
   return (
     <main id="content" className="landing">
       <script
@@ -358,7 +374,18 @@ export default async function Home() {
             Search is keyword-only by default, so it calls no model at all. Connect yours to these
             docs:
           </p>
-          <McpInstall url={MCP_URL} name="ondocs" />
+          <div className="agents">
+            <McpInstall url={MCP_URL} name="ondocs" />
+            {agent && agentResult ? (
+              <figure className="agents-result">
+                <div dangerouslySetInnerHTML={{ __html: agentResult }} />
+                <figcaption>
+                  What an agent gets back: the first of the {agent.found} sections this site’s MCP
+                  server found, asked while the page was built.
+                </figcaption>
+              </figure>
+            ) : null}
+          </div>
           <div className="principles">
             <div>
               <h3>search and fetch</h3>
@@ -537,13 +564,7 @@ export default async function Home() {
             Try it on your own content in two minutes, without an API key: index with the mock model
             and run <code>npx ondocs dev</code>.
           </p>
-          <Install large />
-          <div
-            className="cta-code"
-            dangerouslySetInnerHTML={{
-              __html: await codeBlock('npx ondocs index ./docs -e mock\nnpx ondocs dev', 'sh'),
-            }}
-          />
+          <div className="cta-code" dangerouslySetInnerHTML={{ __html: tryIt }} />
           <div className="cta-actions">
             <a href={GITHUB_URL} className="button button-secondary">
               <GitHubIcon />
