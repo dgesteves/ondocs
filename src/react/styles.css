@@ -7,7 +7,8 @@
  *   .ask-dialog { --ask-accent: #7c3aed; --ask-radius: 8px; }
  *
  * Light and dark follow prefers-color-scheme unless the dialog's `theme` prop pins one. Text
- * colors (fg, muted, subtle, accent, danger) keep a 4.5:1 contrast on bg and raised in both.
+ * colors (fg, muted, subtle, accent, danger, and the code-* colors of an answer's code) keep a
+ * 4.5:1 contrast on bg and raised in both.
  */
 
 .ask-overlay,
@@ -30,6 +31,11 @@
   --ask-radius-sm: 8px;
   --ask-font: inherit;
   --ask-mono: ui-monospace, 'Geist Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  --ask-code-comment: #525b67;
+  --ask-code-keyword: #155e75;
+  --ask-code-string: #9a3412;
+  --ask-code-number: #9d174d;
+  --ask-code-property: #1f2937;
   color-scheme: light;
 }
 
@@ -50,6 +56,11 @@
     --ask-danger: #f0468a;
     --ask-scrim: rgb(5 6 8 / 0.55);
     --ask-shadow: 0 24px 80px -12px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.02);
+    --ask-code-comment: #8b94a0;
+    --ask-code-keyword: #67e8f9;
+    --ask-code-string: #f5c27a;
+    --ask-code-number: #f9a8d4;
+    --ask-code-property: #c9d1d9;
     color-scheme: dark;
   }
 }
@@ -70,6 +81,11 @@
   --ask-danger: #f0468a;
   --ask-scrim: rgb(5 6 8 / 0.55);
   --ask-shadow: 0 24px 80px -12px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.02);
+  --ask-code-comment: #8b94a0;
+  --ask-code-keyword: #67e8f9;
+  --ask-code-string: #f5c27a;
+  --ask-code-number: #f9a8d4;
+  --ask-code-property: #c9d1d9;
   color-scheme: dark;
 }
 
@@ -361,6 +377,28 @@
   font-size: inherit;
   background: none;
   border: 0;
+}
+
+/* An answer's code, coloured by token (src/react/code.ts). */
+.ask-tok-comment {
+  color: var(--ask-code-comment);
+  font-style: italic;
+}
+
+.ask-tok-keyword {
+  color: var(--ask-code-keyword);
+}
+
+.ask-tok-string {
+  color: var(--ask-code-string);
+}
+
+.ask-tok-number {
+  color: var(--ask-code-number);
+}
+
+.ask-tok-property {
+  color: var(--ask-code-property);
 }
 
 .ask-markdown a:not(.ask-citation) {

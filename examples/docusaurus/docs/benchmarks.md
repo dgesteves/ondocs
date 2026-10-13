@@ -42,9 +42,9 @@ Each page carries only the dialog's button and shortcut; the dialog loads the fi
 
 | Site                       | The site on its own | With ondocs | When the dialog opens |
 | -------------------------- | ------------------: | ----------: | --------------------: |
-| Docusaurus 3.10            |            172.1 KB |    175.2 KB |              +24.0 KB |
-| Starlight 0.42             |             33.7 KB |     35.2 KB |              +90.0 KB |
-| Script tag on a plain page |                   0 |      2.9 KB |              +94.1 KB |
+| Docusaurus 3.10            |            172.1 KB |    175.2 KB |              +25.2 KB |
+| Starlight 0.42             |             33.7 KB |     35.2 KB |              +91.2 KB |
+| Script tag on a plain page |                   0 |      2.9 KB |              +95.5 KB |
 
 Starlight's dialog brings its own React, as the script tag's does; Docusaurus's shares the site's. Before the dialog loaded on demand, these pages carried 192.7 KB, 121.2 KB and 91.2 KB. CI measures the example sites the same way, with `node scripts/js-weight.mjs --check`, and fails a change that goes over each site's budget, or that stops a shortcut pressed while the dialog loads from opening it with focus in its input, or focus from coming back when it closes. The handler adds no client code at all.
 

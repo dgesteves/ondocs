@@ -2,6 +2,7 @@ import type { MouseEvent, ReactNode } from 'react';
 
 import type { AskSource } from '../protocol';
 import { fenceBody, splitFenced } from '../text/markdown';
+import { fenceLanguage, tokenizeCode } from './code';
 
 export interface AskAnswerProps {
   /** The answer text, possibly still streaming. */
@@ -132,8 +133,8 @@ export function safeHref(href: string): string | null {
 }
 
 /**
- * Renders a model answer: paragraphs, bullet and numbered lists, fenced and inline code, bold,
- * links, and `[n]` citations as links to their sources.
+ * Renders a model answer: paragraphs, bullet and numbered lists, fenced code (coloured by a
+ * small tokenizer) and inline code, bold, links, and `[n]` citations as links to their sources.
  *
  * Model output is untrusted, so this never produces HTML from it: everything is a React text node
  * or element, link targets are allow-listed, and a citation only renders as a link if its number
@@ -154,10 +155,27 @@ export function AskAnswer({
   for (const segment of splitFenced(text)) {
     if (segment.code) {
       // Streaming: an unclosed fence is still a code block, so code renders as it arrives. A long
-      // line scrolls sideways, so the block takes focus: keyboard users can scroll it too.
+      // line scrolls sideways, so the block takes focus: keyboard users can scroll it too. Its
+      // tokens are coloured, still as text nodes.
+      const lang = fenceLanguage(segment.text);
       blocks.push(
-        <pre key={`b${String(key++)}`} className="ask-pre" tabIndex={0}>
-          <code>{fenceBody(segment.text)}</code>
+        <pre
+          key={`b${String(key++)}`}
+          className="ask-pre"
+          tabIndex={0}
+          data-lang={lang || undefined}
+        >
+          <code>
+            {tokenizeCode(fenceBody(segment.text), lang).map((token, i) =>
+              token.kind ? (
+                <span key={i} className={`ask-tok-${token.kind}`}>
+                  {token.text}
+                </span>
+              ) : (
+                token.text
+              ),
+            )}
+          </code>
         </pre>,
       );
     } else {
