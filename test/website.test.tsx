@@ -318,6 +318,26 @@ describe('the SEO plumbing', () => {
   });
 });
 
+describe('the share cards', () => {
+  it('draw Geist unkerned, as Satori lays their words out, and spell out ⌘', async () => {
+    vi.spyOn(process, 'cwd').mockReturnValue(site);
+    const { cardText, ogFonts } = await import('../examples/nextjs/lib/og');
+    const fonts = await ogFonts();
+    expect(fonts.map((font) => font.name)).toEqual(['Geist', 'Geist', 'Geist Mono']);
+    // The font's tables, from its table directory.
+    const tables = (font: Buffer) =>
+      Array.from({ length: font.readUInt16BE(4) }, (_, i) =>
+        font.toString('latin1', 12 + i * 16, 16 + i * 16),
+      );
+    for (const { name, data } of fonts) {
+      // Geist's kerning is hidden, and nothing else: its glyphs and substitutions are all there.
+      expect(tables(data).includes('GPOS'), name).toBe(name !== 'Geist');
+      expect(tables(data), name).toEqual(expect.arrayContaining(['GSUB', 'glyf', 'hmtx', 'cmap']));
+    }
+    expect(cardText('behind a button and ⌘I, and')).toBe('behind a button and Cmd+I, and');
+  });
+});
+
 describe('Vercel Web Analytics', () => {
   it('is rendered once, with no options, at the end of <body>', () => {
     const layout = readFileSync(join(site, 'app/layout.tsx'), 'utf8');

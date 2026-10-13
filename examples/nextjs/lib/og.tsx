@@ -1,12 +1,28 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
+/**
+ * The font without its GPOS table, which in Geist holds the kerning, and mark positions the cards
+ * don't use. Satori places each word by its letters' own widths, then draws it kerned, so a word
+ * with tight pairs ("Writing", "Starlight") came out narrower than its place and left a wide gap
+ * after it. Unkerned, every word fills its place. Renaming the table's tag hides it from the
+ * font's reader.
+ */
+function withoutKerning(font: Buffer): Buffer {
+  const tables = font.readUInt16BE(4);
+  for (let i = 0; i < tables; i++) {
+    const tag = 12 + i * 16;
+    if (font.toString('latin1', tag, tag + 4) === 'GPOS') font.write('XPOS', tag, 'latin1');
+  }
+  return font;
+}
+
 /** Geist, for `next/og`, which reads TrueType and not WOFF2. */
 export async function ogFonts() {
   const dir = path.join(process.cwd(), 'node_modules/geist/dist/fonts');
   const [regular, semibold, mono] = await Promise.all([
-    readFile(path.join(dir, 'geist-sans/Geist-Regular.ttf')),
-    readFile(path.join(dir, 'geist-sans/Geist-SemiBold.ttf')),
+    readFile(path.join(dir, 'geist-sans/Geist-Regular.ttf')).then(withoutKerning),
+    readFile(path.join(dir, 'geist-sans/Geist-SemiBold.ttf')).then(withoutKerning),
     readFile(path.join(dir, 'geist-mono/GeistMono-Regular.ttf')),
   ]);
   return [
@@ -15,6 +31,9 @@ export async function ogFonts() {
     { name: 'Geist Mono', data: mono, weight: 400 as const, style: 'normal' as const },
   ];
 }
+
+/** Geist has no ⌘, and next/og finds no font for it, so a card spells the key out. */
+export const cardText = (text: string): string => text.replaceAll('⌘', 'Cmd+');
 
 export const OG_SIZE = { width: 1200, height: 630 };
 
@@ -120,7 +139,7 @@ export function DocCard({
           letterSpacing: '-0.035em',
         }}
       >
-        {title}
+        {cardText(title)}
       </div>
       <div
         style={{
@@ -132,7 +151,7 @@ export function DocCard({
           color: COLORS.muted,
         }}
       >
-        {description}
+        {cardText(description)}
       </div>
       <div
         style={{
