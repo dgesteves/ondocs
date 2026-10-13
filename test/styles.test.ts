@@ -48,7 +48,19 @@ describe('the default theme', () => {
     const ratios: Record<string, number> = {};
     for (const surface of ['bg', 'raised']) {
       const background = rgb(theme[surface] ?? '');
-      for (const text of ['fg', 'muted', 'subtle', 'accent', 'danger']) {
+      for (const text of [
+        'fg',
+        'muted',
+        'subtle',
+        'accent',
+        'danger',
+        // An answer's code, on the raised code block (and on bg, where a host restyles it).
+        'code-comment',
+        'code-keyword',
+        'code-string',
+        'code-number',
+        'code-property',
+      ]) {
         ratios[`${text} on ${surface}`] = contrast(rgb(theme[text] ?? ''), background);
       }
     }

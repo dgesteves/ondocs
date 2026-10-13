@@ -20,6 +20,26 @@
   --cyan-on-tint: light-dark(#155e75, #22d3ee);
   --magenta: light-dark(#be185d, #f0468a);
   --shadow: light-dark(rgb(13 15 18 / 0.14), rgb(0 0 0 / 0.6));
+  /*
+   * Code: the sibling sites' code surface, and the colours of terminal and tool output on it
+   * (lib/terminal.ts). Source code takes its colours from the same theme pair (lib/code-theme.ts).
+   * Each keeps 4.5:1 on the code surface, in its theme.
+   */
+  --code: light-dark(#f6f7f9, #101317);
+  --code-fg: light-dark(#0d0f12, #e8eaed);
+  --code-soft: light-dark(#1f2937, #c9d1d9);
+  --code-dim: light-dark(#525b67, #8b94a0);
+  --code-accent: light-dark(#155e75, #67e8f9);
+  --code-string: light-dark(#9a3412, #f5c27a);
+  --code-number: light-dark(#9d174d, #f9a8d4);
+  --code-red: light-dark(#b91c1c, #f87171);
+  --code-amber: light-dark(#92400e, #fbbf24);
+  --code-green: light-dark(#166534, #4ade80);
+  /* A diff's lines, as signoff-ui's DiffReview: cyan added, magenta removed, text and tint. */
+  --code-add: light-dark(#155e75, #67e8f9);
+  --code-del: light-dark(#9d174d, #f472a8);
+  --code-add-bg: light-dark(rgb(8 145 178 / 0.08), rgb(34 211 238 / 0.08));
+  --code-del-bg: light-dark(rgb(190 24 93 / 0.07), rgb(240 70 138 / 0.08));
   --header-height: 56px;
   --gutter: 24px;
   --container: 1320px;
@@ -547,60 +567,130 @@ h3 {
   font-size: 16px;
 }
 
-/* Code blocks */
+/* Inline code: one style on every page, the docs, the landing and the MCP card alike. */
+
+:where(p, li, td, th, dd, blockquote, figcaption) > code,
+:where(p, li, td, dd) > :where(a, strong, em) > code {
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding: 0.1em 0.35em;
+  font-size: 0.88em;
+  color: var(--fg);
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+
+/* Code in a link reads as the link: its color, and no underline under the gaps between chips. */
+a > code {
+  color: inherit;
+}
+
+/*
+ * Code blocks, the same on the three sibling sites: a slim bar with the file name or the
+ * language and an icon to copy, then the code (lib/highlight.ts).
+ */
 
 .code-block {
   margin: 0 0 20px;
   overflow: hidden;
-  background: var(--ink-raised);
+  background: var(--code);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .code-head {
   display: flex;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
-  height: 36px;
-  padding: 0 6px 0 14px;
+  min-height: 35px;
+  padding: 0 4px 0 16px;
   border-bottom: 1px solid var(--border);
 }
 
 .code-label {
+  min-width: 0;
+  overflow: hidden;
   font-family: var(--mono);
   font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.code-label-language {
   color: var(--subtle);
 }
 
 .copy-button {
-  height: 26px;
-  padding: 0 10px;
-  font: inherit;
-  font-size: 12px;
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   color: var(--muted);
   cursor: pointer;
   background: none;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 6px;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+/* The icon: two squares, and a check once copied. */
+.copy-button::before {
+  width: 15px;
+  height: 15px;
+  content: '';
+  background: currentColor;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.4'%3E%3Crect x='5.5' y='5.5' width='8' height='8' rx='1.8'/%3E%3Cpath d='M3.5 10.5h-.2A1.3 1.3 0 0 1 2 9.2V3.3A1.3 1.3 0 0 1 3.3 2h5.9a1.3 1.3 0 0 1 1.3 1.3v.2'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.copy-button[data-copied]::before {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3.5 8.5 3 3 6-7' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* A finger-sized target around the small icon. */
+.copy-button::after {
+  position: absolute;
+  inset: -8px;
+  content: '';
 }
 
 .copy-button:hover {
   color: var(--fg);
-  border-color: var(--border-strong);
+  background: var(--border);
+}
+
+.copy-button:focus-visible {
+  outline-offset: 0;
 }
 
 .copy-button[data-copied] {
-  color: var(--cyan);
+  color: var(--cyan-bright);
 }
 
 .code-block pre {
   margin: 0;
-  padding: 14px 16px;
+  padding: 0.9rem 1rem;
   overflow-x: auto;
-  font-size: 13.5px;
-  line-height: 1.65;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--code-fg);
   /* shiki sets an inline background; the block's own wins. */
   background: transparent !important;
+  scrollbar-width: thin;
+}
+
+.code-block pre:focus-visible {
+  outline: 2px solid var(--cyan-bright);
+  outline-offset: -2px;
 }
 
 .code-block pre code {
@@ -616,6 +706,71 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+/* Code that scrolls sideways fades at its right edge until it is scrolled to the end, on every
+   page (components/copy-buttons.tsx marks it). */
+.code-block pre[data-overflow]:not([data-scrolled-end], :focus-visible) {
+  mask-image: linear-gradient(to left, transparent, #000 3rem);
+}
+
+/* Terminal and tool output: colored by meaning (lib/terminal.ts). */
+.code-block pre.terminal {
+  color: var(--code-soft);
+}
+
+.t-prompt {
+  color: var(--code-dim);
+  user-select: none;
+}
+
+.t-command,
+.t-heading,
+.t-bold {
+  color: var(--code-fg);
+}
+
+.t-heading,
+.t-bold {
+  font-weight: 600;
+}
+
+.t-dim {
+  color: var(--code-dim);
+}
+
+.t-error {
+  color: var(--code-red);
+}
+
+.t-warn {
+  color: var(--code-amber);
+}
+
+.t-ok {
+  color: var(--code-green);
+}
+
+.t-id {
+  color: var(--code-accent);
+}
+
+.t-string {
+  color: var(--code-string);
+}
+
+/* A diff's added and removed lines, across the block. */
+.code-block pre:has(.diff-add, .diff-del) .line {
+  display: inline-block;
+  min-width: 100%;
+}
+
+.code-block .diff-add {
+  background: var(--code-add-bg);
+}
+
+.code-block .diff-del {
+  background: var(--code-del-bg);
+}
+
 /* Tabs, as a code block's bar (npm, pnpm, yarn, bun) or above any content. */
 .tab-list {
   display: flex;
@@ -628,7 +783,7 @@ h3 {
 
 .code-head .tab-list {
   align-self: stretch;
-  margin-left: -14px;
+  margin-left: -16px;
 }
 
 .tab-list [role='tab'] {
@@ -673,6 +828,26 @@ h3 {
   outline: none;
 }
 
+/* An answer's code, in the dialog and the home page's demo, on the same surface as the site's own
+   code blocks, and its inline code in the site's one style. The tokens' colours are the
+   dialog's --ask-code-* defaults, the same pair as lib/code-theme.ts. */
+:is(.ask-dialog, .demo) .ask-pre {
+  padding: 0.9rem 1rem;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--code-fg);
+  background: var(--code);
+  border-color: var(--border);
+  border-radius: 12px;
+}
+
+:is(.ask-dialog, .demo) .ask-markdown :not(pre) > code {
+  color: var(--fg);
+  background: var(--raised);
+  border-color: var(--border);
+  border-radius: 5px;
+}
+
 .ask-footer {
   display: flex;
   gap: 12px;
@@ -704,12 +879,6 @@ h3 {
 
 .ask-mcp p code {
   overflow-wrap: anywhere;
-  padding: 0.05em 0.35em;
-  font-size: 0.88em;
-  color: var(--fg);
-  background: var(--raised);
-  border: 1px solid var(--border);
-  border-radius: 5px;
 }
 
 .ask-mcp p.ask-mcp-links {
@@ -721,7 +890,6 @@ h3 {
 
 .ask-mcp .code-block {
   margin: 0 0 12px;
-  background: var(--ink);
 }
 
 .ask-mcp summary {

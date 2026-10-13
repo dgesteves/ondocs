@@ -35,7 +35,24 @@ Then run it against the index your build wrote:
 npx ondocs eval ask-eval.yaml --index build/ask-index.json
 ```
 
-For each question it prints where the first expected page came among the pages found, or that the gate refused it, with the best keyword coverage and similarity it saw. Then come the scores:
+For each question it prints where the first expected page came among the pages found, or that the gate refused it, with the best keyword coverage and similarity it saw, then the scores. The eval of docusaurus.io's docs that this repository runs in CI, shortened:
+
+```console
+$ npx ondocs eval docusaurus.io.yaml --index ask-index.json
+ondocs eval: 28 questions against ask-index.json (1070 chunks, keyword-only search)
+
+  ✓ 1         How do I highlight specific lines in a code block?         cov 0.78
+  ✗ refused   How do I add a tip or warning callout box?                 cov 0.36  expected /docs/markdown-features/admonitions
+  ✓ 3         How do I change the site's primary color?                  cov 0.79  → /docs/migration/v2/manual, /docs/api/themes/configuration, /docs/styling-layout
+  ✓ refused   Write me a poem about the sea                              cov 0.16
+
+  hit@1              0.64  (14/22)
+  hit@3              0.82  (18/22)  threshold 0.8 ✓
+  refusal precision  0.75  (6/8)  threshold 0.75 ✓
+  refusal recall     1.00  (6/6)  threshold 1 ✓
+```
+
+The scores:
 
 - **hit@1** and **hit@3**: the share of answerable questions whose expected page came first, or in the top three. An `expect` with a `#anchor` must match that section.
 - **Refusal precision**: of the questions the gate refused, the share that should have been refused. Under 1, the gate turns away questions your docs answer.

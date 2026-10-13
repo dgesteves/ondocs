@@ -15,6 +15,19 @@ import { THEME_KEY, THEME_SCRIPT } from '../examples/nextjs/lib/theme';
 import { VERSION } from '../examples/nextjs/lib/version';
 
 const site = join(import.meta.dirname, '../examples/nextjs');
+
+/** WCAG 2 contrast ratio of two `#rrggbb` colors. */
+function contrast(a: string, b: string): number {
+  const luminance = (hex: string) => {
+    const [r = 0, g = 0, bl = 0] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [light = 0, dark = 0] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}
 const { pathname, navigation } = vi.hoisted(() => {
   // The site's own next, as its components import it, which this folder can't resolve by name.
   const { createRequire } = process.getBuiltinModule('node:module');
@@ -419,11 +432,101 @@ describe('the stylesheets', () => {
 });
 
 describe('code highlighting', () => {
-  it('colors each token for both themes', async () => {
+  it('colors each token for both themes, with the sibling sites’ theme pair', async () => {
     const { codeBlock } = await import('../examples/nextjs/lib/highlight');
     const html = await codeBlock("export default { plugins: ['ondocs/docusaurus'] };", 'ts');
-    // The keyword: magenta in each theme, and the string: cyan.
-    expect(html).toContain('light-dark(#BE185D, #F0468A)');
+    // The keyword: cyan in each theme, and the string: amber, as on signoff-ui's site.
     expect(html).toContain('light-dark(#155E75, #67E8F9)');
+    expect(html).toContain('light-dark(#9A3412, #F5C27A)');
   });
+
+  it('keeps the theme pair signoff-ui’s site highlights with', async () => {
+    const { CODE_PALETTES } = await import('../examples/nextjs/lib/code-theme');
+    expect(CODE_PALETTES.dark).toMatchObject({
+      bg: '#101317',
+      keyword: '#67e8f9',
+      string: '#f5c27a',
+      number: '#f9a8d4',
+      comment: '#8b94a0',
+    });
+    expect(CODE_PALETTES.light).toMatchObject({
+      bg: '#f6f7f9',
+      keyword: '#155e75',
+      string: '#9a3412',
+      number: '#9d174d',
+      comment: '#525b67',
+    });
+  });
+
+  it.each(['light', 'dark'] as const)(
+    'keeps every code token at 4.5:1 or more on the code background, %s',
+    async (theme) => {
+      const { CODE_PALETTES } = await import('../examples/nextjs/lib/code-theme');
+      const { bg, ...colors } = CODE_PALETTES[theme];
+      // The site's own code surface is the palette's background.
+      const globals = readFileSync(join(site, 'app/globals.css'), 'utf8');
+      const tokens = Object.fromEntries(
+        [
+          ...globals.matchAll(/^\s*--(code[\w-]*): light-dark\((#[\da-f]{6}), (#[\da-f]{6})\);$/gm),
+        ].map(([, name = '', light = '', dark = '']) => [name, theme === 'light' ? light : dark]),
+      );
+      expect(tokens.code).toBe(bg);
+      // Source code (Shiki), and terminal output (lib/terminal.ts).
+      const { code: _surface, ...terminal } = tokens;
+      expect(Object.keys(terminal).sort()).toEqual([
+        'code-accent',
+        'code-add',
+        'code-amber',
+        'code-del',
+        'code-dim',
+        'code-fg',
+        'code-green',
+        'code-number',
+        'code-red',
+        'code-soft',
+        'code-string',
+      ]);
+      for (const [name, color] of [...Object.entries(colors), ...Object.entries(terminal)]) {
+        expect([name, contrast(color, bg) >= 4.5]).toEqual([name, true]);
+      }
+    },
+  );
+
+  it.each(['light', 'dark'] as const)(
+    'keeps a diff’s added and removed lines at 4.5:1 or more on their tints, as signoff-ui’s, %s',
+    async (theme) => {
+      const { CODE_PALETTES } = await import('../examples/nextjs/lib/code-theme');
+      const { bg } = CODE_PALETTES[theme];
+      const globals = readFileSync(join(site, 'app/globals.css'), 'utf8');
+      const value = (name: string) => {
+        const pair = new RegExp(`--${name}: light-dark\\((.+?), (.+?)\\);`).exec(globals);
+        return (theme === 'light' ? pair?.[1] : pair?.[2]) ?? '';
+      };
+      // signoff-ui's DiffReview: --signoff-add-bg and --signoff-del-bg, --signoff-accent-fg and
+      // --signoff-hot-fg (packages/signoff-ui/src/styles/theme.css).
+      const signoff = {
+        light: ['rgb(8 145 178 / 0.08)', 'rgb(190 24 93 / 0.07)', '#155e75', '#9d174d'],
+        dark: ['rgb(34 211 238 / 0.08)', 'rgb(240 70 138 / 0.08)', '#67e8f9', '#f472a8'],
+      }[theme];
+      expect(['code-add-bg', 'code-del-bg', 'code-add', 'code-del'].map(value)).toEqual(signoff);
+      /** A tint over the code surface, as `#rrggbb`. */
+      const over = (tint: string) => {
+        const [r = 0, g = 0, b = 0, a = 0] = (
+          /rgb\((\d+) (\d+) (\d+) \/ ([\d.]+)\)/.exec(tint) ?? []
+        )
+          .slice(1)
+          .map(Number);
+        return `#${[r, g, b]
+          .map((c, i) => Math.round(c * a + parseInt(bg.slice(1 + i * 2, 3 + i * 2), 16) * (1 - a)))
+          .map((c) => c.toString(16).padStart(2, '0'))
+          .join('')}`;
+      };
+      for (const [line, text] of [
+        ['code-add-bg', 'code-add'],
+        ['code-del-bg', 'code-del'],
+      ] as const) {
+        expect([text, contrast(value(text), over(value(line))) >= 4.5]).toEqual([text, true]);
+      }
+    },
+  );
 });

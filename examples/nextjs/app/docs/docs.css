@@ -466,17 +466,10 @@ summary.sidebar-heading:hover {
   vertical-align: middle;
 }
 
+/* Inline code looks as it does everywhere (app/globals.css); in the docs a name stays whole on
+   one line. */
 .prose :not(pre) > code {
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-  /* A name stays whole on one line. */
   white-space: nowrap;
-  padding: 0.1em 0.35em;
-  font-size: 0.88em;
-  color: var(--fg);
-  background: var(--raised);
-  border: 1px solid var(--border);
-  border-radius: 5px;
 }
 
 /* A long call wraps at its spaces, and on a narrow screen anywhere, rather than widen the page. */
@@ -600,11 +593,10 @@ summary.sidebar-heading:hover {
   overflow-x: auto;
 }
 
-/* A table or code that scrolls sideways fades at the right edge, until it is scrolled to the end
-   (components/docs-enhancements.tsx). */
-.prose .table-scroll[data-overflow]:not([data-scrolled-end]),
-.code-block pre[data-overflow]:not([data-scrolled-end]) {
-  mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+/* A table that scrolls sideways fades at the right edge, until it is scrolled to the end
+   (components/docs-enhancements.tsx), as code does. */
+.prose .table-scroll[data-overflow]:not([data-scrolled-end]) {
+  mask-image: linear-gradient(to left, transparent, #000 3rem);
 }
 
 .prose table {
