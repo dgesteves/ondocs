@@ -475,7 +475,9 @@ describe('code highlighting', () => {
       const { code: _surface, ...terminal } = tokens;
       expect(Object.keys(terminal).sort()).toEqual([
         'code-accent',
+        'code-add',
         'code-amber',
+        'code-del',
         'code-dim',
         'code-fg',
         'code-green',
@@ -486,6 +488,44 @@ describe('code highlighting', () => {
       ]);
       for (const [name, color] of [...Object.entries(colors), ...Object.entries(terminal)]) {
         expect([name, contrast(color, bg) >= 4.5]).toEqual([name, true]);
+      }
+    },
+  );
+
+  it.each(['light', 'dark'] as const)(
+    'keeps a diff’s added and removed lines at 4.5:1 or more on their tints, as signoff-ui’s, %s',
+    async (theme) => {
+      const { CODE_PALETTES } = await import('../examples/nextjs/lib/code-theme');
+      const { bg } = CODE_PALETTES[theme];
+      const globals = readFileSync(join(site, 'app/globals.css'), 'utf8');
+      const value = (name: string) => {
+        const pair = new RegExp(`--${name}: light-dark\\((.+?), (.+?)\\);`).exec(globals);
+        return (theme === 'light' ? pair?.[1] : pair?.[2]) ?? '';
+      };
+      // signoff-ui's DiffReview: --signoff-add-bg and --signoff-del-bg, --signoff-accent-fg and
+      // --signoff-hot-fg (packages/signoff-ui/src/styles/theme.css).
+      const signoff = {
+        light: ['rgb(8 145 178 / 0.08)', 'rgb(190 24 93 / 0.07)', '#155e75', '#9d174d'],
+        dark: ['rgb(34 211 238 / 0.08)', 'rgb(240 70 138 / 0.08)', '#67e8f9', '#f472a8'],
+      }[theme];
+      expect(['code-add-bg', 'code-del-bg', 'code-add', 'code-del'].map(value)).toEqual(signoff);
+      /** A tint over the code surface, as `#rrggbb`. */
+      const over = (tint: string) => {
+        const [r = 0, g = 0, b = 0, a = 0] = (
+          /rgb\((\d+) (\d+) (\d+) \/ ([\d.]+)\)/.exec(tint) ?? []
+        )
+          .slice(1)
+          .map(Number);
+        return `#${[r, g, b]
+          .map((c, i) => Math.round(c * a + parseInt(bg.slice(1 + i * 2, 3 + i * 2), 16) * (1 - a)))
+          .map((c) => c.toString(16).padStart(2, '0'))
+          .join('')}`;
+      };
+      for (const [line, text] of [
+        ['code-add-bg', 'code-add'],
+        ['code-del-bg', 'code-del'],
+      ] as const) {
+        expect([text, contrast(value(text), over(value(line))) >= 4.5]).toEqual([text, true]);
       }
     },
   );

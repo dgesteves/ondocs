@@ -35,6 +35,11 @@
   --code-red: light-dark(#b91c1c, #f87171);
   --code-amber: light-dark(#92400e, #fbbf24);
   --code-green: light-dark(#166534, #4ade80);
+  /* A diff's lines, as signoff-ui's DiffReview: cyan added, magenta removed, text and tint. */
+  --code-add: light-dark(#155e75, #67e8f9);
+  --code-del: light-dark(#9d174d, #f472a8);
+  --code-add-bg: light-dark(rgb(8 145 178 / 0.08), rgb(34 211 238 / 0.08));
+  --code-del-bg: light-dark(rgb(190 24 93 / 0.07), rgb(240 70 138 / 0.08));
   --header-height: 56px;
   --gutter: 24px;
   --container: 1320px;
@@ -754,11 +759,11 @@ a > code {
 }
 
 .code-block .diff-add {
-  background: color-mix(in srgb, var(--code-green) 12%, transparent);
+  background: var(--code-add-bg);
 }
 
 .code-block .diff-del {
-  background: color-mix(in srgb, var(--code-red) 12%, transparent);
+  background: var(--code-del-bg);
 }
 
 /* Tabs, as a code block's bar (npm, pnpm, yarn, bun) or above any content. */
