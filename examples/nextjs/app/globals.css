@@ -562,11 +562,6 @@ h3 {
   color: var(--cyan);
 }
 
-.install-large {
-  height: 52px;
-  font-size: 16px;
-}
-
 /* Inline code: one style on every page, the docs, the landing and the MCP card alike. */
 
 :where(p, li, td, th, dd, blockquote, figcaption) > code,
@@ -881,11 +876,18 @@ a > code {
   overflow-wrap: anywhere;
 }
 
+/* The three Add to buttons, as equal columns, or one under another on a phone. */
 .ask-mcp p.ask-mcp-links {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-bottom: 18px;
+}
+
+@media (max-width: 560px) {
+  .ask-mcp p.ask-mcp-links {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .ask-mcp .code-block {

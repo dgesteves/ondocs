@@ -229,10 +229,14 @@ summary.sidebar-heading:hover {
   }
 }
 
+/* A page's column is the sibling sites' (46rem), so prose runs about 85 characters a line. */
 .doc,
 .docs-home {
   min-width: 0;
-  max-width: 900px;
+}
+
+.doc {
+  max-width: 46rem;
 }
 
 .doc-header {
@@ -472,6 +476,16 @@ summary.sidebar-heading:hover {
   white-space: nowrap;
 }
 
+/* A link around code is marked by its color; an underline would run under the gaps between the
+   chips. */
+.prose a:has(> code) {
+  text-decoration: none;
+}
+
+.prose a:has(> code):hover {
+  text-decoration: underline;
+}
+
 /* A long call wraps at its spaces, and on a narrow screen anywhere, rather than widen the page. */
 .prose code.code-long {
   white-space: normal;
@@ -677,6 +691,10 @@ summary.sidebar-heading:hover {
   max-width: 900px;
 }
 
+.docs-home .lead {
+  max-width: 46rem;
+}
+
 .card-section + .card-section {
   margin-top: 36px;
 }
@@ -714,13 +732,26 @@ summary.sidebar-heading:hover {
   border-color: color-mix(in srgb, var(--cyan) 45%, transparent);
 }
 
+/* Two or three cards a row, as the section's count divides (app/docs/page.tsx), so no row is
+   left with one; one a row on a phone. */
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.cards[data-columns='3'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 640px) {
+  .cards,
+  .cards[data-columns='3'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .card {

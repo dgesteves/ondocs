@@ -2,7 +2,13 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { DocsBar } from '../../components/docs-nav';
-import { INTEGRATIONS_SECTION, getNavSections, getSections, sectionId } from '../../lib/docs';
+import {
+  INTEGRATIONS_SECTION,
+  cardColumns,
+  getNavSections,
+  getSections,
+  sectionId,
+} from '../../lib/docs';
 import { DOCS_DESCRIPTION as description } from '../../lib/site';
 
 export const metadata: Metadata = {
@@ -38,7 +44,7 @@ export default async function DocsHome() {
             <h2 id="start-here" className="sidebar-heading">
               Start here
             </h2>
-            <ol className="cards start-cards">
+            <ol className="cards start-cards" data-columns={cardColumns(start.docs.length)}>
               {start.docs.map((doc) => (
                 <li key={doc.slug}>
                   <Link href={`/docs/${doc.slug}`} className="card">
@@ -74,7 +80,7 @@ export default async function DocsHome() {
               <h2 id={id} className="sidebar-heading">
                 {section.title}
               </h2>
-              <ul className="cards">
+              <ul className="cards" data-columns={cardColumns(section.docs.length)}>
                 {section.docs.map((doc) => (
                   <li key={doc.slug}>
                     <Link href={`/docs/${doc.slug}`} className="card">

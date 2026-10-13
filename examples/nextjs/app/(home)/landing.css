@@ -766,6 +766,40 @@
   border-left: 4px solid transparent;
 }
 
+/* For agents: the install card beside what an agent gets back from this site's server. */
+.agents {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+  margin: 0 0 48px;
+}
+
+.agents .ask-mcp {
+  max-width: none;
+  margin: 0;
+}
+
+.agents-result {
+  margin: 0;
+}
+
+.agents-result .code-block {
+  margin: 0;
+}
+
+/* The snippets are long strings: they wrap, so the result reads without scrolling. */
+.agents-result .code-block pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agents-result figcaption {
+  margin: 10px 2px 0;
+  font-size: 13.5px;
+  color: var(--subtle);
+}
+
 .principles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -805,7 +839,8 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1px;
-  margin: 12px 0 24px;
+  /* The same space under the heading as a section with a lead has. */
+  margin: 40px 0 24px;
   overflow: hidden;
   background: var(--border);
   border: 1px solid var(--border);
@@ -854,7 +889,7 @@
 /* Comparison */
 
 .compare-scroll {
-  margin: 12px 0 48px;
+  margin: 40px 0 48px;
 }
 
 .compare {
@@ -1012,10 +1047,9 @@
   margin-bottom: 32px;
 }
 
-/* The two commands that try it without a key, under the install command. */
+/* Install, index with the mock model, and serve it: one terminal session. */
 .cta-code {
-  width: min(100%, 520px);
-  margin-top: 16px;
+  width: min(100%, 560px);
   text-align: left;
 }
 
@@ -1141,6 +1175,10 @@
     background: var(--border-strong);
   }
 
+  .agents {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .principles {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
@@ -1192,8 +1230,11 @@
     scrollbar-width: none;
   }
 
+  /* A finger-sized target for each question. */
   .chip {
     flex: none;
+    height: 40px;
+    padding: 0 14px;
   }
 
   .demo-chips {
@@ -1325,13 +1366,5 @@
 
   .not-for ul {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .cta .install-large {
-    width: 100%;
-  }
-
-  .cta .install-large code {
-    flex: 1;
   }
 }
