@@ -22,6 +22,11 @@ export default defineConfig({
         replacement: `${fileURLToPath(new URL('src/docusaurus/theme', import.meta.url))}/$1.tsx`,
       },
       {
+        // The theme component the plugin's Navbar/Search wraps: the classic theme's container.
+        find: /^@theme-init\/Navbar\/Search$/,
+        replacement: fileURLToPath(new URL('test/docusaurus-navbar-search.tsx', import.meta.url)),
+      },
+      {
         find: /^@docusaurus\/(BrowserOnly|router|useGlobalData)$/,
         replacement: fileURLToPath(new URL('test/docusaurus-client.tsx', import.meta.url)),
       },

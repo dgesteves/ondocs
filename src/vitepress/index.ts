@@ -3,7 +3,7 @@
  * `vitepress build` it indexes the pages VitePress wrote into `ask-index.json` in the build output
  * (one per locale), at the URLs VitePress serves them from, writes `llms.txt`, `llms-full.txt`
  * and a Markdown copy of each page, and adds the ask dialog to every page, opened from a floating
- * button or ⌘/Ctrl+I.
+ * button (or, with `dialog.navbar`, a button in the nav bar) or ⌘/Ctrl+I.
  *
  * The answers come from an endpoint you deploy next to the site (a function running
  * `createAskHandler` from `ondocs/server`, which `npx ondocs init` writes); see the docs.
@@ -51,6 +51,14 @@ export interface OndocsDialogOptions extends DialogOptions {
   title?: string;
   /** Default `auto`: VitePress's light or dark mode, as its appearance switch sets it. */
   theme?: OndocsTheme;
+  /**
+   * An "Ask AI" button in the default theme's nav bar, after the search box (or where it would
+   * be): `true`, or the button's label, by default `labels.launcher` ("Ask AI") in each locale.
+   * It shows the shortcut, and on a phone it is an icon that stays in the nav bar. The plugin
+   * adds it to the theme's nav bar search as Vite builds it, so there is still no theme file to
+   * write. With it, the floating button is off unless `launcher` is set. Off by default.
+   */
+  navbar?: boolean | string;
   /**
    * Options for each locale, by its key in VitePress's `locales` (`fr`, `pt`), over these: the
    * labels, the title and the suggestions in that language. The dialog sends the locale with
@@ -173,6 +181,10 @@ const ALWAYS_IGNORED = '.header-anchor, span.lang';
 /** VitePress's client entry, which every page loads, in VitePress 1 and 2. */
 const APP_ENTRY = /[\\/]vitepress[\\/]dist[\\/]client[\\/]app[\\/]index\.js$/;
 const LAUNCHER_MODULE = 'virtual:ondocs/launcher';
+/** The default theme's nav bar search, which `dialog.navbar` adds the button to. */
+const NAVBAR_SEARCH =
+  /[\\/]vitepress[\\/]dist[\\/]client[\\/]theme-default[\\/]components[\\/]VPNavBarSearch\.vue$/;
+const NAVBAR_MODULE = 'virtual:ondocs/navbar-button';
 
 /**
  * ```ts
@@ -213,7 +225,12 @@ export function withOndocs<Config extends VitePressConfig>(
     ...config,
     vite: {
       ...config.vite,
-      plugins: [...plugins, launcherPlugin(endpoint, options, log), quietUseClient()],
+      plugins: [
+        ...plugins,
+        launcherPlugin(endpoint, options, log),
+        ...(options.dialog?.navbar ? [navbarPlugin(options.dialog, log)] : []),
+        quietUseClient(),
+      ],
     },
     async transformHtml(code: string, id: string, context: PageContext) {
       const transformed = await ownTransformHtml?.(code, id, context);
@@ -276,6 +293,117 @@ function launcherPlugin(endpoint: string, options: OndocsOptions, log: Logger) {
   };
 }
 
+/**
+ * The Vite plugin behind `dialog.navbar`: the default theme's nav bar search (VPNavBarSearch.vue,
+ * on the server and in the browser alike) renders a button after the search box, from a module
+ * the plugin serves, and the button opens the dialog with its `data-ondocs-open` attribute.
+ */
+function navbarPlugin(dialog: OndocsDialogOptions, log: Logger) {
+  let site: VitePressSiteConfig | undefined;
+  let warned = false;
+  return {
+    name: 'ondocs:navbar',
+    enforce: 'pre' as const,
+    configResolved(resolved: { vitepress?: VitePressSiteConfig }) {
+      site = resolved.vitepress;
+    },
+    resolveId: (id: string) => (id === NAVBAR_MODULE ? `\0${NAVBAR_MODULE}` : null),
+    load: (id: string) =>
+      id === `\0${NAVBAR_MODULE}` ? navbarButtonModule(dialog, localeKeys(site?.site)) : null,
+    transform(code: string, id: string) {
+      if (!NAVBAR_SEARCH.test(id)) return null;
+      const transformed = withNavbarButton(code);
+      if (transformed === null && !warned) {
+        warned = true;
+        log.warn(
+          "dialog.navbar: this VitePress's nav bar search (VPNavBarSearch.vue) is not as the plugin knows it, so it has no Ask AI button. Add a button with data-ondocs-open to the nav bar instead; see the docs.",
+        );
+      }
+      return transformed === null ? null : { code: transformed, map: null };
+    },
+  };
+}
+
+/**
+ * The default theme's VPNavBarSearch.vue with the navbar button: imported in its `<script setup>`
+ * and rendered last in its root element, after the search box. `null` when the file is not as
+ * expected.
+ */
+export function withNavbarButton(sfc: string): string | null {
+  const script = /<script\b[^>]*\bsetup\b[^>]*>/.exec(sfc);
+  const end = sfc.lastIndexOf('</template>');
+  const close = end === -1 ? -1 : sfc.lastIndexOf('</div>', end);
+  if (!script || close === -1 || sfc.slice(close + '</div>'.length, end).trim() !== '') {
+    return null;
+  }
+  const afterScript = script.index + script[0].length;
+  return [
+    sfc.slice(0, afterScript),
+    `\nimport OndocsNavbarButton from ${JSON.stringify(NAVBAR_MODULE)};`,
+    sfc.slice(afterScript, close),
+    '<OndocsNavbarButton />',
+    sfc.slice(close),
+  ].join('');
+}
+
+/**
+ * The navbar button's label and Ctrl key: `navbar` when it is a label, else `labels.launcher`
+ * (the locale's, then the dialog's), else "Ask AI"; and `labels.controlKey`, else "Ctrl".
+ */
+function navbarButton(
+  { navbar, labels = {} }: OndocsDialogOptions,
+  own: OndocsDialogOptions['labels'] = {},
+): { label: string; controlKey: string } {
+  return {
+    label: typeof navbar === 'string' ? navbar : (own.launcher ?? labels.launcher ?? 'Ask AI'),
+    controlKey: own.controlKey ?? labels.controlKey ?? 'Ctrl',
+  };
+}
+
+/**
+ * The navbar button, as a Vue component in a render function: the label and the Ctrl key in the
+ * page's locale (VitePress's `localeIndex`), and the shortcut, with ⌘ or Ctrl picked by the
+ * stylesheet from the `mac` class VitePress puts on `<html>`. The sparkle is the stylesheet's.
+ */
+export function navbarButtonModule(
+  dialog: OndocsDialogOptions,
+  locales: readonly string[],
+): string {
+  const buttons = {
+    root: navbarButton(dialog),
+    ...Object.fromEntries(
+      locales.map((key) => [key, navbarButton(dialog, dialog.locales?.[key]?.labels)]),
+    ),
+  };
+  const key = dialog.shortcut === false ? '' : (dialog.shortcut ?? 'i').toUpperCase();
+  return [
+    "import { defineComponent, h } from 'vue';",
+    "import { useData } from 'vitepress';",
+    `const buttons = ${JSON.stringify(buttons)};`,
+    `const key = ${JSON.stringify(key)};`,
+    'export default defineComponent({',
+    "  name: 'OndocsNavbarButton',",
+    '  setup() {',
+    '    const { localeIndex } = useData();',
+    '    return () => {',
+    '      const { label, controlKey } = buttons[localeIndex.value] ?? buttons.root;',
+    "      return h('button', {",
+    "        type: 'button',",
+    "        class: 'ondocs-button',",
+    "        'data-ondocs-open': '',",
+    "        'aria-haspopup': 'dialog',",
+    "        'aria-keyshortcuts': key ? `Meta+${key} Control+${key}` : undefined,",
+    '      }, [',
+    "        h('span', { class: 'ondocs-button-label' }, label),",
+    "        key ? h('kbd', { 'aria-hidden': 'true', 'data-control': controlKey }, key) : null,",
+    '      ]);',
+    '    };',
+    '  },',
+    '});',
+    '',
+  ].join('\n');
+}
+
 /** The locales' keys in the site's `locales`, but `root`: the path prefixes of their pages. */
 function localeKeys(site: VitePressSiteConfig['site'] | undefined): string[] {
   return Object.keys(site?.locales ?? {}).filter((key) => key !== 'root');
@@ -309,9 +437,12 @@ export function launcherModule(
   );
   const theme = options.dialog?.theme ?? 'auto';
   return [
-    ...[...LAUNCHER_STYLESHEETS, 'ondocs/vitepress/launcher.css'].map(
-      (stylesheet) => `import ${JSON.stringify(stylesheet)};`,
-    ),
+    ...[
+      ...LAUNCHER_STYLESHEETS,
+      // With `dialog.navbar`, the navbar button's look, then the default theme's colors.
+      ...(options.dialog?.navbar ? ['ondocs/embed/button.css'] : []),
+      'ondocs/vitepress/launcher.css',
+    ].map((stylesheet) => `import ${JSON.stringify(stylesheet)};`),
     ...(theme === 'auto'
       ? [
           'const root = document.documentElement;',

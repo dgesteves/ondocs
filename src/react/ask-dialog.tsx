@@ -86,6 +86,12 @@ export interface AskDialogProps extends Omit<UseAskOptions, 'onFinish'> {
    * unless Turnstile asks the visitor to click, and it sends a fresh token with each question.
    */
   challenge?: { turnstile: string };
+  /**
+   * A question to ask, as if typed and sent: when the dialog opens with it, and again when it
+   * changes while the dialog is open, each time in a new thread. With a controlled `open`, set
+   * both to open the dialog on a question, as a "Try asking" link on a landing page does.
+   */
+  question?: string;
   onFinish?: (state: AskState) => void;
 }
 

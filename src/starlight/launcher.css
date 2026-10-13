@@ -24,6 +24,23 @@
   padding-bottom: 4.5rem;
 }
 
+/*
+ * The "Ask AI" button in the header (`dialog.navbar`), after the search box, filled like
+ * Starlight's primary link button in either theme. On a phone, beside the search icon.
+ */
+.ondocs-navbar {
+  display: flex;
+  flex-grow: 1;
+  align-items: center;
+  gap: 0.75rem;
+}
+.ondocs-button {
+  --ask-button-bg: var(--sl-color-text-accent);
+  --ask-button-fg: var(--sl-color-black);
+  --ask-button-hover-bg: color-mix(in srgb, var(--sl-color-text-accent) 80%, var(--sl-color-white));
+  font-size: var(--sl-text-sm);
+}
+
 /* McpInstall.astro: its links as buttons, in Starlight's colors. */
 .ask-mcp-links {
   display: flex;

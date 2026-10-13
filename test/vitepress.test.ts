@@ -4,7 +4,8 @@ import { execFile } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { defineConfig } from 'vitepress';
@@ -14,7 +15,9 @@ import { parseIndexFile } from '../src/index-file';
 import withOndocsDefault, {
   launcherModule,
   llmsOwners,
+  navbarButtonModule,
   pageLocation,
+  withNavbarButton,
   withOndocs,
   type VitePressSiteConfig,
 } from '../src/vitepress';
@@ -162,6 +165,137 @@ describe('the launcher', () => {
     // A theme of its own leaves the page's attributes alone.
     expect(launcherModule('/api/ask', { dialog: { theme: 'dark' } }, SITE)).not.toContain(
       'classList',
+    );
+  });
+});
+
+describe('the navbar button (dialog.navbar)', () => {
+  const require = createRequire(import.meta.url);
+  // VitePress's own files, and the Vue compiler it brings.
+  const vitepress = dirname(dirname(dirname(require.resolve('vitepress'))));
+  const fromVitePress = createRequire(join(vitepress, 'package.json'));
+  const SEARCH = join(vitepress, 'dist/client/theme-default/components/VPNavBarSearch.vue');
+  const navbarPlugin = (options = {}) =>
+    pluginsOf(withOndocs({}, options)).find(({ name }) => name === 'ondocs:navbar');
+
+  it('is added only with the option', () => {
+    expect(navbarPlugin()).toBeUndefined();
+    expect(navbarPlugin({ dialog: { navbar: true } })).toMatchObject({ enforce: 'pre' });
+  });
+
+  it('renders the button last in the default theme’s nav bar search, on the server and in the browser', () => {
+    const plugin = navbarPlugin({ dialog: { navbar: true } });
+    const sfc = readFileSync(SEARCH, 'utf8');
+    const transformed = plugin?.transform?.(sfc, SEARCH)?.code ?? '';
+    expect(transformed).toBe(withNavbarButton(sfc));
+    // The same with ssr: VitePress renders the nav bar on the server too.
+    expect(plugin?.transform?.(sfc, SEARCH, { ssr: true })?.code).toBe(transformed);
+    expect(plugin?.transform?.(sfc, '/site/.vitepress/theme/VPNavBarSearch.vue')).toBeNull();
+    // The compiler VitePress builds the theme with: the file must still be a valid component.
+    const { parse } = fromVitePress('vue/compiler-sfc') as {
+      parse: (source: string) => {
+        descriptor: {
+          scriptSetup: { content: string } | null;
+          template: { content: string } | null;
+        };
+        errors: unknown[];
+      };
+    };
+    const { descriptor, errors } = parse(transformed);
+    expect(errors).toEqual([]);
+    expect(descriptor.scriptSetup?.content).toContain(
+      'import OndocsNavbarButton from "virtual:ondocs/navbar-button";',
+    );
+    expect(descriptor.template?.content.trim()).toMatch(
+      /^<div class="VPNavBarSearch">[\s\S]*<OndocsNavbarButton \/><\/div>$/,
+    );
+  });
+
+  it('warns once, and leaves the file, when the nav bar search is not as it knows it', () => {
+    const warn = vi.mocked(console.warn);
+    const plugin = navbarPlugin({ dialog: { navbar: true } });
+    const odd = '<template><nav /></template>';
+    expect(withNavbarButton(odd)).toBeNull();
+    expect(plugin?.transform?.(odd, SEARCH)).toBeNull();
+    expect(plugin?.transform?.(odd, SEARCH)).toBeNull();
+    expect(
+      warn.mock.calls.filter(([message]) => String(message).includes('dialog.navbar')),
+    ).toHaveLength(1);
+  });
+
+  it('serves the button: a label and Ctrl key per locale, and the shortcut', () => {
+    const plugin = navbarPlugin({
+      dialog: {
+        navbar: true,
+        shortcut: 'j',
+        locales: { fr: { labels: { launcher: 'Demander', controlKey: 'Strg' } } },
+      },
+    });
+    plugin?.configResolved?.({ vitepress: SITE });
+    const id = plugin?.resolveId?.('virtual:ondocs/navbar-button') ?? '';
+    expect(id).toBe('\0virtual:ondocs/navbar-button');
+    const source = plugin?.load?.(id) ?? '';
+    expect(source).toBe(
+      navbarButtonModule(
+        {
+          navbar: true,
+          shortcut: 'j',
+          locales: { fr: { labels: { launcher: 'Demander', controlKey: 'Strg' } } },
+        },
+        ['fr'],
+      ),
+    );
+    // Run in a stand-in Vue: the button the render function makes, in French.
+    interface Node {
+      tag: string;
+      props: Record<string, unknown>;
+      children: unknown;
+    }
+    const body = source
+      .split('\n')
+      .filter((line) => !line.startsWith('import'))
+      .join('\n')
+      .replace('export default', 'return');
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval
+    const run = new Function('defineComponent', 'h', 'useData', body) as (
+      ...args: unknown[]
+    ) => unknown;
+    const component = run(
+      (definition: unknown) => definition,
+      (tag: string, props: Record<string, unknown>, children: unknown): Node => ({
+        tag,
+        props,
+        children,
+      }),
+      () => ({ localeIndex: { value: 'fr' } }),
+    ) as { setup: () => () => Node };
+    const button = component.setup()();
+    expect(button.tag).toBe('button');
+    expect(button.props).toEqual({
+      type: 'button',
+      class: 'ondocs-button',
+      'data-ondocs-open': '',
+      'aria-haspopup': 'dialog',
+      'aria-keyshortcuts': 'Meta+J Control+J',
+    });
+    expect(button.children).toEqual([
+      { tag: 'span', props: { class: 'ondocs-button-label' }, children: 'Demander' },
+      { tag: 'kbd', props: { 'aria-hidden': 'true', 'data-control': 'Strg' }, children: 'J' },
+    ]);
+  });
+
+  it('takes the button’s look with it, and leaves the floating button off', () => {
+    const source = launcherModule('/api/ask', { dialog: { navbar: 'Ask the docs' } }, SITE);
+    expect(source.split('\n').slice(0, 4)).toEqual([
+      'import "ondocs/react/styles.css";',
+      'import "ondocs/embed/launcher.css";',
+      'import "ondocs/embed/button.css";',
+      'import "ondocs/vitepress/launcher.css";',
+    ]);
+    expect(source).toContain('"launcher":false');
+    expect(source).not.toContain('navbar');
+    expect(navbarButtonModule({ navbar: 'Ask the docs', shortcut: false }, [])).toContain(
+      'const buttons = {"root":{"label":"Ask the docs","controlKey":"Ctrl"}};\nconst key = "";',
     );
   });
 });

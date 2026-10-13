@@ -1,7 +1,9 @@
 // The part of the embed every page runs: the "Ask AI" button and the shortcut, in plain DOM, with
 // no React. The dialog (React, Radix, cmdk) loads on first use: a pointer over or focus on the
-// button, the shortcut, or `open()`. A shortcut pressed while it loads opens it once it has.
+// button or a `data-ondocs-open` element, the shortcut, or `open()`. A shortcut pressed while it
+// loads opens it once it has.
 import { warnDeprecated } from '../deprecation';
+import { asked, listenForOpen } from './open';
 import type { OndocsDialogOptions, OndocsTheme } from './options';
 
 export interface MountAskDialogOptions extends OndocsDialogOptions {
@@ -23,7 +25,8 @@ export interface MountAskDialogOptions extends OndocsDialogOptions {
 }
 
 export interface MountedAskDialog {
-  open: () => void;
+  /** Opens the dialog, and asks `question` in it when one is given, in a new thread. */
+  open: (question?: string) => void;
   close: () => void;
   /** Removes the dialog, the button and, if it created it, the container. */
   unmount: () => void;
@@ -34,7 +37,11 @@ export interface DialogRenderer {
   render: (
     element: Element,
     options: DialogRenderOptions,
-  ) => { setOpen: (open: boolean) => void; unmount: () => void };
+  ) => {
+    /** Opens or closes the dialog; opening it with a question asks that question. */
+    setOpen: (open: boolean, question?: string) => void;
+    unmount: () => void;
+  };
 }
 
 export interface DialogRenderOptions extends Omit<
@@ -42,6 +49,8 @@ export interface DialogRenderOptions extends Omit<
   'container' | 'shortcut' | 'launcher' | 'buttonLabel'
 > {
   open: boolean;
+  /** A question to ask as the dialog opens. */
+  question?: string;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -95,6 +104,8 @@ export function mountWithLoader(
   }
 
   let open = false;
+  // The question the dialog was last opened with, for a dialog whose code is still loading.
+  let question: string | undefined;
   let dialog: ReturnType<DialogRenderer['render']> | null = null;
   let loading: Promise<void> | null = null;
   let unmounted = false;
@@ -134,10 +145,12 @@ export function mountWithLoader(
   const media = theme === 'auto' && typeof matchMedia === 'function' ? matchMedia(DARK) : null;
   media?.addEventListener('change', applyScheme);
 
-  const setOpen = (next: boolean): void => {
+  const setOpen = (next: boolean, asking?: string): void => {
     open = next;
+    if (next) question = asking;
     button?.setAttribute('aria-expanded', String(next));
-    dialog?.setOpen(next);
+    if (next && asking) dialog?.setOpen(next, asking);
+    else dialog?.setOpen(next);
   };
 
   /** Loads the dialog's code, once, and renders it closed or open as it is wanted by then. */
@@ -151,7 +164,10 @@ export function mountWithLoader(
           ...dialogOptions,
           theme,
           open,
-          onOpenChange: setOpen,
+          ...(open && question ? { question } : {}),
+          onOpenChange: (next) => {
+            setOpen(next);
+          },
         });
       })
       .catch((error: unknown) => {
@@ -161,8 +177,8 @@ export function mountWithLoader(
     return loading;
   };
 
-  const show = (): void => {
-    setOpen(true);
+  const show = (asking?: string): void => {
+    setOpen(true, asking);
     void prepare();
   };
 
@@ -185,6 +201,8 @@ export function mountWithLoader(
   const prefetch = (): void => {
     void prepare();
   };
+  // openAskDialog(), and the page's own buttons and forms with data-ondocs-open.
+  const stopListening = listenForOpen(show, prefetch);
   button?.addEventListener('pointerenter', prefetch);
   button?.addEventListener('focus', prefetch);
   button?.addEventListener('click', (event) => {
@@ -195,13 +213,16 @@ export function mountWithLoader(
   });
 
   return {
-    open: show,
+    open: (asking) => {
+      show(asked(asking));
+    },
     close: () => {
       setOpen(false);
     },
     unmount: () => {
       unmounted = true;
       window.removeEventListener('keydown', onKeyDown);
+      stopListening();
       observer?.disconnect();
       media?.removeEventListener('change', applyScheme);
       dialog?.unmount();

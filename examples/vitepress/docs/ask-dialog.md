@@ -29,6 +29,7 @@ description: 'AskDialog props, the launcher button, shortcuts, theming, accessib
 | `labels`                              | English                         | Every string the dialog and its button show or announce; see [Labels and languages](#labels-and-languages). |
 | `locale`                              | none                            | The page's locale, sent with each question, for an endpoint with an index per locale.                       |
 | `followUps`                           | `true`                          | Send the thread with each question, so the endpoint can answer follow-ups; `false` asks each alone.         |
+| `question`                            | none                            | Asked as the dialog opens with it, and when it changes while open, each time in a new thread.               |
 | `challenge`                           | none                            | `{ turnstile: '<site key>' }`: solve a [bot check](/bot-challenge) before each question.                    |
 
 ## Opening the dialog
@@ -36,6 +37,24 @@ description: 'AskDialog props, the launcher button, shortcuts, theming, accessib
 The dialog opens with ⌘I on macOS and Ctrl+I elsewhere, in React, in the plugins and with the script tag, so ⌘K stays with the site's search. The shortcut does nothing while a text field or editor has focus.
 
 To change the keyboard shortcut, pass another key, as in `shortcut="k"` on a site whose only search is this dialog, or turn it off with `shortcut={false}` and open the dialog from a `trigger` element or the `launcher` button instead. In the plugins, the same option is `dialog: { shortcut: 'k' }`, and with the script tag it is `data-shortcut="k"`.
+
+## Open it from your own button
+
+Any element with a `data-ondocs-open` attribute opens the dialog the page has: the Docusaurus, Starlight or VitePress plugin's, the script tag's, or one from `mountAskDialog`. With a value, the attribute is a question, which the dialog asks in a new thread. A form with the attribute asks what its `question` field holds, or its first input, when it is submitted. There is no script to write, so it works in Markdown, MDX, a theme's template or an HTML navbar item:
+
+```html
+<button type="button" data-ondocs-open>Ask AI</button>
+<button type="button" data-ondocs-open="Do I need a vector database?">
+  Do I need a vector database?
+</button>
+<form data-ondocs-open>
+  <input name="question" placeholder="Ask these docs a question…" />
+</form>
+```
+
+From code, `openAskDialog(question?)` from `ondocs/embed` does the same in any framework, and so does `window.Ondocs.open(question?)` on a page with the script tag. A pointer over the element, or focus on it, loads the dialog's code, as on the launcher. The plugins' `navbar` option puts such a button in the navbar for you: see [Docusaurus](/docusaurus#ask-ai-in-the-docusaurus-navbar), [Starlight](/astro#ask-ai-in-the-starlight-header) and [VitePress](/vitepress#ask-ai-in-the-vitepress-nav-bar). For its look on a button of your own, import `ondocs/embed/button.css` and give the button the `ondocs-button` class, with its label in a `<span class="ondocs-button-label">`.
+
+In React, with a controlled `open`, the `question` prop does the same: set both to open the dialog on a question.
 
 ## When the dialog's code loads
 
@@ -45,7 +64,7 @@ In the plugins' sites this takes the JavaScript ondocs adds to each page from ab
 
 ## The launcher button
 
-`launcher` adds a floating "Ask AI" button in the corner of the page, with the shortcut on it. Pass a string to change its label, as in `launcher="Ask the docs"`, and import `ondocs/embed/launcher.css` for its look, or style `.ondocs-launcher` yourself. The plugins and the script tag show it by default; there, `launcher: false` (or `data-launcher="false"`) hides it.
+`launcher` adds a floating "Ask AI" button in the corner of the page, with the shortcut on it. Pass a string to change its label, as in `launcher="Ask the docs"`, and import `ondocs/embed/launcher.css` for its look, or style `.ondocs-launcher` yourself. The plugins and the script tag show it by default; there, `launcher: false` (or `data-launcher="false"`) hides it, and so does the plugins' `navbar: true`, which puts the button in the navbar instead.
 
 ## Citations and navigation
 

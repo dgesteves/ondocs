@@ -13,6 +13,7 @@ export interface AskWithLauncherProps extends OndocsDialogOptions {
   headers?: Record<string, string>;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  question?: string;
   onNavigate?: AskDialogProps['onNavigate'];
 }
 

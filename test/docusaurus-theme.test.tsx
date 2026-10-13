@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { OndocsGlobalData } from '../src/docusaurus';
+import NavbarSearch from '../src/docusaurus/theme/Navbar/Search';
 import Ondocs from '../src/docusaurus/theme/Ondocs';
 import OndocsMcp from '../src/docusaurus/theme/OndocsMcp';
+import { openAskDialog } from '../src/embed';
 import { globalData } from './docusaurus-client';
 
 beforeAll(() => {
@@ -55,6 +57,130 @@ describe('@theme/Ondocs', () => {
     render(<Ondocs pluginId="blog" />);
     const launcher = await screen.findByRole('button', { name: 'Ask' });
     expect(launcher.getAttribute('aria-keyshortcuts')).toBe('Meta+I Control+I');
+  });
+});
+
+describe('@theme/Navbar/Search, with the navbar button', () => {
+  /** The plugin's global data, as `dialog.navbar` makes it, for one test. */
+  function withNavbar(data: Partial<OndocsGlobalData>): void {
+    const { instances } = globalData;
+    globalData.instances = {
+      docs: {
+        endpoint: '/api/ask',
+        dialog: { title: 'Ask the docs', launcher: false },
+        navbar: 'Ask AI',
+        ...data,
+      },
+    };
+    onTestFinished(() => {
+      globalData.instances = instances;
+    });
+  }
+
+  it('renders the search box alone without dialog.navbar', () => {
+    const { container } = render(
+      <NavbarSearch className="search">
+        <input aria-label="Search" />
+      </NavbarSearch>,
+    );
+    expect(container.innerHTML).toBe(
+      '<div class="navbar-search search"><input aria-label="Search"></div>',
+    );
+  });
+
+  it('puts the button after the search box, with its shortcut, and it opens the dialog', async () => {
+    withNavbar({});
+    render(
+      <>
+        <NavbarSearch>
+          <input aria-label="Search" />
+        </NavbarSearch>
+        <Ondocs />
+      </>,
+    );
+    const button = screen.getByRole('button', { name: 'Ask AI' });
+    expect(button.parentElement?.className).toBe('navbar-search ondocs-navbar');
+    expect(button.previousElementSibling?.getAttribute('aria-label')).toBe('Search');
+    expect(button.getAttribute('aria-keyshortcuts')).toBe('Meta+I Control+I');
+    expect(button.querySelector('kbd')?.outerHTML).toBe(
+      '<kbd aria-hidden="true" data-control="Ctrl">I</kbd>',
+    );
+    // The floating launcher is off: the plugin set launcher: false with navbar.
+    expect(document.querySelector('.ondocs-launcher')).toBeNull();
+    await userEvent.click(button);
+    expect(await screen.findByRole('dialog', { name: 'Ask the docs' })).toBeTruthy();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(document.activeElement).toBe(button);
+    });
+  });
+
+  it('labels the button and its shortcut as the options say', () => {
+    withNavbar({
+      dialog: { title: 'Demander', shortcut: 'j', labels: { controlKey: 'Strg' } },
+      navbar: 'Demander',
+    });
+    render(<NavbarSearch />);
+    const button = screen.getByRole('button', { name: 'Demander' });
+    expect(button.getAttribute('aria-keyshortcuts')).toBe('Meta+J Control+J');
+    expect(button.querySelector('kbd')?.dataset.control).toBe('Strg');
+  });
+
+  it('has no shortcut hint with the shortcut off', () => {
+    withNavbar({ dialog: { title: 'Ask', shortcut: false } });
+    render(<NavbarSearch />);
+    const button = screen.getByRole('button', { name: 'Ask AI' });
+    expect(button.hasAttribute('aria-keyshortcuts')).toBe(false);
+    expect(button.querySelector('kbd')).toBeNull();
+  });
+});
+
+describe('@theme/Ondocs, opened from the page', () => {
+  it('opens from openAskDialog() and data-ondocs-open, asking their question', async () => {
+    const asked: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: RequestInit) => {
+        const { question } = JSON.parse(init?.body as string) as { question: string };
+        asked.push(question);
+        return Promise.resolve(
+          new Response(
+            [
+              { type: 'start', messageMetadata: { refused: false, retrieval: 'keyword' } },
+              { type: 'text-delta', id: 'a', delta: `You asked: ${question}` },
+              { type: 'finish' },
+            ]
+              .map((part) => `data: ${JSON.stringify(part)}\n\n`)
+              .join(''),
+            { headers: { 'content-type': 'text/event-stream' } },
+          ),
+        );
+      }),
+    );
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    render(
+      <>
+        <button type="button" data-ondocs-open="Is it free?">
+          Is it free?
+        </button>
+        <Ondocs />
+        <Ondocs />
+      </>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Is it free?' }));
+    expect(await screen.findByText('You asked: Is it free?')).toBeTruthy();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    act(() => {
+      openAskDialog('Where does it run?');
+    });
+    expect(await screen.findByText('You asked: Where does it run?')).toBeTruthy();
+    // Rendered twice, it listens once.
+    expect(asked).toEqual(['Is it free?', 'Where does it run?']);
   });
 });
 

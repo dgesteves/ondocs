@@ -474,6 +474,147 @@ describe('ondocs/starlight', () => {
   });
 });
 
+describe('ondocs/starlight with dialog.navbar', () => {
+  /** The plugin's config:setup, with what it updated and the integration it added. */
+  function setup(
+    options: Parameters<typeof starlightOndocs>[0],
+    config: Partial<StarlightUserConfig> = {},
+  ) {
+    const plugin = starlightOndocs({ embeddingModel: mockEmbeddingModel(), ...options });
+    const updateConfig = vi.fn();
+    let integration: AstroIntegration | undefined;
+    (plugin.hooks['config:setup'] as unknown as (options: unknown) => void)({
+      config: { title: 'Acme Docs', ...config },
+      addIntegration: (added: AstroIntegration) => {
+        integration = added;
+      },
+      updateConfig,
+      astroConfig: { root: pathToFileURL('/site/') },
+    });
+    if (!integration) throw new Error('the plugin added no integration');
+    return { updateConfig, integration };
+  }
+
+  /** What the integration sets up in Astro: its injected scripts, and the navbar module. */
+  async function astroSetup(integration: AstroIntegration) {
+    const injected: [string, string][] = [];
+    const updateConfig = vi.fn();
+    const hooks = integration.hooks as Record<string, (options: unknown) => unknown>;
+    await hooks['astro:config:setup']?.({
+      config: { base: '/' },
+      injectScript: (stage: string, content: string) => injected.push([stage, content]),
+      updateConfig,
+      logger: { info: vi.fn(), warn: vi.fn() },
+    });
+    const { plugins } = (updateConfig.mock.calls[0]?.[0] as { vite: { plugins: unknown[] } }).vite;
+    const navbar = (
+      plugins as { resolveId?: (id: string) => string | null; load?: (id: string) => unknown }[]
+    )
+      .map((plugin) => {
+        const id = plugin.resolveId?.('virtual:ondocs/starlight/navbar');
+        return id ? plugin.load?.(id) : undefined;
+      })
+      .find((code) => code !== undefined && code !== null);
+    return { injected, navbar };
+  }
+
+  it('leaves Starlight’s Search as it is without the option', async () => {
+    const { updateConfig, integration } = setup({});
+    expect(updateConfig).not.toHaveBeenCalled();
+    const { injected, navbar } = await astroSetup(integration);
+    expect(navbar).toBeUndefined();
+    expect(injected.find(([stage]) => stage === 'page-ssr')?.[1]).not.toContain('button.css');
+  });
+
+  it('puts its Search in place, rendering Starlight’s, with the button after it', async () => {
+    const { updateConfig, integration } = setup(
+      { dialog: { navbar: true } },
+      { components: { Footer: './src/Footer.astro' } },
+    );
+    expect(updateConfig).toHaveBeenCalledWith({
+      components: { Footer: './src/Footer.astro', Search: 'ondocs/starlight/Search.astro' },
+    });
+    const { injected, navbar } = await astroSetup(integration);
+    expect(navbar).toBe(
+      [
+        'export { default } from "@astrojs/starlight/components/Search.astro";',
+        'export const renderSearch = true;',
+        'export const shortcut = "I";',
+        'export const buttons = {"":{"label":"Ask AI","controlKey":"Ctrl"}};',
+        '',
+      ].join('\n'),
+    );
+    // The button's look, then Starlight's colors; and no floating button.
+    expect(injected.find(([stage]) => stage === 'page-ssr')?.[1]).toContain(
+      'import "ondocs/embed/button.css";\nimport "ondocs/starlight/launcher.css";',
+    );
+    const page = injected.find(([stage]) => stage === 'page')?.[1] ?? '';
+    expect(page).toContain('"launcher":false');
+    expect(page).not.toContain('navbar');
+  });
+
+  it('wraps the Search the site has, resolved from the project root, in each locale’s words', async () => {
+    const { integration } = setup(
+      {
+        dialog: {
+          navbar: true,
+          shortcut: 'j',
+          labels: { controlKey: 'Ctrl' },
+          locales: { fr: { labels: { launcher: 'Demander', controlKey: 'Strg' } } },
+        },
+      },
+      {
+        components: { Search: './src/components/Search.astro' },
+        pagefind: false,
+        locales: { root: { label: 'English', lang: 'en' }, fr: { label: 'Français' } },
+      },
+    );
+    const { navbar } = await astroSetup(integration);
+    expect(navbar).toContain(
+      `export { default } from ${JSON.stringify(join('/site', 'src/components/Search.astro'))};`,
+    );
+    // Starlight renders a replaced Search even without Pagefind.
+    expect(navbar).toContain('export const renderSearch = true;');
+    expect(navbar).toContain('export const shortcut = "J";');
+    expect(navbar).toContain(
+      'export const buttons = {"":{"label":"Ask AI","controlKey":"Ctrl"},"fr":{"label":"Demander","controlKey":"Strg"}};',
+    );
+  });
+
+  it('renders no search box where Starlight would render none, and takes a label', async () => {
+    const { integration } = setup(
+      { dialog: { navbar: 'Ask the docs', shortcut: false } },
+      { pagefind: false },
+    );
+    const { navbar } = await astroSetup(integration);
+    expect(navbar).toContain('export const renderSearch = false;');
+    expect(navbar).toContain('export const shortcut = "";');
+    expect(navbar).toContain('"label":"Ask the docs"');
+  });
+
+  it('does not wrap its own Search, with the plugin listed twice', () => {
+    const { updateConfig } = setup(
+      { dialog: { navbar: true } },
+      { components: { Search: 'ondocs/starlight/Search.astro' } },
+    );
+    expect(updateConfig).not.toHaveBeenCalled();
+  });
+
+  it('ships Search.astro next to the plugin, reading the navbar module', async () => {
+    const source = await readFile(
+      join(import.meta.dirname, '..', 'src/starlight/Search.astro'),
+      'utf8',
+    );
+    expect(source).toContain("from 'virtual:ondocs/starlight/navbar'");
+    expect(source).toContain('data-ondocs-open');
+    const manifest = JSON.parse(
+      await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8'),
+    ) as { exports: Record<string, unknown> };
+    expect(manifest.exports['./starlight/Search.astro']).toBe('./dist/starlight/Search.astro');
+    expect(manifest.exports['./embed/button.css']).toBe('./dist/embed/button.css');
+  });
+});
+
 describe('ondocs/astro', () => {
   /** A page of a plain Astro site: chrome around <main>. */
   const page = (title: string, main: string, head = '') =>

@@ -7,14 +7,20 @@ import { useColorScheme } from '../react/launcher';
 import { DialogPanel } from '../react/dialog-panel';
 import type { DialogRenderOptions, DialogRenderer } from './mount';
 
-interface OpenState {
-  subscribe: (listener: () => void) => () => void;
-  get: () => boolean;
-  set: (open: boolean) => void;
+/** Whether the dialog is open, and the question it was opened with. */
+interface Opened {
+  open: boolean;
+  question?: string;
 }
 
-function openState(initial: boolean): OpenState {
-  let open = initial;
+interface OpenState {
+  subscribe: (listener: () => void) => () => void;
+  get: () => Opened;
+  set: (next: Opened) => void;
+}
+
+function openState(initial: Opened): OpenState {
+  let state = initial;
   const listeners = new Set<() => void>();
   return {
     subscribe: (listener) => {
@@ -23,9 +29,9 @@ function openState(initial: boolean): OpenState {
         listeners.delete(listener);
       };
     },
-    get: () => open,
+    get: () => state,
     set: (next) => {
-      open = next;
+      state = next;
       for (const listener of listeners) listener();
     },
   };
@@ -37,15 +43,16 @@ function Embedded({
   onNavigate,
   onOpenChange,
   ...props
-}: Omit<DialogRenderOptions, 'open'> & { state: OpenState }): ReactNode {
-  const open = useSyncExternalStore(state.subscribe, state.get, state.get);
+}: Omit<DialogRenderOptions, 'open' | 'question'> & { state: OpenState }): ReactNode {
+  const { open, question } = useSyncExternalStore(state.subscribe, state.get, state.get);
   return (
     <DialogPanel
       {...props}
       theme={useColorScheme(theme)}
       open={open}
+      {...(question ? { question } : {})}
       onOpenChange={(next) => {
-        state.set(next);
+        state.set({ open: next });
         onOpenChange(next);
       }}
       {...(onNavigate
@@ -60,13 +67,16 @@ function Embedded({
 }
 
 export const render: DialogRenderer['render'] = (element, options) => {
-  const state = openState(options.open);
+  const { open, question, ...rest } = options;
+  const state = openState({ open, question });
   const root = createRoot(element);
-  const { open: _initial, ...rest } = options;
   root.render(<Embedded {...rest} endpoint={options.endpoint ?? '/api/ask'} state={state} />);
   return {
-    setOpen: (open) => {
-      if (state.get() !== open) state.set(open);
+    setOpen: (next, asking) => {
+      const current = state.get();
+      if (current.open !== next || current.question !== asking) {
+        state.set({ open: next, question: asking });
+      }
     },
     unmount: () => {
       root.unmount();

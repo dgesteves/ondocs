@@ -45,6 +45,16 @@ In the browser the plugin adds a floating "Ask AI" button beside the back-to-top
 
 DocSearch's own Ask AI panel also opens with ⌘I. Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. `dialog: { links: 'sources' }` keeps only the answer's links to its source pages.
 
+## Ask AI in the Docusaurus navbar
+
+`dialog: { navbar: true }` puts the "Ask AI" button in the navbar instead of the corner: after the search box, or where it would be without a search plugin, filled with your primary color and with the shortcut on it, ⌘I on a Mac and Ctrl I elsewhere. On a phone it is an icon that stays in the navbar beside search, not in the menu. Pass a string for another label, as in `navbar: 'Ask the docs'`; by default it is `labels.launcher`, in each locale. The floating button is off with it, unless you also set `launcher: true`.
+
+```ts
+plugins: [['ondocs/docusaurus', { dialog: { navbar: true } }]],
+```
+
+The plugin renders the button from its own `@theme/Navbar/Search`, which wraps the classic theme's, so it works with DocSearch, a local search plugin or none. If your site swizzles `Navbar/Search`, or wants the button somewhere else, give any element the `data-ondocs-open` attribute and it opens the dialog: see [Open it from your own button](/docs/ask-dialog#open-it-from-your-own-button).
+
 ## Embeddings in Docusaurus
 
 The plugin embeds with OpenAI's `text-embedding-3-small` at 512 dimensions when `OPENAI_API_KEY` is set at build time, or with the same model through AI Gateway when only `AI_GATEWAY_API_KEY` is. Without either key it builds a keyword-only index and prints a warning. If a key is set but the provider cannot load, the build fails with the reason instead of quietly going keyword-only.
@@ -81,7 +91,7 @@ Build the site once, run `npx ondocs dev` in its folder, which answers from `bui
 | `chunking`                 | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                        |
 | `indexFile`                | `ask-index.json`                   | Where the index is written in `build/` and served from.                                       |
 | `exclude`                  | `[]`                               | Path prefixes to leave out, relative to `baseUrl`.                                            |
-| `dialog`                   |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `labels`, `locales`.           |
+| `dialog`                   |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar`, `labels`, `locales`. |
 | `mcp`                      | none                               | The [MCP endpoint](/docs/mcp)'s URL or path, for `<OndocsMcp />`.                             |
 | `llmsTxt`                  | on                                 | Write [llms.txt, llms-full.txt and .md copies](/docs/llms-txt); `false` turns them off.       |
 

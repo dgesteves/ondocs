@@ -1,0 +1,33 @@
+---
+// The header's search box with the "Ask AI" button after it. The ondocs Starlight plugin's
+// `dialog.navbar` puts this in place of Starlight's `Search`, and it renders the Search the site
+// had before (Starlight's own, the site's override or another plugin's) inside it. The button
+// opens the dialog through its `data-ondocs-open` attribute; its sparkle is the stylesheet's.
+import Search, { buttons, renderSearch, shortcut } from 'virtual:ondocs/starlight/navbar';
+
+const locale: string = Astro.locals.starlightRoute?.locale ?? '';
+const { label, controlKey } = buttons[locale] ?? buttons[''];
+---
+
+<div class="ondocs-navbar">
+  {renderSearch && <Search {...Astro.props} />}
+  <button
+    type="button"
+    class="ondocs-button"
+    data-ondocs-open
+    aria-haspopup="dialog"
+    aria-keyshortcuts={shortcut ? `Meta+${shortcut} Control+${shortcut}` : undefined}
+  >
+    <span class="ondocs-button-label">{label}</span>
+    {shortcut && <kbd aria-hidden="true" data-control={controlKey}>{shortcut}</kbd>}
+  </button>
+</div>
+
+{/* Inline, as Starlight's own search does, so the shortcut never shows the wrong key: ⌘ on
+    Apple devices, Ctrl elsewhere, chosen by the stylesheet from this attribute. */}
+<script is:inline>
+  document.documentElement.toggleAttribute(
+    'data-ondocs-mac',
+    /Mac|iPhone|iPad/.test(navigator.platform),
+  );
+</script>

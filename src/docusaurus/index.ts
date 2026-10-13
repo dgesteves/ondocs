@@ -1,7 +1,8 @@
 /**
  * ondocs/docusaurus: a Docusaurus plugin. After `docusaurus build` it indexes the pages the
  * site actually serves into `ask-index.json` in the build output, and it renders the ask dialog,
- * opened from a floating button or a shortcut, from the site's `Root`.
+ * opened from a floating button (or, with `dialog.navbar`, a button in the navbar) or a shortcut,
+ * from the site's `Root`.
  *
  * The answers come from an endpoint you deploy next to the site (a Vercel, Netlify or Cloudflare
  * function running `createAskHandler` from `ondocs/server`); see the README.
@@ -44,6 +45,13 @@ export type OndocsLocaleDialogOptions = LocaleDialogOptions;
 export interface OndocsDialogOptions extends DialogOptions {
   /** The dialog's accessible name. Default "Ask {site title}", or `labels.title`. */
   title?: string;
+  /**
+   * An "Ask AI" button in the navbar, after the search box (or where it would be): `true`, or
+   * the button's label, by default `labels.launcher` ("Ask AI"). It shows the shortcut, and on
+   * a phone it is an icon that stays in the navbar. With it, the floating button is off unless
+   * `launcher` is set. Off by default.
+   */
+  navbar?: boolean | string;
   /**
    * Options for each locale of the site, by its Docusaurus locale (`fr`, `pt-BR`), over these:
    * the labels, the title and the suggestions in that language. The build for a locale uses its
@@ -94,7 +102,9 @@ export type OndocsOptions = IndexOptions & {
 /** What the theme reads with `useAllPluginInstancesData('ondocs')`. */
 export interface OndocsGlobalData {
   endpoint: string;
-  dialog: Omit<OndocsDialogOptions, 'locales'> & { title: string };
+  dialog: Omit<OndocsDialogOptions, 'locales' | 'navbar'> & { title: string };
+  /** The navbar button's label, when `dialog.navbar` asks for one. */
+  navbar?: string;
   /** The locale this build is for, when it is not the default one. */
   locale?: string;
   /** The MCP endpoint, absolute, when the plugin's `mcp` option names one. */
@@ -138,9 +148,15 @@ export default function ondocs(context: LoadContext, options: OndocsOptions = {}
   const own = withLauncher(perLocale?.[currentLocale] ?? {}, `dialog.locales.${currentLocale}.`);
   const labels = { ...base.labels, ...own.labels };
   const dialog = { ...base, ...own, ...(Object.keys(labels).length > 0 ? { labels } : {}) };
+  // With a button in the navbar, the floating one is off unless `launcher` says otherwise.
+  const { navbar, ...rest } = dialog;
+  const launcher = navbar && rest.launcher === undefined ? { launcher: false } : {};
   const data: OndocsGlobalData = {
     endpoint: dialogEndpoint(options.endpoint),
-    dialog: { ...dialog, title: dialog.title ?? labels.title ?? `Ask ${siteTitle}` },
+    dialog: { ...rest, ...launcher, title: dialog.title ?? labels.title ?? `Ask ${siteTitle}` },
+    ...(navbar
+      ? { navbar: typeof navbar === 'string' ? navbar : (labels.launcher ?? 'Ask AI') }
+      : {}),
     ...(defaultLocale !== undefined && currentLocale !== defaultLocale
       ? { locale: currentLocale }
       : {}),
@@ -158,6 +174,21 @@ export default function ondocs(context: LoadContext, options: OndocsOptions = {}
     getClientModules() {
       // The dialog's stylesheet (dist/styles.css, `ondocs/react/styles.css`) and the launcher's.
       return [join(here, '..', 'styles.css'), join(here, 'launcher.css')];
+    },
+
+    injectHtmlTags() {
+      // The navbar button's shortcut reads ⌘ on Apple devices and Ctrl elsewhere, from an
+      // attribute set before the page renders, so the server's HTML is right as it is.
+      if (!data.navbar) return {};
+      return {
+        headTags: [
+          {
+            tagName: 'script',
+            innerHTML:
+              "document.documentElement.toggleAttribute('data-ondocs-mac',/Mac|iPhone|iPad/.test(navigator.platform))",
+          },
+        ],
+      };
     },
 
     contentLoaded({ actions }: { actions: { setGlobalData: (data: unknown) => void } }) {
