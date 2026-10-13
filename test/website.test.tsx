@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The website's shell (examples/nextjs): the theme, the header and footer, and its SEO plumbing.
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { act, cleanup, render, screen } from '@testing-library/react';
@@ -308,6 +308,29 @@ describe('the SEO plumbing', () => {
     const { default: manifest } = await import('../examples/nextjs/app/manifest');
     expect(manifest()).toMatchObject({ name: 'ondocs', start_url: '/' });
     expect(readFileSync(join(site, 'app/sitemap.ts'), 'utf8')).not.toContain('changeFrequency');
+  });
+});
+
+describe('Vercel Web Analytics', () => {
+  it('is rendered once, with no options, at the end of <body>', () => {
+    const layout = readFileSync(join(site, 'app/layout.tsx'), 'utf8');
+    expect(layout).toContain("import { Analytics } from '@vercel/analytics/next';");
+    expect(layout.match(/<Analytics\b/g)).toHaveLength(1);
+    expect(layout).toMatch(/<Analytics \/>\s*<\/body>/);
+    const { dependencies } = JSON.parse(readFileSync(join(site, 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>;
+    };
+    expect(dependencies['@vercel/analytics']).toBe('^2.0.1');
+  });
+
+  it('sends no custom events: only the root layout uses the package', () => {
+    const users = ['app', 'components', 'lib'].flatMap((dir) =>
+      readdirSync(join(site, dir), { recursive: true, encoding: 'utf8' })
+        .filter((file) => /\.tsx?$/.test(file))
+        .map((file) => join(dir, file))
+        .filter((file) => readFileSync(join(site, file), 'utf8').includes('@vercel/analytics')),
+    );
+    expect(users).toEqual(['app/layout.tsx']);
   });
 });
 
