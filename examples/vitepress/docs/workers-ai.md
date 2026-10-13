@@ -20,7 +20,8 @@ cd ondocs-worker && npm install && npx wrangler deploy
 Or start from the template, set `SITE_URL` in its `wrangler.jsonc` to the site's URL with its base path, and deploy:
 
 ```sh
-npm create cloudflare@latest my-docs-ask -- --template=dgesteves/ondocs/templates/cloudflare-worker
+npm create cloudflare@latest my-docs-ask -- \
+  --template=dgesteves/ondocs/templates/cloudflare-worker
 cd my-docs-ask && npx wrangler deploy
 ```
 
@@ -44,7 +45,8 @@ ondocs({
 
 ```sh
 # Any other site
-npx ondocs index public -o public/ask-index.json -e workers-ai:@cf/baai/bge-small-en-v1.5
+npx ondocs index public -o public/ask-index.json \
+  -e workers-ai:@cf/baai/bge-small-en-v1.5
 ```
 
 The build calls Cloudflare's REST API with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, a token with Workers AI Read and Edit permissions, set as repository secrets for a GitHub Actions build. It sends each chunk's text, 100 at a time, and gets back BGE-small's 384-dimension vectors, at $0.020 per million tokens (1,841 neurons per million). The Worker embeds each question with the same model through its AI binding. Both send only the text, so both get the model's default pooling, as they must to compare.

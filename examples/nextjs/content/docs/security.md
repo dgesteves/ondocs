@@ -2,6 +2,7 @@
 title: Rate limits and security
 description: Rate limiting, client IPs, CORS, prompt injection and what data leaves your servers.
 section: Guides
+group: Deploy & operate
 order: 24
 ---
 

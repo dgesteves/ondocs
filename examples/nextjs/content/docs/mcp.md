@@ -2,6 +2,7 @@
 title: MCP server
 description: Serve the same index to coding agents and AI apps as an MCP server, with search and fetch tools, and no model call on your side.
 section: Integrations
+group: For agents
 order: 15
 ---
 

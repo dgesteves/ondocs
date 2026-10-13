@@ -1,7 +1,7 @@
 ---
 # Generated from examples/nextjs/content/docs/cli.md by scripts/sync-example-docs.mjs. Edit that file instead.
 title: 'CLI and config file'
-description: 'Every flag of ondocs index, init, dev and eval, and the config module.'
+description: "Every flag of ondocs index, init, dev and eval, and the config module for an embedding model the flags don't cover or content that isn't on disk."
 ---
 
 The `ondocs` command has four subcommands: `index` builds or checks the index, `init` writes the endpoint for your host, `dev` serves the endpoint on your machine, and `eval` scores retrieval against questions whose answers you know. Run them with `npx ondocs`, or from a `package.json` script.

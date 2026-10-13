@@ -2,6 +2,8 @@
 title: Bot check with Turnstile
 description: Ask visitors' browsers to pass a Cloudflare Turnstile check before each question, so a fleet of bots cannot spend your model budget.
 section: Guides
+group: Deploy & operate
+label: Bot check
 order: 25
 ---
 

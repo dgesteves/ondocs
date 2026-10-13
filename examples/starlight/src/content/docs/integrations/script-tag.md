@@ -33,7 +33,8 @@ If you host the script yourself, copy both files to the same folder, or point at
 The script only adds the dialog; the answers come from an endpoint that reads your index. Build the index with the CLI, either from your Markdown or from the HTML your generator built, which has the URLs it actually serves:
 
 ```sh
-hugo && npx ondocs index public -o public/ask-index.json -e openai:text-embedding-3-small
+hugo && npx ondocs index public -o public/ask-index.json \
+  -e openai:text-embedding-3-small
 ```
 
 `-o public/ask-index.json` puts the index in the folder the site deploys, where the endpoint reads it. The OpenAI embedding needs `OPENAI_API_KEY` set. Without a key, `-e none` builds a keyword-only index, which works too.
