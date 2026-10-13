@@ -15,7 +15,14 @@ import {
 } from 'react';
 
 import type { OndocsTheme } from '../embed/options';
-import { AskAnswer, citedSourceIds, safeHref, type AnswerLinks } from './answer';
+import {
+  AskAnswer,
+  citedSourceIds,
+  mappedHref,
+  mapSourceUrl,
+  type AnswerLinks,
+  type SourceUrls,
+} from './answer';
 import type { AskDialogProps, AskDialogSlot } from './ask-dialog';
 import { fill, resolveLabels, type ResolvedLabels } from './labels';
 import { useThemeAttribute } from './theme';
@@ -243,6 +250,7 @@ export function DialogPanel({
   footer,
   links = 'all',
   challenge,
+  sourceUrls,
   ...askOptions
 }: DialogPanelProps): ReactNode {
   const labels = resolveLabels(given);
@@ -426,6 +434,7 @@ export function DialogPanel({
                 onNewQuestion={newQuestion}
                 classNames={classNames}
                 links={links}
+                sourceUrls={sourceUrls}
               />
             ) : null}
           </Command>
@@ -458,6 +467,7 @@ function AnswerPanel({
   onNewQuestion,
   classNames,
   links,
+  sourceUrls,
 }: {
   state: ReturnType<typeof useAsk>;
   labels: ResolvedLabels;
@@ -465,6 +475,7 @@ function AnswerPanel({
   onNewQuestion: () => void;
   classNames: Partial<Record<AskDialogSlot, string>>;
   links: AnswerLinks;
+  sourceUrls: SourceUrls | undefined;
 }): ReactNode {
   const streaming = state.status === 'streaming';
   const settled = state.status === 'done' || state.status === 'error';
@@ -487,6 +498,7 @@ function AnswerPanel({
               onNavigate={onNavigate}
               links={links}
               citationLabel={labels.citation}
+              sourceUrls={sourceUrls}
             />
           </div>
         </div>
@@ -514,6 +526,7 @@ function AnswerPanel({
             onNavigate={onNavigate}
             links={links}
             citationLabel={labels.citation}
+            sourceUrls={sourceUrls}
           />
         )}
         {streaming ? <span className="ask-caret" aria-hidden="true" /> : null}
@@ -543,7 +556,7 @@ function AnswerPanel({
           <h2 className="ask-sources-heading">{labels.sources}</h2>
           <ol>
             {state.sources.map((source) => {
-              const href = safeHref(source.url);
+              const href = mappedHref(source.url, sourceUrls);
               return (
                 <li key={source.id}>
                   <a
@@ -563,7 +576,7 @@ function AnswerPanel({
                         <span className="ask-source-heading">{source.heading}</span>
                       ) : null}
                     </span>
-                    <span className="ask-source-url">{source.url}</span>
+                    <span className="ask-source-url">{mapSourceUrl(source.url, sourceUrls)}</span>
                   </a>
                 </li>
               );

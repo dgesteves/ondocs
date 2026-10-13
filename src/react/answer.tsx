@@ -22,9 +22,55 @@ export interface AskAnswerProps {
    * `"Source {n}: {title}"`.
    */
   citationLabel?: string;
+  /** Where the citations and the answer's links point, for an index from another site. */
+  sourceUrls?: SourceUrls;
 }
 
 export type AnswerLinks = 'all' | 'sources';
+
+/**
+ * Where the answer's citations, sources and links point, for a dialog whose endpoint answers from
+ * another site's index, such as a copy of that site's docs. A URL whose page is a key of `pages`
+ * goes to its value, with its anchor kept: `{ '/docs/setup': '/setup' }` sends
+ * `/docs/setup#install` to `/setup#install`. Any other relative URL is resolved against `base`,
+ * the other site's address, so it opens there rather than at a page this site does not have.
+ */
+export interface SourceUrls {
+  /** URLs of pages in the endpoint's index, without an anchor, and the URL of each page here. */
+  pages?: Record<string, string>;
+  /** The address other relative URLs resolve against, such as `https://docs.acme.dev`. */
+  base?: string;
+}
+
+/**
+ * `url` as `sourceUrls` maps it: to its page's URL here, with its anchor, else resolved against
+ * `base` when it is relative. Absolute URLs that are not in `pages`, and anchors alone, stay as
+ * they are.
+ */
+export function mapSourceUrl(url: string, sourceUrls: SourceUrls | undefined): string {
+  // An anchor alone is a place on the page the visitor is on.
+  if (!sourceUrls || url.startsWith('#')) return url;
+  const hash = url.indexOf('#');
+  const page = hash === -1 ? url : url.slice(0, hash);
+  const anchor = hash === -1 ? '' : url.slice(hash);
+  const { pages = {}, base } = sourceUrls;
+  // A page matches with or without a trailing slash.
+  const trimmed = page.replace(/(.)\/+$/, '$1');
+  const key = [page, trimmed, `${trimmed}/`].find((candidate) => Object.hasOwn(pages, candidate));
+  if (key !== undefined) return `${pages[key] ?? ''}${anchor}`;
+  if (!base || /^[a-z][a-z\d+.-]*:/i.test(url)) return url;
+  try {
+    return new URL(url, base).href;
+  } catch {
+    return url;
+  }
+}
+
+/** `safeHref`, then `sourceUrls`: a link the model wrote must be safe before it is mapped. */
+export function mappedHref(href: string, sourceUrls: SourceUrls | undefined): string | null {
+  const safe = safeHref(href);
+  return safe === null ? null : safeHref(mapSourceUrl(safe, sourceUrls));
+}
 
 /** A URL's page, as `origin + path` without a trailing slash, resolved against the current page. */
 function pageOf(url: string): string | null {
@@ -37,10 +83,17 @@ function pageOf(url: string): string | null {
   }
 }
 
-/** Whether `href` opens one of the source pages. */
-function linksToSource(href: string, sources: Map<number, AskSource>): boolean {
+/** Whether `href` opens one of the source pages, as `sourceUrls` maps them. */
+function linksToSource(
+  href: string,
+  sources: Map<number, AskSource>,
+  sourceUrls: SourceUrls | undefined,
+): boolean {
   const page = pageOf(href);
-  return page !== null && [...sources.values()].some((source) => pageOf(source.url) === page);
+  return (
+    page !== null &&
+    [...sources.values()].some((source) => pageOf(mapSourceUrl(source.url, sourceUrls)) === page)
+  );
 }
 
 const INLINE =
@@ -93,6 +146,7 @@ export function AskAnswer({
   className,
   links = 'all',
   citationLabel = 'Source {n}: {title}',
+  sourceUrls,
 }: AskAnswerProps): ReactNode {
   const byId = new Map(sources.map((source) => [source.id, source]));
   const blocks: ReactNode[] = [];
@@ -107,7 +161,9 @@ export function AskAnswer({
         </pre>,
       );
     } else {
-      blocks.push(...prose(segment.text, byId, onNavigate, links, citationLabel, () => key++));
+      blocks.push(
+        ...prose(segment.text, byId, onNavigate, links, citationLabel, sourceUrls, () => key++),
+      );
     }
   }
   return <div className={className ?? 'ask-markdown'}>{blocks}</div>;
@@ -129,10 +185,11 @@ function prose(
   onNavigate: AskAnswerProps['onNavigate'],
   links: AnswerLinks,
   citationLabel: string,
+  sourceUrls: SourceUrls | undefined,
   nextKey: () => number,
 ): ReactNode[] {
   const inline = (line: string): ReactNode[] =>
-    renderInline(line, sources, onNavigate, links, citationLabel);
+    renderInline(line, sources, onNavigate, links, citationLabel, sourceUrls);
   const out: ReactNode[] = [];
   for (const block of text.split(/\n{2,}/)) {
     const runs: { kind: LineKind; lines: string[] }[] = [];
@@ -165,6 +222,7 @@ function renderInline(
   onNavigate: AskAnswerProps['onNavigate'],
   links: AnswerLinks,
   citationLabel: string,
+  sourceUrls: SourceUrls | undefined,
 ): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
@@ -178,8 +236,9 @@ function renderInline(
     } else if (bold !== undefined) {
       out.push(<strong key={key++}>{bold}</strong>);
     } else if (label !== undefined && href !== undefined) {
-      const safe = safeHref(href);
-      const target = safe && (links === 'all' || linksToSource(safe, sources)) ? safe : null;
+      const safe = mappedHref(href, sourceUrls);
+      const target =
+        safe && (links === 'all' || linksToSource(safe, sources, sourceUrls)) ? safe : null;
       out.push(
         target ? (
           <a
@@ -199,7 +258,7 @@ function renderInline(
       if (ids.every((id) => sources.has(id))) {
         for (const id of ids) {
           const source = sources.get(id);
-          const href = source ? safeHref(source.url) : null;
+          const href = source ? mappedHref(source.url, sourceUrls) : null;
           if (!source || !href) {
             out.push(`[${String(id)}]`);
             continue;

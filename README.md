@@ -65,6 +65,8 @@ Search runs in memory inside one function you deploy: BM25 and vectors, merged w
 
 Each answers from an endpoint you deploy as one function next to the site, rate-limited by default. `npx ondocs init` writes it for Vercel, Netlify, Cloudflare or GitHub Pages (as a Cloudflare Worker of its own, answering with Workers AI and no API key), and an Astro site with an SSR adapter needs none: see [Deploying](https://ondocs.vercel.app/docs/deployment).
 
+**Live demos:** [Docusaurus](https://ondocs-docusaurus.vercel.app), [Starlight](https://ondocs-starlight.vercel.app), [VitePress](https://ondocs-vitepress.vercel.app).
+
 **Docusaurus.** `npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk`, then:
 
 ```ts
@@ -113,7 +115,7 @@ npx ondocs init --out public                               # plain HTML needs --
 <script src="https://cdn.jsdelivr.net/npm/ondocs@0.10/dist/embed.global.js" defer></script>
 ```
 
-**Try it without a key.** `npx ondocs index ./docs -e mock`, then `npx ondocs dev`, serves the ask endpoint and the MCP server on localhost, with offline embeddings and a mock model that quotes your docs. See [Try it locally](https://ondocs.vercel.app/docs/local-development).
+**Try it without a key.** `npx ondocs index ./docs -e mock`, then `npx ondocs dev`, serves the ask endpoint and MCP server on localhost, with offline embeddings and a mock model that quotes your docs. See [Try it locally](https://ondocs.vercel.app/docs/local-development).
 
 ## For agents
 

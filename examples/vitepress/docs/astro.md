@@ -8,6 +8,8 @@ description: 'The Starlight plugin and the Astro integration, which index the bu
 
 `ondocs/starlight` is a Starlight plugin, and `ondocs/astro` is the Astro integration under it, for any other Astro site. Like the Docusaurus plugin, they build the index with the site and add the dialog to every page. They work with Astro 5, 6 and 7, and Starlight 0.32 and later.
 
+Live demo: [these docs as a Starlight site](https://ondocs-starlight.vercel.app), with the plugin, on Vercel.
+
 ## Install for Astro
 
 The dialog is a React component, so install React and its two dependencies along with the AI SDK:
@@ -47,7 +49,7 @@ export default defineConfig({ integrations: [ondocs()] });
 
 After `astro build`, the index is written to `dist/ask-index.json`, or to `dist/client/ask-index.json` on a site with an adapter, where Astro puts the static files it serves. It is at the URLs Astro serves: with your `base`, and with or without a trailing slash as `trailingSlash` and `build.format` have it.
 
-The Starlight plugin reads what Starlight's own search reads: the part of each page marked `data-pagefind-body`, which is the title and the Markdown, notes and tips included, without the header, sidebar, table of contents, edit link or pagination. Pages Starlight's search leaves out are left out too, such as the 404 page and pages with `pagefind: false`. Mark anything else with `data-pagefind-ignore`.
+The Starlight plugin reads what Starlight's own search reads: the part of each page marked `data-pagefind-body`, which is the title and the Markdown, notes and tips included, without the header, sidebar, table of contents, edit link or pagination. Pages Starlight's search leaves out are left out too, such as the 404 page and pages with `pagefind: false`, and so are pages with `<meta name="robots" content="noindex">`. Mark anything else with `data-pagefind-ignore`. To keep a site out of search engines and still index it, send an `X-Robots-Tag: noindex` header from the host rather than the meta tag, such as from `headers` in `vercel.json`.
 
 The Astro integration reads each page's `<main>`. Choose another part with `content: '.prose'` (a tag, `#id`, `.class` or `[attribute]`, or a comma-separated list) and leave parts out with `ignore: '.toc'`. 404 and 500 pages, redirects and `noindex` pages are skipped. Unchanged pages reuse their vectors from the previous build, cached in `node_modules/.cache/ondocs`.
 
@@ -65,7 +67,7 @@ Embeddings work as in the Docusaurus plugin. OpenAI's `text-embedding-3-small` a
 
 With an SSR adapter, there is nothing to deploy apart from the site: the integration serves `POST /api/ask` and `/api/mcp` itself, from the index it builds, and the dialog posts there. Set `OPENAI_API_KEY` where the site builds and where it runs. `route` changes the model and the limits, and `route: false` turns the routes off; see [Astro with an adapter](/deployment#astro-with-an-adapter). With `dialog.challenge.turnstile`, the ask route checks each question's [bot check](/bot-challenge) token, with the secret in `TURNSTILE_SECRET_KEY`.
 
-A static site, without an adapter, needs the endpoint as a function on its host. Write it with `npx ondocs init`, which reads `dist/ask-index.json` on Vercel, Netlify or Cloudflare, or writes a Cloudflare Worker for GitHub Pages; see [Deploying](/deployment). Astro writes `base` into URLs, not folders, so with `base: '/docs'` the file is still `dist/ask-index.json` and is served at `/docs/ask-index.json`.
+A static site, without an adapter, needs the endpoint as a function on its host, or `endpoint` set to one on another origin that sends CORS headers for the site's origin (see [Cross-origin requests](/security#cross-origin-requests)). Write it with `npx ondocs init`, which reads `dist/ask-index.json` on Vercel, Netlify or Cloudflare, or writes a Cloudflare Worker for GitHub Pages; see [Deploying](/deployment). Astro writes `base` into URLs, not folders, so with `base: '/docs'` the file is still `dist/ask-index.json` and is served at `/docs/ask-index.json`.
 
 To try it locally, build the site once and start `astro dev`: with an adapter, the integration's routes answer from the index the build wrote. Without one, run `npx ondocs dev`, which answers from `dist/ask-index.json` or `dist/client/ask-index.json`, and start `astro dev` with `ASK_ENDPOINT=http://localhost:8787/api/ask`.
 

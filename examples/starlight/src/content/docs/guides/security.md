@@ -75,6 +75,8 @@ A fleet of addresses gets past a per-client rate limit, and can use up the day's
 
 The endpoint only accepts `application/json` bodies and answers anything else with a 415. Browsers send a cross-origin JSON POST only after a CORS preflight, which fails unless you allow the origin, so another site cannot make its visitors' browsers spend your model budget. To call the endpoint from another origin on purpose, set `access-control-allow-origin` and `access-control-allow-headers: content-type` in the handler's `headers` option, and in Next.js also `export const OPTIONS = POST`.
 
+`headers` is the same for every request, and `access-control-allow-origin` names one origin. For several, wrap the handler and add the headers for the request's origin when it is one of yours, with `vary: origin`; [this site's route](https://github.com/dgesteves/ondocs/blob/main/examples/nextjs/app/api/ask/cors.ts) does that for its live demos. Add `access-control-expose-headers: retry-after` for the dialog to read a rate limit's wait. When the pages on the other origin are a copy of the site's, `sourceUrls` sends the citations to their own pages; see [The ask dialog](/reference/ask-dialog/#citations-and-navigation).
+
 ## Input limits
 
 Questions are limited to 500 characters (`maxQuestionLength`), and request bodies to 64 KiB (`maxBodyBytes`), counted while the body is read so a chunked upload cannot exhaust memory. The body is validated with zod, and malformed requests get a 400 with a JSON error.

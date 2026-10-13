@@ -19,7 +19,7 @@ This site serves its own: [/llms.txt](https://ondocs.vercel.app/llms.txt), [/llm
 
 ## In Docusaurus, Astro, Starlight and VitePress
 
-The plugins write all three after the build, into the build output next to `ask-index.json`, with nothing to set: `build/` for Docusaurus, `dist/` for Astro (`dist/client/` with an adapter) and `.vitepress/dist/` for VitePress. Each locale gets its own, as the index does. `llms.txt` takes its title and summary from the site's title and its tagline (Docusaurus) or description (Starlight and VitePress), and links absolutely when the site has a URL: `url` in Docusaurus, `site` in Astro, `sitemap.hostname` in VitePress.
+The plugins write all three after the build, into the build output next to `ask-index.json`, with nothing to set: `build/` for Docusaurus, `dist/` for Astro (`dist/client/` with an adapter) and `.vitepress/dist/` for VitePress. Each locale gets its own, as the index does. `llms.txt` takes its title and summary from the site's title and its tagline (Docusaurus) or description (Starlight and VitePress), and links absolutely when the site has a URL: `url` in Docusaurus, `site` in Astro, `sitemap.hostname` or the plugin's `siteUrl` in VitePress.
 
 Each page with a copy also links to it from its `<head>`, so an agent that fetches the page finds the Markdown without guessing the URL:
 

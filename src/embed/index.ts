@@ -13,6 +13,7 @@ import type { OndocsDialogOptions, OndocsTheme } from './options';
 
 export type { OndocsDialogOptions, OndocsTheme } from './options';
 export type { AskDialogLabels } from '../react/labels';
+export type { SourceUrls } from '../react/answer';
 export type { MountAskDialogOptions, MountedAskDialog } from './mount';
 
 /** @deprecated Use `OndocsDialogOptions`. Its name from before ask-my-site became ondocs. */

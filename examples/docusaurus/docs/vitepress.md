@@ -6,6 +6,8 @@ description: 'The VitePress plugin, which indexes the built site and adds the di
 
 The `ondocs/vitepress` plugin adds ondocs to a VitePress site by wrapping its config. After every `vitepress build` it indexes the pages the site serves, writes `llms.txt` and the pages' Markdown copies, and adds the dialog to every page with a floating "Ask AI" button. It works with VitePress 1 and the VitePress 2 alphas, with the default theme or a theme of your own, and needs no theme file.
 
+Live demo: [these docs as a VitePress site](https://ondocs-vitepress.vercel.app), with the plugin, on Vercel.
+
 ## Install for VitePress
 
 The dialog is a React component, so install React and its two dependencies along with the AI SDK. They load with the dialog, the first time a visitor opens it, and never on the rest of your Vue pages:
@@ -35,7 +37,9 @@ Options go in a second argument: `withOndocs(defineConfig({ ... }), { endpoint: 
 
 ## What VitePress indexes
 
-After `vitepress build`, the index is written to `.vitepress/dist/ask-index.json`, or `docs/.vitepress/dist/ask-index.json` when the site is in `docs/`. It is at the URLs VitePress serves: under `base`, with or without `.html` as `cleanUrls` has it, at the paths `rewrites` give the pages, and with a page for each path of a dynamic route. Files in `srcExclude` are not pages, so they are not indexed, and neither are pages with `search: false` in their frontmatter, which VitePress's local search leaves out too.
+After `vitepress build`, the index is written to `.vitepress/dist/ask-index.json`, or `docs/.vitepress/dist/ask-index.json` when the site is in `docs/`. It is at the URLs VitePress serves: under `base`, with or without `.html` as `cleanUrls` has it, at the paths `rewrites` give the pages, and with a page for each path of a dynamic route. Files in `srcExclude` are not pages, so they are not indexed, and neither are pages with `search: false` in their frontmatter, which VitePress's local search leaves out too, or with `<meta name="robots" content="noindex">`. To keep a site out of search engines and still index it, send an `X-Robots-Tag: noindex` header from the host rather than the meta tag.
+
+With `cleanUrls`, the index and citations have `/guide/setup`, and the host must serve `guide/setup.html` there. On Vercel, set `"cleanUrls": true` in `vercel.json`. Without it, VitePress moves between pages without loading them, so the site looks fine, but a page loaded at its URL is a 404: a citation opened in a new tab, a shared link, a reload.
 
 The plugin reads each page's Markdown as the default theme renders it, the `.vp-doc` element, without the navigation, sidebar, outline, edit link or pagination, and without the heading anchors and code blocks' language labels. A home page with only a hero has no Markdown, so it is skipped. A theme of your own that does not use `.vp-doc` names its content with `content: '.my-content'` (a tag, `#id`, `.class` or `[attribute]`, or a comma-separated list), and `ignore: '.toc'` leaves parts out. A page's title is its `<h1>`, else its title without the site's, and its description is its frontmatter `description`. Unchanged pages reuse their vectors from the previous build, cached in `node_modules/.cache/ondocs`.
 
@@ -57,7 +61,7 @@ Embeddings work as in the other plugins. OpenAI's `text-embedding-3-small` at 51
 
 ## Deploy the endpoint for VitePress
 
-A VitePress site is static, so the endpoint is a function on its host. Write it with `npx ondocs init`, which reads `.vitepress/dist/ask-index.json` on Vercel, Netlify or Cloudflare, or writes a Cloudflare Worker for GitHub Pages; see [Deploying](./deployment.md). When the endpoint is not at `/api/ask` on the site, point the dialog at it with `endpoint`. To serve the same index to agents, `init` writes the [MCP endpoint](./mcp.md) too, and the `mcp` option puts its URL in `llms.txt`.
+A VitePress site is static, so the endpoint is a function on its host. Write it with `npx ondocs init`, which reads `.vitepress/dist/ask-index.json` on Vercel, Netlify or Cloudflare, or writes a Cloudflare Worker for GitHub Pages; see [Deploying](./deployment.md). When the endpoint is not at `/api/ask` on the site, point the dialog at it with `endpoint`; on another origin, it must send CORS headers for the site's origin (see [Cross-origin requests](./security.md#cross-origin-requests)). To serve the same index to agents, `init` writes the [MCP endpoint](./mcp.md) too, and the `mcp` option puts its URL in `llms.txt`.
 
 `llms.txt` links pages absolutely when the plugin knows the site's URL: `sitemap.hostname`, or the `siteUrl` option. When vitepress-plugin-llms is in your Vite plugins, the plugin leaves the llms files to it.
 

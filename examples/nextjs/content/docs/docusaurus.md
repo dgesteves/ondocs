@@ -7,6 +7,8 @@ order: 10
 
 The `ondocs/docusaurus` plugin adds ondocs to a Docusaurus 3 site with one line of config. After every `docusaurus build` it indexes the pages the site serves, and in the browser it adds the dialog with a floating "Ask AI" button.
 
+Live demo: [these docs as a Docusaurus site](https://ondocs-docusaurus.vercel.app), with the plugin, on Vercel.
+
 ## Install the plugin
 
 Install the package with the AI SDK, the OpenAI provider (the default embedding model) and the dialog's two dependencies:
@@ -27,11 +29,13 @@ export default {
 };
 ```
 
-The dialog posts questions to `/api/ask` on your site. Set `endpoint` for another path or host, as in `['ondocs/docusaurus', { endpoint: 'https://ask.example.com/api/ask' }]`. The `ASK_ENDPOINT` environment variable, when it is set as the site builds or starts, overrides both, which is how [local development](/docs/local-development) points the dialog at `ondocs dev`.
+The dialog posts questions to `/api/ask` on your site. Set `endpoint` for another path or host, as in `['ondocs/docusaurus', { endpoint: 'https://ask.example.com/api/ask' }]`; an endpoint on another origin must send CORS headers for your site's origin, as in [Cross-origin requests](/docs/security#cross-origin-requests). The `ASK_ENDPOINT` environment variable, when it is set as the site builds or starts, overrides both, which is how [local development](/docs/local-development) points the dialog at `ondocs dev`.
 
 ## What the plugin indexes
 
 After `docusaurus build`, the plugin indexes the docs, blog posts and MDX pages into `build/ask-index.json`, at the exact URLs Docusaurus generated, so citations never guess at a URL. It reads each page's Markdown content without the navbar, breadcrumbs, table of contents, doc cards or pagination. Pages that only list other pages are left out: blog lists, tag and author pages, and generated category indexes.
+
+A page with `<meta name="robots" content="noindex">` is left out too, so with Docusaurus's `noIndex: true` the index is empty. To keep a site out of search engines and still index it, send an `X-Robots-Tag: noindex` header from the host instead, such as from `headers` in `vercel.json`.
 
 There is nothing to commit. The index is rebuilt with the site, and unchanged pages reuse their vectors from the previous build, cached in `node_modules/.cache/ondocs`, which Netlify and Vercel keep between builds. Leave sections out with `exclude`, for example `exclude: ['/changelog']`.
 

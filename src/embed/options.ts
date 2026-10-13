@@ -1,3 +1,4 @@
+import type { SourceUrls } from '../react/answer';
 import type { AskDialogLabels } from '../react/labels';
 
 /** What the dialog and its floating launcher show, in the embed and the framework plugins. */
@@ -31,6 +32,13 @@ export interface OndocsDialogOptions {
    * link. Citations link to their sources either way.
    */
   links?: 'all' | 'sources';
+  /**
+   * For an endpoint that answers from another site's index, such as a copy of its docs: where the
+   * citations, the sources and the answer's links point. `pages` maps a page's URL in that index
+   * (`/docs/setup`) to the same page here (`/setup`), keeping the anchor; `base` is that site's
+   * address (`https://docs.acme.dev`), which any other relative URL resolves against.
+   */
+  sourceUrls?: SourceUrls;
   /**
    * A bot check before each question, for an endpoint with `challenge` set:
    * `{ turnstile: '<site key>' }`, a Cloudflare Turnstile widget's site key. The dialog loads

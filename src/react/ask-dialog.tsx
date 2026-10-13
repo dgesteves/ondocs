@@ -15,7 +15,7 @@ import {
 } from 'react';
 
 import type { OndocsTheme } from '../embed/options';
-import type { AnswerLinks } from './answer';
+import type { AnswerLinks, SourceUrls } from './answer';
 import type { AskDialogLabels } from './labels';
 import { themeOption, useThemeAttribute } from './theme';
 import type { AskState, UseAskOptions } from './use-ask';
@@ -72,6 +72,13 @@ export interface AskDialogProps extends Omit<UseAskOptions, 'onFinish'> {
    * pages the answer's sources are on. See `AskAnswer`.
    */
   links?: AnswerLinks;
+  /**
+   * For an endpoint that answers from another site's index, such as a copy of its docs: where the
+   * citations, the sources and the answer's links point. `pages` maps a page's URL in that index
+   * to the same page here, keeping the anchor; `base` is that site's address, which any other
+   * relative URL resolves against. See `SourceUrls`.
+   */
+  sourceUrls?: SourceUrls;
   /**
    * A bot check before each question, for an endpoint with `challenge` set:
    * `{ turnstile: '<site key>' }`, a Cloudflare Turnstile widget's site key. When the dialog opens

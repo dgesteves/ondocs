@@ -8,7 +8,7 @@
 export { AskDialog, loadAskDialog } from './ask-dialog';
 export type { AskDialogProps, AskDialogSlot } from './ask-dialog';
 export { AskAnswer, citedSourceIds, safeHref } from './answer';
-export type { AnswerLinks, AskAnswerProps } from './answer';
+export type { AnswerLinks, AskAnswerProps, SourceUrls } from './answer';
 export { McpInstall } from './mcp-install';
 export type { McpInstallProps } from './mcp-install';
 export { DEFAULT_LABELS } from './labels';
