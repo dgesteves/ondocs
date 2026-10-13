@@ -1,0 +1,12 @@
+---
+// Starlight's page title, with the question box above it on the first page.
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+
+import AskBox from './AskBox.astro';
+
+// src/content/docs/index.md, the introduction.
+const first = Astro.locals.starlightRoute.id === '';
+---
+
+{first && <AskBox />}
+<Default />

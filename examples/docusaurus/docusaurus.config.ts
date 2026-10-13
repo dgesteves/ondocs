@@ -1,9 +1,10 @@
 import type * as Preset from '@docusaurus/preset-classic';
 import type { Config } from '@docusaurus/types';
-import type { OndocsOptions } from 'ondocs/docusaurus';
+import ondocsPlugin, { type OndocsOptions } from 'ondocs/docusaurus';
 import { themes as prismThemes } from 'prism-react-renderer';
 
 import { sourceUrls } from './source-urls';
+import { suggestions } from './suggestions';
 
 // The live demo's address, for llms.txt and the pages' own links.
 const url = process.env.SITE_URL ?? 'https://ondocs-docusaurus.vercel.app';
@@ -19,7 +20,9 @@ const ondocs: OndocsOptions = {
   // how to connect to it.
   mcp: { url: 'https://ondocs.vercel.app/api/mcp', name: 'ondocs' },
   dialog: {
-    suggestions: ['How do I add it to Docusaurus?', 'Do I need a vector database?'],
+    // "Ask AI" in the navbar, which leaves the floating button off.
+    navbar: true,
+    suggestions,
     // The website's citations carry its URLs: these send them to the same pages here. An
     // endpoint at ASK_ENDPOINT answers from this site's own index, at its own URLs.
     ...(process.env.ASK_ENDPOINT ? {} : { sourceUrls }),
@@ -52,15 +55,20 @@ const config: Config = {
     ],
   ],
 
-  plugins: [['ondocs/docusaurus', ondocs]],
+  // The plugin, with its options, as a function rather than ['ondocs/docusaurus', ondocs]: the
+  // same plugin, but Docusaurus copies a plugin's options from that form into every page's
+  // JavaScript, and the plugin already sends the dialog what it needs. That saves the second copy
+  // of the dialog's options, sourceUrls above all: about 0.5 KB gzipped on every page.
+  plugins: [(context: Parameters<typeof ondocsPlugin>[0]) => ondocsPlugin(context, ondocs)],
 
   themeConfig: {
     colorMode: { respectPrefersColorScheme: true },
-    // Outside the article, so the index and the pages' Markdown copies leave it out.
+    // Outside the article, so the index and the pages' Markdown copies leave it out. Its button
+    // opens the dialog through its data-ondocs-open attribute.
     announcementBar: {
       id: 'live-demo',
       content:
-        'Live demo of ondocs on Docusaurus · <a href="https://ondocs.vercel.app">ondocs.vercel.app</a> · <a href="https://github.com/dgesteves/ondocs">GitHub</a>',
+        'Live demo of ondocs on Docusaurus. <button type="button" class="demo-try" data-ondocs-open>✦ Try it: ask these docs a question</button> <span class="demo-links"><a href="https://ondocs.vercel.app">ondocs.vercel.app</a> · <a href="https://github.com/dgesteves/ondocs">GitHub</a></span>',
       backgroundColor: 'var(--ifm-color-emphasis-100)',
       textColor: 'var(--ifm-font-color-base)',
       isCloseable: false,

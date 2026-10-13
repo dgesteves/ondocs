@@ -12,10 +12,11 @@ const website = new Map(
 
 export const onRequest = defineRouteMiddleware((context) => {
   const route = context.locals.starlightRoute;
-  // A banner on every page, which Starlight's search, and so the index, leaves out.
+  // A banner on every page, which Starlight's search, and so the index, leaves out. Its button
+  // opens the dialog through its data-ondocs-open attribute.
   route.entry.data.banner = {
     content:
-      'Live demo of ondocs on Starlight · <a href="https://ondocs.vercel.app">ondocs.vercel.app</a> · <a href="https://github.com/dgesteves/ondocs">GitHub</a>',
+      'Live demo of ondocs on Starlight. <button type="button" class="demo-try" data-ondocs-open>✦ Try it: ask these docs a question</button> <span class="demo-links"><a href="https://ondocs.vercel.app">ondocs.vercel.app</a> · <a href="https://github.com/dgesteves/ondocs">GitHub</a></span>',
   };
   // The page's canonical link goes to the website, whose docs these pages are generated from.
   // Pages the website does not have keep their own.
