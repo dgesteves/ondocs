@@ -24,6 +24,7 @@ order: 32
 | `placeholder`                         | "Ask a question…"               | The input's placeholder.                                                                                    |
 | `footer`                              | a disclaimer and keyboard hints | Replaces the footer.                                                                                        |
 | `links`                               | `"all"`                         | `"sources"` keeps only the answer's links to its source pages; citations always link.                       |
+| `sourceUrls`                          | none                            | `{ pages, base }`: where citations and links go when the endpoint answers from another site's index.        |
 | `labels`                              | English                         | Every string the dialog and its button show or announce; see [Labels and languages](#labels-and-languages). |
 | `locale`                              | none                            | The page's locale, sent with each question, for an endpoint with an index per locale.                       |
 | `followUps`                           | `true`                          | Send the thread with each question, so the endpoint can answer follow-ups; `false` asks each alone.         |
@@ -48,6 +49,17 @@ In the plugins' sites this takes the JavaScript ondocs adds to each page from ab
 ## Citations and navigation
 
 Citations in the answer and the entries in the sources list link to the exact section they came from. Pass `onNavigate` to route with your framework's client router, for example `router.push(url)` in Next.js. The dialog closes after a click either way.
+
+When the endpoint answers from another site's index, as on a copy of that site's docs that asks its endpoint, the sources carry that site's URLs. `sourceUrls` sends them to the same pages on this site: `pages` maps a page's URL in the index to its URL here, and the anchor is kept; any other relative URL resolves against `base`, the other site's address, so it opens there. It applies to citations, the sources list and links in the answer, and in the plugins it is `dialog: { sourceUrls }`:
+
+```ts
+dialog: {
+  sourceUrls: {
+    pages: { '/docs/introduction': '/', '/docs/getting-started': '/getting-started' },
+    base: 'https://docs.acme.dev',
+  },
+},
+```
 
 ## Follow-up questions
 
