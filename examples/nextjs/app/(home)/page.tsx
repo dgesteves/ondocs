@@ -1,23 +1,35 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { AskButton } from '../components/ask';
-import { ArrowRight, CopyIcon, GitHubIcon } from '../components/icons';
-import { Flow } from '../components/landing/flow';
-import { HeroDemo } from '../components/landing/hero-demo';
-import { SetupTabs, type SetupTab } from '../components/landing/setup-tabs';
-import { McpInstall } from '../components/mcp-install';
-import { mode } from '../lib/ai';
-import { codeBlock } from '../lib/highlight';
-import { sampleAnswer } from '../lib/sample-answer';
-import { GITHUB_URL, INSTALL, MCP_URL, SUGGESTIONS, VERSION } from '../lib/site';
-import { gzippedSize } from '../lib/sizes';
+import { AskButton } from '../../components/ask';
+import { ArrowRight, CopyIcon, GitHubIcon } from '../../components/icons';
+import { Flow } from '../../components/landing/flow';
+import { HeroDemo } from '../../components/landing/hero-demo';
+import { SetupTabs, type SetupTab } from '../../components/landing/setup-tabs';
+import { McpInstall } from '../../components/mcp-install';
+import { mode } from '../../lib/ai';
+import { codeBlock } from '../../lib/highlight';
+import { jsonLd, softwareSourceCode } from '../../lib/json-ld';
+import { sampleAnswer } from '../../lib/sample-answer';
+import {
+  GITHUB_URL,
+  HOME_DESCRIPTION as description,
+  HOME_TITLE as title,
+  INSTALL,
+  MCP_URL,
+  SUGGESTIONS,
+  VERSION,
+} from '../../lib/site';
+import { gzippedSize } from '../../lib/sizes';
 
 import './landing.css';
 
 export const metadata: Metadata = {
-  title: { absolute: 'ondocs: make your docs answerable by people and by agents' },
+  title: { absolute: title },
+  description,
   alternates: { canonical: '/', types: { 'text/plain': '/llms.txt' } },
+  openGraph: { type: 'website', siteName: 'ondocs', title, description, url: '/' },
+  twitter: { card: 'summary_large_image', title, description },
 };
 
 async function setupTabs(): Promise<SetupTab[]> {
@@ -282,6 +294,10 @@ export default async function Home() {
   const [tabs, initial] = await Promise.all([setupTabs(), sampleAnswer(SUGGESTIONS[0] ?? '')]);
   return (
     <main id="content" className="landing">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(softwareSourceCode()) }}
+      />
       <section className="hero" aria-labelledby="hero-title">
         <div className="container hero-grid">
           <div className="hero-copy">

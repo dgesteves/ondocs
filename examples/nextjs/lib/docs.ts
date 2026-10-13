@@ -12,6 +12,9 @@ const DOCS_DIR = path.join(process.cwd(), 'content/docs');
 /** Sidebar sections, in order. A page names its own in `section` frontmatter. */
 export const SECTIONS = ['Get started', 'Integrations', 'Guides', 'Reference'] as const;
 
+/** The section the header's Integrations link opens, on the docs home, and is current in. */
+export const INTEGRATIONS_SECTION = 'Integrations';
+
 export interface DocMeta {
   slug: string;
   title: string;

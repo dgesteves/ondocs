@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 
-import { Brand, COLORS, OG_SIZE, Spark, ogFonts } from '../lib/og';
+import { Brand, COLORS, OG_SIZE, Spark, ogFonts } from '../../lib/og';
 
 export const alt =
   'ondocs: make your docs answerable by people and by agents. Beside the headline, the dialog answers “How do I add it to Docusaurus?” with the plugin config and a citation.';

@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 /** The ondocs spark: the four-point star the dialog uses. */
 export function Spark({ size = 18 }: { size?: number }) {
   return (
@@ -56,5 +58,74 @@ export function CopyIcon({ size = 14 }: { size?: number }) {
         strokeWidth="1.4"
       />
     </svg>
+  );
+}
+
+/** A 24px stroke icon, hidden from assistive tech: the control around it carries the name. */
+function Stroke({ size = 14, children }: { size?: number; children: ReactNode }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+export function SunIcon({ size }: { size?: number }) {
+  return (
+    <Stroke size={size}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" />
+    </Stroke>
+  );
+}
+
+export function MoonIcon({ size }: { size?: number }) {
+  return (
+    <Stroke size={size}>
+      <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
+    </Stroke>
+  );
+}
+
+export function MonitorIcon({ size }: { size?: number }) {
+  return (
+    <Stroke size={size}>
+      <rect x="3" y="4" width="18" height="12.5" rx="2" />
+      <path d="M8.5 20.5h7M12 16.5v4" />
+    </Stroke>
+  );
+}
+
+export function MenuIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Stroke size={size}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </Stroke>
+  );
+}
+
+export function CloseIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Stroke size={size}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </Stroke>
+  );
+}
+
+export function StarIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Stroke size={size}>
+      <path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9L12 3.5Z" />
+    </Stroke>
   );
 }

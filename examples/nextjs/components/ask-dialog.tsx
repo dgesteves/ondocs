@@ -4,6 +4,7 @@ import { AskDialog } from 'ondocs/react';
 import { useRouter } from 'next/navigation';
 
 import { SUGGESTIONS } from '../lib/site';
+import { usePageScheme } from './theme-switch';
 
 /** The site's dialog: the library's `AskDialog`, routing citations through the Next.js router. */
 export function SiteAskDialog({
@@ -16,6 +17,8 @@ export function SiteAskDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const router = useRouter();
+  // The site's theme is a class on <html>, which the dialog's `auto` doesn't read: it is told.
+  const scheme = usePageScheme();
   return (
     <AskDialog
       endpoint="/api/ask"
@@ -23,7 +26,7 @@ export function SiteAskDialog({
       onOpenChange={onOpenChange}
       // The site handles ⌘K and ⌘I itself, so they work before this component has loaded.
       shortcut={false}
-      theme="dark"
+      theme={scheme ?? 'auto'}
       title="Ask the ondocs documentation"
       placeholder="Ask the docs a question…"
       suggestions={SUGGESTIONS}

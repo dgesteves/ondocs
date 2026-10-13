@@ -13,7 +13,11 @@
   height: 480px;
   pointer-events: none;
   content: '';
-  background: radial-gradient(900px 420px at 80% -10%, rgb(34 211 238 / 0.06), transparent 65%);
+  background: radial-gradient(
+    900px 420px at 80% -10%,
+    color-mix(in srgb, var(--cyan) 6%, transparent),
+    transparent 65%
+  );
 }
 
 .sidebar {
@@ -340,7 +344,7 @@
 }
 
 .pager-link:hover {
-  border-color: rgb(34 211 238 / 0.45);
+  border-color: color-mix(in srgb, var(--cyan) 45%, transparent);
 }
 
 .pager-next {
@@ -393,7 +397,7 @@
 }
 
 .card:hover {
-  border-color: rgb(34 211 238 / 0.45);
+  border-color: color-mix(in srgb, var(--cyan) 45%, transparent);
 }
 
 .card-title {

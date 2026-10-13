@@ -92,12 +92,12 @@ function useShortcutLabel(): string {
 export function AskButton({
   className,
   children,
-  shortLabel,
+  label,
 }: {
   className: string;
   children: ReactNode;
-  /** Shown instead of `children` on narrow screens. */
-  shortLabel?: string;
+  /** The button's name, when its text is shorter or hidden on narrow screens. */
+  label?: string;
 }) {
   const shortcut = useShortcutLabel();
   return (
@@ -105,6 +105,7 @@ export function AskButton({
       type="button"
       className={className}
       onClick={openAsk}
+      aria-label={label}
       aria-keyshortcuts="Meta+K Control+K Meta+I Control+I"
     >
       <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" className="spark">
@@ -113,14 +114,7 @@ export function AskButton({
           fill="currentColor"
         />
       </svg>
-      {shortLabel ? (
-        <>
-          <span className="label-long">{children}</span>
-          <span className="label-short">{shortLabel}</span>
-        </>
-      ) : (
-        <span>{children}</span>
-      )}
+      <span className="ask-button-text">{children}</span>
       <kbd className="shortcut-hint" aria-hidden="true">
         {shortcut}
       </kbd>
