@@ -172,20 +172,52 @@ describe('code blocks', () => {
     });
   });
 
-  it('puts the language or file name and Copy in a bar above the code', async () => {
+  it('puts the language or file name and a copy icon in a bar above the code', async () => {
     const out = await html('```ts\n// lib/ask.ts\nexport {};\n```');
     expect(out).toMatch(
-      /^<div class="code-block"><div class="code-head"><span class="code-label">lib\/ask\.ts<\/span><button[^>]*data-copy[^>]*>Copy<\/button><\/div><pre/,
+      /^<div class="code-block" data-code-block><div class="code-head"><span class="code-label">lib\/ask\.ts<\/span><button type="button" class="copy-button" data-copy aria-label="Copy code" title="Copy code"><\/button><\/div><pre/,
     );
     expect(out).not.toContain('// lib/ask.ts');
+    // Without a file name, the language, in the quieter style.
+    expect(await html('```sh\nnpx ondocs init\n```')).toContain(
+      '<span class="code-label code-label-language">Shell</span>',
+    );
   });
 
-  it('wraps transcripts and output, and scrolls source code', async () => {
-    expect(await html('```\ndata: {"type":"start"}\n```')).toContain(
-      'class="code-block code-wrap"',
-    );
+  it('wraps prose-like output, and scrolls source code, sessions and event streams', async () => {
     expect(await html('```text\nI don’t know.\n```')).toContain('code-wrap');
+    expect(await html('```output\nanswered from 5 sources\n```')).toContain('code-wrap');
+    // A session's output is often in columns, which wrapping would break.
+    expect(await html('```console\n$ npx ondocs dev\n```')).not.toContain('code-wrap');
     expect(await html('```ts\nconst a = 1;\n```')).not.toContain('code-wrap');
+    expect(await html('```\ndata: {"type":"start"}\n```')).not.toContain('code-wrap');
+  });
+
+  it('highlights YAML, diffs, CSS and Markdown, not only scripts', async () => {
+    const yaml = await html('```yaml\nthresholds:\n  hit@3: 0.8\n```');
+    // The key and the number take the theme's property and number colors.
+    expect(yaml).toContain('light-dark(#9D174D, #F9A8D4)');
+    expect(yaml).toContain('<span class="code-label code-label-language">YAML</span>');
+    const diff = await html('```diff\n--- a.ts\n+++ b.ts\n-old\n+new\n same\n```');
+    expect(diff.match(/class="line diff-add"/g)).toHaveLength(1);
+    expect(diff.match(/class="line diff-del"/g)).toHaveLength(1);
+    expect(await html('```css\n.a { color: red; }\n```')).toContain('light-dark(');
+    expect(await html('```md\n# Title\n```')).toContain('light-dark(');
+  });
+
+  it('shows a stream of Server-Sent Events as events: each field dim, each value as JSON', async () => {
+    const out = await html(
+      '```\ndata: {"type":"start","messageMetadata":{"refused":false}}\ndata: [DONE]\n```',
+    );
+    expect(out).toContain('<span class="code-label code-label-language">Server-Sent Events</span>');
+    expect(out).toContain('event-stream');
+    expect(out.match(/<span class="t-dim">data: <\/span>/g)).toHaveLength(2);
+    // The JSON value's string, in the theme's string color.
+    expect(out).toContain('light-dark(#9A3412, #F5C27A)');
+    const pre = new DOMParser().parseFromString(out, 'text/html').querySelector('pre');
+    expect(pre?.textContent).toBe(
+      'data: {"type":"start","messageMetadata":{"refused":false}}\ndata: [DONE]',
+    );
   });
 
   it('lets only inline code longer than 28 characters break', async () => {
