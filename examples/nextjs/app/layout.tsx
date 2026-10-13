@@ -39,6 +39,11 @@ export const metadata: Metadata = {
   ],
 };
 
+// Every page is built once per deployment, never on request: the header's star count is fetched
+// with no-store (lib/github.ts), so each build reads it afresh, and that alone would make every
+// page render on each request.
+export const dynamic = 'force-static';
+
 export const viewport: Viewport = {
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },

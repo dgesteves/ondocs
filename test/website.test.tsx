@@ -146,6 +146,12 @@ describe('the GitHub star count', () => {
     const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://api.github.com/repos/dgesteves/ondocs');
     expect(new Headers(init.headers).has('authorization')).toBe(false);
+    // Fresh in each build, rather than from a data cache that outlives the deployment, and the
+    // pages stay static all the same.
+    expect(init.cache).toBe('no-store');
+    expect(readFileSync(join(site, 'app/layout.tsx'), 'utf8')).toContain(
+      "export const dynamic = 'force-static';",
+    );
 
     for (const failure of [
       () => Promise.reject(new Error('offline')),
