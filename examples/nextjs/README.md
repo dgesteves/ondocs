@@ -33,6 +33,7 @@ echo "OPENAI_CHAT_MODEL=gpt-5.4-mini" >> examples/nextjs/.env.local
 | `components/ask.tsx`   | `<AskDialog />` with suggestions, opened by ⌘K or any `AskButton`, routing citations client-side. |
 | `components/landing/*` | The home page's live demo (`useAsk` and `AskAnswer`), setup tabs and diagram.                     |
 | `lib/docs.ts`          | Renders pages with ondocs's own slugger, so every citation anchor matches a real heading id.      |
-| `lib/highlight.ts`     | Highlights code with Shiki at build time; pages ship plain HTML.                                  |
+| `lib/highlight.ts`     | Highlights code with Shiki at build time, in light and dark colors; pages ship plain HTML.        |
+| `lib/theme.ts`         | The theme script that runs before paint; `components/theme-switch.tsx` is System, Light, Dark.    |
 
 `pnpm index` writes `ask-index.json` (git-ignored here) and runs before `dev` and `build`. In a real project, commit the index and run `pnpm index:check` in CI instead.

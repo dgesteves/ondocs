@@ -10,17 +10,15 @@ import { SiteFooter } from '../components/site-footer';
 import { SiteHeader } from '../components/site-header';
 import { mode } from '../lib/ai';
 import { mono, sans } from '../lib/fonts';
-import { SITE_URL } from '../lib/site';
+import { HOME_DESCRIPTION, HOME_TITLE, SITE_URL } from '../lib/site';
+import { THEME_SCRIPT } from '../lib/theme';
 
-const description =
-  'Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own key. No vector database.';
-
-const title = 'ondocs: make your docs answerable by people and by agents';
-
+// Each page sets its own canonical URL and share card: the home page, the docs, and none on the
+// 404 page, so nothing here is inherited by a page it doesn't describe.
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: title, template: '%s · ondocs' },
-  description,
+  title: { default: HOME_TITLE, template: '%s · ondocs' },
+  description: HOME_DESCRIPTION,
   applicationName: 'ondocs',
   authors: [{ name: 'Diogo Esteves', url: 'https://github.com/dgesteves' }],
   keywords: [
@@ -38,18 +36,23 @@ export const metadata: Metadata = {
     'BM25',
     'hybrid search',
   ],
-  openGraph: { type: 'website', siteName: 'ondocs', title, description, url: '/' },
-  twitter: { card: 'summary_large_image', title, description },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0d0f12',
-  colorScheme: 'dark',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#0d0f12' },
+  ],
+  colorScheme: 'light dark',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    // The theme class is added before paint by THEME_SCRIPT, so the server's markup can't match it.
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>
         <a href="#content" className="skip-link">
           Skip to content

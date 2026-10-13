@@ -19,7 +19,8 @@ function shallowBoundary(): Set<string> {
 }
 
 /**
- * When the files last changed, from git. A page whose last change is past a shallow clone's
+ * When the files last changed, from git: the sitemap's only freshness signal, as search engines
+ * ignore `changefreq`. A page whose last change is past a shallow clone's
  * history, as CI and hosts clone, gets no date rather than a wrong one.
  */
 function lastModified(boundary: Set<string>, ...paths: string[]): Date | undefined {
@@ -37,20 +38,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     {
       url: SITE_URL,
-      lastModified: lastModified(boundary, 'app/page.tsx', 'components/landing'),
-      changeFrequency: 'weekly',
+      lastModified: lastModified(boundary, 'app/(home)', 'components/landing'),
       priority: 1,
     },
     {
       url: `${SITE_URL}/docs`,
       lastModified: lastModified(boundary, 'app/docs/page.tsx', 'content/docs'),
-      changeFrequency: 'weekly',
       priority: 0.8,
     },
     ...docs.map((doc) => ({
       url: `${SITE_URL}/docs/${doc.slug}`,
       lastModified: lastModified(boundary, `content/docs/${doc.slug}.md`),
-      changeFrequency: 'weekly' as const,
       priority: doc.section === 'Get started' || doc.section === 'Integrations' ? 0.8 : 0.6,
     })),
   ];

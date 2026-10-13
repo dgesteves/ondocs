@@ -36,7 +36,7 @@ describe('what the README claims', () => {
   it('does not call the answers single-turn: the dialog and the endpoint take follow-ups', () => {
     for (const file of [
       'README.md',
-      'examples/nextjs/app/page.tsx',
+      'examples/nextjs/app/(home)/page.tsx',
       'examples/nextjs/content/docs/introduction.md',
       'examples/nextjs/content/docs/faq.md',
       'examples/nextjs/content/docs/limits.md',
@@ -73,7 +73,7 @@ describe('what the README claims', () => {
   it('compares it only with tools that exist, in terms it can back', () => {
     for (const file of [
       'README.md',
-      'examples/nextjs/app/page.tsx',
+      'examples/nextjs/app/(home)/page.tsx',
       'examples/nextjs/content/docs/introduction.md',
       'examples/nextjs/content/docs/faq.md',
     ]) {

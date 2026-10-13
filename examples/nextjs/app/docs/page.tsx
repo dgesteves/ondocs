@@ -28,7 +28,8 @@ export default async function DocsHome() {
         in the index, so you can ask instead.
       </p>
       {sections.map((section) => {
-        const id = `section-${section.title.toLowerCase().replace(/\s+/g, '-')}`;
+        // #integrations is the header's Integrations link.
+        const id = section.title.toLowerCase().replace(/\s+/g, '-');
         return (
           <section key={section.title} className="card-section" aria-labelledby={id}>
             <h2 id={id} className="sidebar-heading">

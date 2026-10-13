@@ -16,6 +16,7 @@ const MORE = [
   },
 ];
 
+/** The footer the three sibling sites share: Project, For agents, and More by Diogo Esteves. */
 export function SiteFooter() {
   return (
     <footer className="site-footer">
@@ -28,24 +29,15 @@ export function SiteFooter() {
             ondocs
           </p>
           <p>
-            Docs answerable by people and by agents, from one static index. Version {VERSION}, MIT
-            licensed, built by <a href="https://github.com/dgesteves">Diogo Esteves</a>.
+            Docs answerable by people and by agents, from one static index. MIT licensed, built by{' '}
+            <a href="https://github.com/dgesteves">Diogo Esteves</a>.
           </p>
         </div>
         <nav aria-label="Project" className="footer-column">
-          <p className="footer-heading">Project</p>
+          <h2 className="footer-heading">Project</h2>
           <ul>
             <li>
-              <Link href="/docs">Documentation</Link>
-            </li>
-            <li>
-              <a href={GITHUB_URL}>GitHub</a>
-            </li>
-            <li>
-              <a href={NPM_URL}>npm</a>
-            </li>
-            <li>
-              <a href={`${GITHUB_URL}/releases`}>Releases</a>
+              <Link href="/docs">Docs</Link>
             </li>
             <li>
               <a href={`${GITHUB_URL}/blob/main/CHANGELOG.md`}>Changelog</a>
@@ -53,10 +45,18 @@ export function SiteFooter() {
             <li>
               <a href={`${GITHUB_URL}/issues`}>Issues</a>
             </li>
+            <li>
+              <a href={NPM_URL}>npm</a>
+            </li>
+            <li>
+              <a href={`${GITHUB_URL}/releases`} className="footer-version">
+                v{VERSION}
+              </a>
+            </li>
           </ul>
         </nav>
         <nav aria-label="For agents" className="footer-column">
-          <p className="footer-heading">For agents</p>
+          <h2 className="footer-heading">For agents</h2>
           <ul>
             <li>
               <a href="/llms.txt">llms.txt</a>
@@ -70,7 +70,7 @@ export function SiteFooter() {
           </ul>
         </nav>
         <nav aria-label="More by Diogo Esteves" className="footer-column footer-more">
-          <p className="footer-heading">More by Diogo Esteves</p>
+          <h2 className="footer-heading">More by Diogo Esteves</h2>
           <ul>
             {MORE.map((project) => (
               <li key={project.name}>
