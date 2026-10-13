@@ -25,15 +25,16 @@ echo "OPENAI_CHAT_MODEL=gpt-5.4-mini" >> examples/nextjs/.env.local
 
 ## Where things are
 
-| File                   | What it does                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------- |
-| `content/docs/*.md`    | The pages, with `title`, `description`, `section` and `order` frontmatter.                        |
-| `ondocs.config.mjs`    | The embedding model, shared by the CLI and the route so the index and queries always agree.       |
-| `lib/ask-handler.ts`   | `createAskHandler` with an in-memory rate limit, mounted as `POST /api/ask` in `app/api/ask`.     |
-| `components/ask.tsx`   | `<AskDialog />` with suggestions, opened by ⌘K or any `AskButton`, routing citations client-side. |
-| `components/landing/*` | The home page's live demo (`useAsk` and `AskAnswer`), setup tabs and diagram.                     |
-| `lib/docs.ts`          | Renders pages with ondocs's own slugger, so every citation anchor matches a real heading id.      |
-| `lib/highlight.ts`     | Highlights code with Shiki at build time, in light and dark colors; pages ship plain HTML.        |
-| `lib/theme.ts`         | The theme script that runs before paint; `components/theme-switch.tsx` is System, Light, Dark.    |
+| File                   | What it does                                                                                                            |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `content/docs/*.md`    | The pages, with `title`, `description`, `section` and `order` frontmatter (`group` and `label` are this site's).        |
+| `ondocs.config.mjs`    | The embedding model, shared by the CLI and the route so the index and queries always agree.                             |
+| `lib/ask-handler.ts`   | `createAskHandler` with an in-memory rate limit, mounted as `POST /api/ask` in `app/api/ask`.                           |
+| `components/ask.tsx`   | `<AskDialog />` with suggestions, opened by ⌘K or any `AskButton`, routing citations client-side.                       |
+| `components/landing/*` | The home page's live demo (`useAsk` and `AskAnswer`), setup tabs and diagram.                                           |
+| `lib/docs.ts`          | Reads the pages and groups them for the sidebar.                                                                        |
+| `lib/markdown.ts`      | Renders pages with ondocs's slugger, so citation anchors match heading ids; adds callouts, steps, tabs and code titles. |
+| `lib/highlight.ts`     | Highlights code with Shiki at build time, in light and dark colors; pages ship plain HTML.                              |
+| `lib/theme.ts`         | The theme script that runs before paint; `components/theme-switch.tsx` is System, Light, Dark.                          |
 
 `pnpm index` writes `ask-index.json` (git-ignored here) and runs before `dev` and `build`. In a real project, commit the index and run `pnpm index:check` in CI instead.

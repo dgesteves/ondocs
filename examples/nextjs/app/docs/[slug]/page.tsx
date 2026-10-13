@@ -2,9 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { DocsBar, Toc } from '../../../components/docs-nav';
 import { McpInstall } from '../../../components/mcp-install';
-import { getDoc, getDocs } from '../../../lib/docs';
-import { MCP_URL } from '../../../lib/site';
+import { PageActions } from '../../../components/page-actions';
+import { getDoc, getDocs, getNavSections } from '../../../lib/docs';
+import { MCP_URL, editUrl } from '../../../lib/site';
 
 export const dynamicParams = false;
 
@@ -34,49 +36,60 @@ export async function generateMetadata(props: PageProps<'/docs/[slug]'>): Promis
 }
 
 export default async function DocPage(props: PageProps<'/docs/[slug]'>) {
-  const doc = await getDoc((await props.params).slug);
+  const [doc, sections] = await Promise.all([getDoc((await props.params).slug), getNavSections()]);
   if (!doc) notFound();
   const toc = doc.headings.filter((heading) => heading.depth === 2);
   return (
-    <div className="doc-layout">
-      <article className="doc">
-        <p className="doc-section">{doc.section}</p>
-        <h1>{doc.title}</h1>
-        {doc.description ? <p className="lead">{doc.description}</p> : null}
-        {/* This site's own server, ready to add, above the page that explains it. */}
-        {doc.slug === 'mcp' ? <McpInstall url={MCP_URL} name="ondocs" /> : null}
-        <div className="prose" dangerouslySetInnerHTML={{ __html: doc.html }} />
-        {doc.previous || doc.next ? (
-          <nav aria-label="Previous and next pages" className="pager">
-            {doc.previous ? (
-              <Link href={`/docs/${doc.previous.slug}`} className="pager-link" rel="prev">
-                <span className="pager-kicker">Previous</span>
-                <span className="pager-title">{doc.previous.title}</span>
-              </Link>
-            ) : (
-              <span />
-            )}
-            {doc.next ? (
-              <Link href={`/docs/${doc.next.slug}`} className="pager-link pager-next" rel="next">
-                <span className="pager-kicker">Next</span>
-                <span className="pager-title">{doc.next.title}</span>
-              </Link>
+    <>
+      <DocsBar sections={sections} headings={toc} />
+      <div className={`doc-layout${toc.length > 0 ? '' : ' doc-layout-single'}`}>
+        <article className="doc">
+          <div className="doc-header">
+            <p className="doc-section">{doc.section}</p>
+            <PageActions slug={doc.slug} />
+          </div>
+          <h1>{doc.title}</h1>
+          {doc.description ? <p className="lead">{doc.description}</p> : null}
+          {/* This site's own server, ready to add, above the page that explains it. */}
+          {doc.slug === 'mcp' ? <McpInstall url={MCP_URL} name="ondocs" /> : null}
+          <div className="prose" dangerouslySetInnerHTML={{ __html: doc.html }} />
+          <footer className="doc-footer">
+            <a href={editUrl(doc.slug)}>Edit this page on GitHub</a>
+            {doc.updated ? (
+              <p>
+                Last updated{' '}
+                <time dateTime={doc.updated.toISOString()}>
+                  {doc.updated.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    timeZone: 'UTC',
+                  })}
+                </time>
+              </p>
             ) : null}
-          </nav>
-        ) : null}
-      </article>
-      {toc.length > 0 ? (
-        <nav aria-label="On this page" className="toc">
-          <p className="sidebar-heading">On this page</p>
-          <ul>
-            {toc.map((heading) => (
-              <li key={heading.id}>
-                <a href={`#${heading.id}`}>{heading.text}</a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      ) : null}
-    </div>
+          </footer>
+          {doc.previous || doc.next ? (
+            <nav aria-label="Previous and next pages" className="pager">
+              {doc.previous ? (
+                <Link href={`/docs/${doc.previous.slug}`} className="pager-link" rel="prev">
+                  <span className="pager-kicker">Previous</span>
+                  <span className="pager-title">{doc.previous.title}</span>
+                </Link>
+              ) : (
+                <span />
+              )}
+              {doc.next ? (
+                <Link href={`/docs/${doc.next.slug}`} className="pager-link pager-next" rel="next">
+                  <span className="pager-kicker">Next</span>
+                  <span className="pager-title">{doc.next.title}</span>
+                </Link>
+              ) : null}
+            </nav>
+          ) : null}
+        </article>
+        {toc.length > 0 ? <Toc headings={toc} /> : null}
+      </div>
+    </>
   );
 }

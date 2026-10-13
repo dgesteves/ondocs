@@ -1,19 +1,20 @@
 import type { ReactNode } from 'react';
 
-import { DocsMenu, Sidebar } from '../../components/docs-nav';
-import { getSections } from '../../lib/docs';
+import { DocsEnhancements } from '../../components/docs-enhancements';
+import { Sidebar } from '../../components/docs-nav';
+import { getNavSections } from '../../lib/docs';
 
 import './docs.css';
 
 export default async function DocsLayout({ children }: { children: ReactNode }) {
-  const sections = await getSections();
+  const sections = await getNavSections();
   return (
     <div className="shell">
       <Sidebar sections={sections} />
       <main id="content" className="content">
-        <DocsMenu sections={sections} />
         {children}
       </main>
+      <DocsEnhancements />
     </div>
   );
 }
