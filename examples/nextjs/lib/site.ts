@@ -5,6 +5,9 @@ export const SITE_URL = 'https://ondocs.vercel.app';
 export const MCP_URL = `${SITE_URL}/api/mcp`;
 export const GITHUB_REPO = 'dgesteves/ondocs';
 export const GITHUB_URL = `https://github.com/${GITHUB_REPO}`;
+/** A docs page's source on GitHub, open for editing. */
+export const editUrl = (slug: string): string =>
+  `${GITHUB_URL}/edit/main/examples/nextjs/content/docs/${slug}.md`;
 export const NPM_URL = 'https://www.npmjs.com/package/ondocs';
 export const VERSION: string = pkg.version;
 export const INSTALL = 'npm i ondocs';

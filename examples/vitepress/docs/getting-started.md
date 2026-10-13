@@ -25,8 +25,6 @@ Install the package with the Vercel AI SDK and a model provider. The two package
 npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
 ```
 
-Moving a site from `ask-my-site`, its name until 0.6.0? See [Migrating from ask-my-site](/migrating).
-
 ondocs needs Node.js 22.12 or later to build the index. The endpoint itself uses Web APIs only, so it also runs on Bun, Deno and Cloudflare Workers.
 
 ## Build the index
@@ -34,7 +32,8 @@ ondocs needs Node.js 22.12 or later to build the index. The endpoint itself uses
 Point the CLI at your content. It reads Markdown, MDX and HTML, splits pages at every heading, embeds the chunks and writes `ask-index.json`:
 
 ```sh
-npx ondocs index ./docs --base-url /docs -e openai:text-embedding-3-small --dimensions 512
+npx ondocs index ./docs --base-url /docs \
+  -e openai:text-embedding-3-small --dimensions 512
 ```
 
 With the Docusaurus, Astro, Starlight or VitePress plugin you skip this step: the plugin indexes the built site after every build.
@@ -51,7 +50,8 @@ import index from './ask-index.json';
 export const POST = createAskHandler({
   index,
   model: openai('gpt-5.4-mini'),
-  embeddingModel: openai.embedding('text-embedding-3-small'), // at the index's 512 dimensions
+  // The index's model, at the index's 512 dimensions.
+  embeddingModel: openai.embedding('text-embedding-3-small'),
 });
 ```
 

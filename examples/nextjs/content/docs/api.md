@@ -2,6 +2,7 @@
 title: Package API
 description: The package's imports, the core functions for building and searching an index, and what each entry point exports.
 section: Reference
+label: Package API
 order: 29
 ---
 

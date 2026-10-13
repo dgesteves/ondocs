@@ -610,6 +610,58 @@ h3 {
   border: 0;
 }
 
+/* Transcripts and prose-like output wrap; source code scrolls sideways (lib/highlight.ts). */
+.code-wrap pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Tabs, as a code block's bar (npm, pnpm, yarn, bun) or above any content. */
+.tab-list {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.code-head .tab-list {
+  align-self: stretch;
+  margin-left: -14px;
+}
+
+.tab-list [role='tab'] {
+  height: 36px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+  background: none;
+  border: 0;
+}
+
+.code-head .tab-list [role='tab'] {
+  height: 100%;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.tab-list [role='tab']:hover {
+  color: var(--fg);
+}
+
+.tab-list [role='tab'][aria-selected='true'] {
+  color: var(--fg);
+  box-shadow: inset 0 -2px 0 var(--cyan);
+}
+
+.tab-list [role='tab']:focus-visible {
+  outline-offset: -2px;
+}
+
 /* The dialog inherits the site's typefaces. */
 .ask-dialog {
   --ask-font: var(--sans);

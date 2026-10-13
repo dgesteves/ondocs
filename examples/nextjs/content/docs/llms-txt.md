@@ -2,6 +2,8 @@
 title: llms.txt and Markdown pages
 description: Write llms.txt, llms-full.txt and a Markdown copy of every page at build time, from the pages the index is built from.
 section: Integrations
+group: For agents
+label: llms.txt
 order: 16
 ---
 

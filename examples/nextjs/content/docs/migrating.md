@@ -2,6 +2,7 @@
 title: Migrating from ask-my-site
 description: ask-my-site is now ondocs. What was renamed, what stays, and the commands to move a site over.
 section: Reference
+label: Migrating
 order: 37
 ---
 

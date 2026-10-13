@@ -1,7 +1,8 @@
 ---
 title: CLI and config file
-description: Every flag of ondocs index, init, dev and eval, and the config module.
+description: "Every flag of ondocs index, init, dev and eval, and the config module for an embedding model the flags don't cover or content that isn't on disk."
 section: Reference
+label: CLI
 order: 30
 ---
 

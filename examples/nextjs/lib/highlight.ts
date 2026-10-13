@@ -132,7 +132,7 @@ function getHighlighter(): Promise<Highlighter> {
   return highlighter;
 }
 
-const escapeHtml = (text: string): string =>
+export const escapeHtml = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** Highlighted `<pre>` for a code block, or escaped plain text for a language it doesn't know. */
@@ -150,11 +150,52 @@ export async function highlight(code: string, lang = ''): Promise<string> {
 }
 
 /**
- * A code block with its language and a copy button. The button works through the delegated
- * click handler in `CopyButtons`, so the block itself is static HTML.
+ * Transcripts and prose-like output wrap; source code scrolls sideways, so its lines stay as
+ * written.
+ */
+const WRAPPED = new Set(['', 'text', 'txt', 'plaintext', 'output', 'console', 'log']);
+
+const label = (lang: string, title?: string) =>
+  title ?? LABELS[lang] ?? (lang ? lang.toUpperCase() : 'Text');
+
+const copyButton =
+  '<button type="button" class="copy-button" data-copy aria-label="Copy code">Copy</button>';
+
+const blockClass = (lang: string) => (WRAPPED.has(lang) ? 'code-block code-wrap' : 'code-block');
+
+/**
+ * A code block with its language or file name and a copy button, in a bar above the code so the
+ * button never covers it. The button works through the delegated click handler in
+ * `CopyButtons`, so the block itself is static HTML.
  */
 export async function codeBlock(code: string, lang = '', title?: string): Promise<string> {
-  const label = title ?? LABELS[lang] ?? (lang ? lang.toUpperCase() : 'Text');
-  const head = `<div class="code-head"><span class="code-label">${escapeHtml(label)}</span><button type="button" class="copy-button" data-copy aria-label="Copy code">Copy</button></div>`;
-  return `<div class="code-block">${head}${await highlight(code.replace(/\n$/, ''), lang)}</div>`;
+  const head = `<div class="code-head"><span class="code-label">${escapeHtml(label(lang, title))}</span>${copyButton}</div>`;
+  return `<div class="${blockClass(lang)}">${head}${await highlight(code.replace(/\n$/, ''), lang)}</div>`;
+}
+
+/**
+ * One code block with a tab per variant, such as the same install for npm, pnpm, Yarn and Bun.
+ * The tabs are the block's bar; the choice is remembered across blocks with the same `sync` key
+ * (components/docs-enhancements.tsx). Without JavaScript the first tab shows.
+ */
+export async function codeTabs(
+  variants: { label: string; code: string }[],
+  lang: string,
+  id: string,
+  sync = 'package-manager',
+): Promise<string> {
+  const tabs = variants
+    .map(
+      (variant, i) =>
+        `<button type="button" role="tab" id="${id}-tab-${String(i)}" aria-controls="${id}-panel-${String(i)}" aria-selected="${String(i === 0)}" tabindex="${i === 0 ? '0' : '-1'}" data-value="${escapeHtml(variant.label)}">${escapeHtml(variant.label)}</button>`,
+    )
+    .join('');
+  const panels = await Promise.all(
+    variants.map(
+      async (variant, i) =>
+        `<div role="tabpanel" id="${id}-panel-${String(i)}" aria-labelledby="${id}-tab-${String(i)}"${i === 0 ? '' : ' hidden'}>${await highlight(variant.code, lang)}</div>`,
+    ),
+  );
+  const head = `<div class="code-head"><div role="tablist" class="tab-list" aria-label="Package manager">${tabs}</div>${copyButton}</div>`;
+  return `<div class="${blockClass(lang)} code-tabs" data-tabs data-sync="${escapeHtml(sync)}">${head}${panels.join('')}</div>`;
 }

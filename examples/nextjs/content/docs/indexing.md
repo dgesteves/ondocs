@@ -2,6 +2,7 @@
 title: Indexing content
 description: What gets indexed, how files become URLs, chunking, excluding pages and the --check mode.
 section: Guides
+label: Indexing
 order: 20
 ---
 

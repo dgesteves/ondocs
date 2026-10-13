@@ -16,9 +16,12 @@ export function CopyButtons() {
           ? event.target.closest<HTMLButtonElement>('[data-copy]')
           : null;
       if (!button) return;
+      // In a block with tabs, the tab that shows.
+      const block = button.closest('.code-block');
       const text =
         button.dataset.copy ||
-        button.closest('.code-block')?.querySelector('pre')?.textContent ||
+        (block?.querySelector('[role="tabpanel"]:not([hidden]) pre') ?? block?.querySelector('pre'))
+          ?.textContent ||
         '';
       void navigator.clipboard.writeText(text.replace(/\n$/, '')).then(
         () => {

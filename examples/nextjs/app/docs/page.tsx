@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { getSections } from '../../lib/docs';
+import { DocsBar } from '../../components/docs-nav';
+import { INTEGRATIONS_SECTION, getNavSections, getSections, sectionId } from '../../lib/docs';
 import { DOCS_DESCRIPTION as description } from '../../lib/site';
 
 export const metadata: Metadata = {
@@ -19,24 +20,26 @@ export const metadata: Metadata = {
 };
 
 export default async function DocsHome() {
-  const sections = await getSections();
+  const [sections, nav] = await Promise.all([getSections(), getNavSections()]);
+  const start = sections.find((section) => section.title === 'Get started');
+  const frameworks = sections.find((section) => section.title === INTEGRATIONS_SECTION);
+  const rest = sections.filter((section) => section !== start && section !== frameworks);
   return (
-    <article className="docs-home">
-      <h1>Documentation</h1>
-      <p className="lead">
-        Everything about ondocs, from the first install to the index format. Every page here is also
-        in the index, so you can ask instead.
-      </p>
-      {sections.map((section) => {
-        // #integrations is the header's Integrations link.
-        const id = section.title.toLowerCase().replace(/\s+/g, '-');
-        return (
-          <section key={section.title} className="card-section" aria-labelledby={id}>
-            <h2 id={id} className="sidebar-heading">
-              {section.title}
+    <>
+      <DocsBar sections={nav} />
+      <article className="docs-home">
+        <h1>Documentation</h1>
+        <p className="lead">
+          Everything about ondocs, from the first install to the index format. Every page here is
+          also in the index, so you can ask instead.
+        </p>
+        {start ? (
+          <section className="card-section" aria-labelledby="start-here">
+            <h2 id="start-here" className="sidebar-heading">
+              Start here
             </h2>
-            <ul className="cards">
-              {section.docs.map((doc) => (
+            <ol className="cards start-cards">
+              {start.docs.map((doc) => (
                 <li key={doc.slug}>
                   <Link href={`/docs/${doc.slug}`} className="card">
                     <span className="card-title">{doc.title}</span>
@@ -44,10 +47,47 @@ export default async function DocsHome() {
                   </Link>
                 </li>
               ))}
+            </ol>
+          </section>
+        ) : null}
+        {frameworks ? (
+          <section className="card-section" aria-labelledby="integrations">
+            {/* #integrations is the header's Integrations link. */}
+            <h2 id="integrations" className="sidebar-heading">
+              Pick your framework
+            </h2>
+            <ul className="chooser">
+              {frameworks.docs.map((doc) => (
+                <li key={doc.slug}>
+                  <Link href={`/docs/${doc.slug}`} className="chooser-link">
+                    {doc.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </section>
-        );
-      })}
-    </article>
+        ) : null}
+        {rest.map((section) => {
+          const id = sectionId(section.title);
+          return (
+            <section key={section.title} className="card-section" aria-labelledby={id}>
+              <h2 id={id} className="sidebar-heading">
+                {section.title}
+              </h2>
+              <ul className="cards">
+                {section.docs.map((doc) => (
+                  <li key={doc.slug}>
+                    <Link href={`/docs/${doc.slug}`} className="card">
+                      <span className="card-title">{doc.title}</span>
+                      <span className="card-description">{doc.description}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })}
+      </article>
+    </>
   );
 }
