@@ -4,6 +4,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Raise a range in package.json only when it no longer allows the new version, and otherwise
+    # update the lockfile alone. Without this, a minor release of a dialog peer raised ondocs's
+    # published peer range with the devDependency (@radix-ui/react-dialog ^1.1.23 to ^1.2.0 in
+    # #127), which moves every site's minimum for nothing ondocs uses, and leaves the plugin
+    # packages' ranges behind (test/plugin-packages.test.ts).
+    versioning-strategy: increase-if-necessary
     groups:
       dev-dependencies:
         dependency-type: development
