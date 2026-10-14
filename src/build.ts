@@ -89,19 +89,33 @@ export async function embeddingSettingsKey(
 }
 
 /**
- * Whether a document URL is safe to cite: a relative reference (`/docs/a`, `a/b`, `../a`) or an
- * http(s) URL. `javascript:`, `data:` and any other scheme are not, nor is anything a browser
- * could read as another host (`//evil.example`, backslashes) or a scheme (a colon before the
- * first `/`), nor control characters. The dialog drops such links too; this keeps them out of
- * the index, so a frontmatter `url` cannot put one in front of visitors.
+ * Whether a document URL is safe to cite: a relative reference (`/docs/a`, `a/b`) or an http(s)
+ * URL. `javascript:`, `data:` and any other scheme are not, nor is anything a browser could read
+ * as another host (`//evil.example`, backslashes) or a scheme (a colon before the first `/`), nor
+ * control characters. The dialog drops such links too; this keeps them out of the index, so a
+ * frontmatter `url` cannot put one in front of visitors. Nor is a path with a `.` or `..`
+ * segment, as written or percent-encoded (`/%2e%2e/`): a page's `.md` copy is written at its
+ * URL's path, which would lead out of the folder, as `url: /../../AGENTS` to `AGENTS.md`.
  */
 export function isCitableUrl(url: string): boolean {
   const value = url.trim();
   // eslint-disable-next-line no-control-regex
   if (!value || /[\\\u0000-\u001f\u007f]/.test(value) || value.startsWith('//')) return false;
+  if (hasDotSegment(value)) return false;
   const scheme = /^([a-z][a-z\d+.-]*):/i.exec(value)?.[1];
   if (scheme !== undefined) return /^https?$/i.test(scheme) && URL.canParse(value);
   return !(/^[^/?#]*/.exec(value)?.[0] ?? '').includes(':');
+}
+
+/** Whether the path of `url` has a `.` or `..` segment once decoded, as a file is named. */
+function hasDotSegment(url: string): boolean {
+  let path = url.replace(/^[a-z][a-z\d+.-]*:\/\/[^/?#]*/i, '').split(/[?#]/)[0] ?? '';
+  try {
+    path = decodeURI(path);
+  } catch {
+    // Named as written when it does not decode.
+  }
+  return /(?:^|[/\\])\.\.?(?:[/\\]|$)/.test(path);
 }
 
 interface PreparedCorpus {
@@ -123,7 +137,8 @@ async function prepare(
     if (!isCitableUrl(document.url)) {
       throw new Error(
         `Document "${document.id}" has the URL ${JSON.stringify(document.url)}, which a citation ` +
-          'cannot link to. Use a path, such as /docs/page, or an http(s) URL.',
+          'cannot link to. Use a path, such as /docs/page, or an http(s) URL, with no . or .. ' +
+          'segment.',
       );
     }
   }
