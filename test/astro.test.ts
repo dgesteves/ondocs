@@ -269,19 +269,29 @@ describe('ondocs/starlight', () => {
       expect.stringMatching(/^dist\/pt-br\/ask-index\.json /) as string,
     ]);
 
-    // Every locale under its own path: there is no root index.
+    // Every locale under its own path: the root, which has no pages, gets the default locale's
+    // index and llms files, where the endpoints and agents read them. Not the first locale's.
     await rm(outDir, { recursive: true });
     const prefixed = starlightIntegration(
       {},
-      { defaultLocale: 'en', locales: { en: { label: 'English' }, fr: { label: 'Français' } } },
+      { defaultLocale: 'en', locales: { fr: { label: 'Français' }, en: { label: 'English' } } },
     );
-    const { outDir: dir } = await build(prefixed, {
+    const { outDir: dir, logger: log } = await build(prefixed, {
       en: starlightPage('Introduction', '<p>Welcome.</p>'),
       fr: french('Introduction', 'Bienvenue.'),
     });
-    expect(existsSync(join(dir, 'ask-index.json'))).toBe(false);
-    expect(existsSync(join(dir, 'en', 'ask-index.json'))).toBe(true);
+    for (const file of ['ask-index.json', 'llms.txt', 'llms-full.txt']) {
+      expect([file, await readFile(join(dir, file), 'utf8')]).toEqual([
+        file,
+        await readFile(join(dir, 'en', file), 'utf8'),
+      ]);
+    }
+    expect((await read()).documents.map((d) => d.url)).toEqual(['/en/']);
     expect(existsSync(join(dir, 'fr', 'ask-index.json'))).toBe(true);
+    expect(existsSync(join(dir, 'index.md'))).toBe(false);
+    expect(log.info).toHaveBeenCalledWith(
+      "Copied en's ask-index.json, llms.txt, llms-full.txt → dist, which has no pages of its own, for the endpoints and agents that read them there.",
+    );
   });
 
   it('reuses vectors per locale from node_modules/.cache, and falls back to keyword-only', async () => {
@@ -701,16 +711,28 @@ describe('ondocs/astro', () => {
     expect((await read('es/ask.json')).documents.map((d) => d.url)).toEqual(['/es/']);
     expect((await read('pt/ask.json')).documents.map((d) => d.url)).toEqual(['/pt/guide/']);
 
-    // With the default locale prefixed too, its pages get their own index.
+    // With the default locale prefixed too, its pages get their own index, which the root, with
+    // no pages, gets a copy of. Not a copy of llms.txt where the site has one of its own.
     await rm(join(root, 'dist'), { recursive: true });
+    await mkdir(join(root, 'dist'), { recursive: true });
+    await writeFile(join(root, 'dist', 'llms.txt'), '# Our own\n');
     const prefixed = { ...i18n, routing: { prefixDefaultLocale: true } };
-    const { outDir } = await build(
+    const { outDir, logger } = await build(
       ondocs({ embeddingModel: mockEmbeddingModel() }),
-      { 'en/start': page('Start', '<h1>Start</h1><p>English.</p>') },
+      {
+        'en/start': page('Start', '<h1>Start</h1><p>English.</p>'),
+        'es/inicio': page('Inicio', '<h1>Inicio</h1><p>Español.</p>'),
+      },
       { i18n: prefixed },
     );
     expect(existsSync(join(outDir, 'en', 'ask-index.json'))).toBe(true);
-    expect(existsSync(join(outDir, 'ask-index.json'))).toBe(false);
+    expect(await readFile(join(outDir, 'ask-index.json'), 'utf8')).toBe(
+      await readFile(join(outDir, 'en', 'ask-index.json'), 'utf8'),
+    );
+    expect(await readFile(join(outDir, 'llms.txt'), 'utf8')).toBe('# Our own\n');
+    expect(logger.info).toHaveBeenCalledWith(
+      "Copied en's ask-index.json, llms-full.txt → dist, which has no pages of its own, for the endpoints and agents that read them there.",
+    );
     expect(await readFile(join(outDir, 'en/start/index.html'), 'utf8')).toContain(
       '<link rel="alternate" type="text/markdown" href="/en/start.md"></head>',
     );

@@ -1,7 +1,8 @@
 // The endpoints ondocs/astro serves itself on a site with an SSR adapter: when it injects
 // them, the module it generates for them, and how they answer. scripts/deploy-recipes.mjs builds
 // real sites with the Node, Vercel and Cloudflare adapters.
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -11,9 +12,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import ondocs from '../src/astro';
 import { routeModuleCode } from '../src/astro/integration';
-import { routeHandlers, serve, type RouteContext, type RouteModule } from '../src/astro/route';
+import {
+  routeHandlers,
+  serve,
+  type RouteContext,
+  type RouteModule,
+  type RouteSettings,
+} from '../src/astro/route';
 import { buildIndex, serializeIndexFile } from '../src';
 import { mockEmbeddingModel, mockLanguageModel } from '../src/mock';
+import starlightOndocs from '../src/starlight';
 import { corpus } from './helpers';
 
 let root: string;
@@ -42,7 +50,8 @@ function setup(
     adapter = '@astrojs/node',
     base = '/',
     site,
-  }: { adapter?: string | null; base?: string; site?: string } = {},
+    i18n,
+  }: { adapter?: string | null; base?: string; site?: string; i18n?: unknown } = {},
 ): Setup {
   const result: Setup = { injected: [], script: '', module: null, info: [], warn: [] };
   const hook = integration.hooks['astro:config:setup'] as unknown as (options: unknown) => void;
@@ -53,6 +62,7 @@ function setup(
       base,
       ...(site ? { site } : {}),
       ...(adapter ? { adapter: { name: adapter, hooks: {} } } : {}),
+      ...(i18n ? { i18n } : {}),
     },
     command: 'build',
     injectScript: (stage: string, content: string) => {
@@ -257,6 +267,116 @@ describe('the injected routes', () => {
     expect((await ask('198.51.100.1')).status).toBe(200);
     expect((await ask('198.51.100.1')).status).toBe(429);
     expect((await ask('198.51.100.2')).status).toBe(200);
+  });
+
+  it('answer where every locale has a path prefix, from the default locale’s index', async () => {
+    /** A page as the build wrote it, its content where both integrations read it. */
+    const page = (lang: string, title: string, text: string) =>
+      `<!DOCTYPE html><html lang="${lang}"><head><title>${title}</title></head><body><main data-pagefind-body><h1>${title}</h1><p>${text}</p></main></body></html>`;
+    const pages = {
+      'en/pricing': page('en', 'Pricing', 'The plan costs ten dollars a month.'),
+      'fr/tarifs': page('fr', 'Tarifs', 'Le forfait coûte dix dollars par mois.'),
+    };
+    // Starlight's documented layout, which docs.astro.build has: no root locale, and a default
+    // listed after another. And Astro's i18n with prefixDefaultLocale.
+    const starlight = (): AstroIntegration => {
+      let added: AstroIntegration | undefined;
+      const plugin = starlightOndocs({ embedding: 'mock', route: { model: 'mock' } });
+      (plugin.hooks['config:setup'] as unknown as (options: unknown) => void)({
+        config: {
+          title: 'Acme Docs',
+          defaultLocale: 'en',
+          locales: { fr: { label: 'Français' }, en: { label: 'English' } },
+        },
+        addIntegration: (integration: AstroIntegration) => (added = integration),
+      });
+      if (!added) throw new Error('the plugin added no integration');
+      return added;
+    };
+    const i18n = {
+      defaultLocale: 'en',
+      locales: ['fr', 'en'],
+      routing: { prefixDefaultLocale: true },
+    };
+    const sites: [string, AstroIntegration, unknown][] = [
+      ['starlight', starlight(), undefined],
+      ['astro', integration(), i18n],
+    ];
+    for (const [name, site, config] of sites) {
+      const outDir = join(root, name, 'dist');
+      const { module: code } = setup(site, { i18n: config });
+      const settings = JSON.parse(
+        /^export const settings = (.*);$/m.exec(code ?? '')?.[1] ?? 'null',
+      ) as RouteSettings;
+      for (const [path, html] of Object.entries(pages)) {
+        await mkdir(join(outDir, path), { recursive: true });
+        await writeFile(join(outDir, path, 'index.html'), html);
+      }
+      const hooks = site.hooks as Record<string, (options: unknown) => unknown>;
+      const logger = { info: vi.fn(), warn: vi.fn() };
+      await hooks['astro:config:done']?.({
+        config: {
+          root: pathToFileURL(`${root}/${name}/`),
+          base: '/',
+          trailingSlash: 'ignore',
+          build: { format: 'directory' },
+          integrations: [{ name: 'ondocs' }],
+          ...(config ? { i18n: config } : {}),
+        },
+        logger,
+      });
+      await hooks['astro:build:done']?.({
+        dir: pathToFileURL(`${outDir}/`),
+        pages: Object.keys(pages).map((path) => ({ pathname: `${path}/` })),
+        logger,
+      });
+      const handlers = routeHandlers({
+        settings,
+        chatModel: () => mockLanguageModel({ initialDelayMs: 0, wordDelayMs: 0 }),
+        openaiEmbedding: null,
+        secret: () => undefined,
+        // The site's static files, as the adapter serves them.
+        assets: () => ({
+          fetch: async (request: Request) => {
+            const file = join(outDir, new URL(request.url).pathname);
+            return existsSync(file)
+              ? new Response(await readFile(file, 'utf8'))
+              : new Response(null, { status: 404 });
+          },
+        }),
+      });
+      const ask = async (body: object) => {
+        const response = await serve(handlers, 'ask', context('/api/ask', body));
+        return [response.status, await response.text()] as const;
+      };
+      const question = 'How much does the plan cost?';
+      const [en, answer] = await ask({ question, locale: 'en' });
+      expect([name, en, answer]).toEqual([name, 200, expect.stringContaining('"/en/pricing/"')]);
+      const [fr, réponse] = await ask({ question: 'Combien coûte le forfait ?', locale: 'fr' });
+      expect([name, fr, réponse]).toEqual([name, 200, expect.stringContaining('"/fr/tarifs/"')]);
+      // A question from no locale, and agents, get the default locale's pages.
+      const [none, fallback] = await ask({ question });
+      expect([name, none, fallback]).toEqual([
+        name,
+        200,
+        expect.stringContaining('"/en/pricing/"'),
+      ]);
+      const search = await serve(
+        handlers,
+        'mcp',
+        context('/api/mcp', {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: { name: 'search', arguments: { query: 'plan cost' } },
+        }),
+      );
+      expect([name, search.status, await search.text()]).toEqual([
+        name,
+        200,
+        expect.stringContaining('/en/pricing/'),
+      ]);
+    }
   });
 
   it('answer 500 while there is no index, and try again on the next request', async () => {

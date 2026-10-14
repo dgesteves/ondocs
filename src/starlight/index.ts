@@ -94,6 +94,8 @@ export default function ondocs(options: OndocsStarlightOptions = {}): StarlightP
             ...(config.locales
               ? { locales: Object.keys(config.locales).filter((key) => key !== 'root') }
               : {}),
+            // Without a root locale, the default one's key, whose files the root gets.
+            ...(config.defaultLocale ? { defaultLocale: config.defaultLocale } : {}),
           }),
         );
       },
