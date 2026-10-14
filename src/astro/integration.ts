@@ -1,8 +1,8 @@
 // The Astro integration behind ondocs/astro and ondocs/starlight. Node.js only.
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { AstroConfig, AstroIntegration } from 'astro';
@@ -198,6 +198,11 @@ export interface IntegrationPreset {
   ignore?: string;
   /** Locale path prefixes that get an index of their own. Default: from Astro's `i18n`. */
   locales?: string[];
+  /**
+   * The default locale's path prefix, whose files are copied to the root when it has no pages.
+   * Default: from Astro's `i18n`.
+   */
+  defaultLocale?: string;
   /** The dialog's title unless the site sets one. */
   title?: string;
   /** The site's title, which names the MCP server in clients and heads `llms.txt`. */
@@ -375,6 +380,10 @@ export function createIntegration(
           return;
         }
         const embedding = await buildEmbedding(options, logger);
+        const owners = llmsOwners([
+          ...(preset.plugins ?? []),
+          ...config.integrations.map((integration) => integration.name),
+        ]);
         for (const [locale, documents] of groups) {
           // A site whose every locale has a path prefix has no pages of its own at the root.
           if (documents.length === 0) continue;
@@ -408,15 +417,40 @@ export function createIntegration(
               ...(mcpUrl ? { mcp: mcpUrl } : {}),
             },
             outputs,
-            owners: llmsOwners([
-              ...(preset.plugins ?? []),
-              ...config.integrations.map((integration) => integration.name),
-            ]),
+            owners,
             dir: join(outDir, locale),
             label: relative(fileURLToPath(config.root), join(outDir, locale)) || 'dist',
             log: logger,
             linkPages: config.build.format === 'file' ? 'file' : 'directory',
           });
+        }
+        // The injected routes, the MCP endpoint `ondocs init` writes and agents read the index and
+        // llms.txt at the root: a site with no pages there, every locale under its own path, gets
+        // the default locale's.
+        const fallback = [
+          preset.defaultLocale ?? astroDefaultLocale(config),
+          ...groups.keys(),
+        ].find((locale) => locale && (groups.get(locale)?.length ?? 0) > 0);
+        if (groups.get('')?.length === 0 && fallback) {
+          await mkdir(dirname(join(outDir, indexFile)), { recursive: true });
+          await copyFile(join(outDir, fallback, indexFile), join(outDir, indexFile));
+          const copied = [indexFile];
+          for (const [output, file] of [
+            ['index', 'llms.txt'],
+            ['full', 'llms-full.txt'],
+          ] as const) {
+            const from = join(outDir, fallback, file);
+            const to = join(outDir, file);
+            // Never one the site has there, or one another plugin writes.
+            if (!outputs[output] || owners.has(output) || !existsSync(from) || existsSync(to)) {
+              continue;
+            }
+            await copyFile(from, to);
+            copied.push(file);
+          }
+          logger.info(
+            `Copied ${fallback}'s ${copied.join(', ')} → ${relative(fileURLToPath(config.root), outDir) || 'dist'}, which has no pages of its own, for the endpoints and agents that read them there.`,
+          );
         }
       },
     },
@@ -616,16 +650,22 @@ function virtualModule(id: string, value: unknown) {
  * The locale path prefixes in Astro's `i18n` config: every locale's path, except the default
  * locale's unless `prefixDefaultLocale` is set.
  */
-function astroLocales({ i18n }: AstroConfig): string[] {
+function astroLocales(config: AstroConfig): string[] {
+  const { i18n } = config;
   if (!i18n) return [];
-  const locales = i18n.locales.map((locale) =>
-    typeof locale === 'string' ? { path: locale, codes: [locale] } : locale,
-  );
   const prefixDefault = typeof i18n.routing === 'object' && i18n.routing.prefixDefaultLocale;
-  const defaultPath = locales.find(
-    ({ path, codes }) => path === i18n.defaultLocale || codes.includes(i18n.defaultLocale),
-  )?.path;
-  return locales.map(({ path }) => path).filter((path) => prefixDefault || path !== defaultPath);
+  const defaultPath = astroDefaultLocale(config);
+  return i18n.locales
+    .map((locale) => (typeof locale === 'string' ? locale : locale.path))
+    .filter((path) => prefixDefault || path !== defaultPath);
+}
+
+/** The default locale's path in Astro's `i18n` config. */
+function astroDefaultLocale({ i18n }: AstroConfig): string | undefined {
+  return i18n?.locales
+    .map((locale) => (typeof locale === 'string' ? { path: locale, codes: [locale] } : locale))
+    .find(({ path, codes }) => path === i18n.defaultLocale || codes.includes(i18n.defaultLocale))
+    ?.path;
 }
 
 /**
