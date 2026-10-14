@@ -1,14 +1,15 @@
 // The ask and MCP endpoints that ondocs/astro serves itself on a site with an SSR adapter, so
 // the site needs no route file: the integration injects `ask-route.ts` and `mcp-route.ts`, which
-// call these. They answer from the index the build wrote, fetched from the site's own static files
-// (through the ASSETS binding on Cloudflare) and checked again after a deploy.
+// call these. They answer from the index the build wrote: read from the build's own files with
+// the Node adapter, else fetched from the site's own static files (through the ASSETS binding on
+// Cloudflare) and checked again after a deploy.
 import type { EmbeddingModel, LanguageModel } from 'ai';
 
-import type { RetrievalOptions } from '../search/retrieve';
+import { loadIndex, type LoadedIndex, type RetrievalOptions } from '../search/retrieve';
 import { turnstile, type ChallengeVerifier } from '../server/challenge';
 import { createAskHandler } from '../server/handler';
 import { createMcpHandler } from '../server/mcp';
-import { memoryRateLimit, type RateLimiter } from '../server/rate-limit';
+import { clientKey, memoryRateLimit, type RateLimiter } from '../server/rate-limit';
 import { remoteIndex, type RemoteIndex } from '../server/remote-index';
 
 /** What the integration passes to the route, as JSON, through `virtual:ondocs/route`. */
@@ -24,6 +25,11 @@ export interface RouteSettings {
   rateLimit: { limit: number; windowMs: number } | false;
   /** Tool calls a minute per client, or `false` for no limit. */
   mcpRateLimit: { limit: number; windowMs: number } | false;
+  /**
+   * The header the site's proxy sets to the client's address, which the limits key clients by
+   * (its last entry, as `clientKey` reads it) instead of the address the adapter reports.
+   */
+  trustedHeader?: string;
   budget: { requestsPerDay?: number; tokensPerDay?: number } | false;
   answerCache: boolean;
   /**
@@ -31,6 +37,29 @@ export interface RouteSettings {
    * secret in `TURNSTILE_SECRET_KEY`.
    */
   turnstile?: true;
+  /**
+   * The site is on Vercel, which routes each request by its Host, so the index's URL is the
+   * deployment's own: only then does the fetch carry `VERCEL_AUTOMATION_BYPASS_SECRET`.
+   */
+  vercel?: true;
+}
+
+/**
+ * The build's own files, which the routes read the indexes from with the Node adapter instead of
+ * fetching them from the request's Host: Astro 5 takes that from the Host or X-Forwarded-Host
+ * header the client sends.
+ */
+export interface BuiltFiles {
+  /** The generated module's URL, in the server's folder of the build. */
+  url: string;
+  /** The name of the server's folder (`server`), which @astrojs/node finds the same way. */
+  server: string;
+  /** The folder of the static files, relative to the server's (`../client/`). */
+  client: string;
+  /** `base`, which the indexes' paths start with and their files' paths do not. */
+  base: string;
+  /** Reads a file as text. */
+  read: (file: URL) => Promise<string>;
 }
 
 /** The virtual module's exports: the settings, and the models, made where the site's packages are. */
@@ -44,6 +73,8 @@ export interface RouteModule {
   secret: (name: string) => string | undefined;
   /** The Worker's ASSETS binding, with the Cloudflare adapter; else `undefined`. */
   assets: () => { fetch?: unknown } | undefined;
+  /** The build's files, with the Node adapter; else `null`. */
+  builtFiles?: BuiltFiles | null;
 }
 
 /** The part of Astro's `APIContext` the routes read. */
@@ -58,7 +89,24 @@ type Handler = (request: Request) => Promise<Response>;
 
 /** The client address Astro gave each request, for the rate limiters' keys. */
 const clients = new WeakMap<Request, string>();
-const byClient = (request: Request): string => clients.get(request) ?? 'anonymous';
+
+/**
+ * The rate limiters' key for a request, as `clientKey` makes one: an IPv6 address by its /64, from
+ * the trusted header when the site names one, else from the address the adapter reported.
+ */
+function clientId(request: Request, trustedHeader: string | undefined): string {
+  if (trustedHeader) return clientKey(request, { trustedHeader });
+  const address = clients.get(request);
+  if (!address) return 'anonymous';
+  try {
+    return clientKey(new Request('http://client.invalid/', { headers: { 'x-client': address } }), {
+      trustedHeader: 'x-client',
+    });
+  } catch {
+    // Not a header value, so not an address either.
+    return address;
+  }
+}
 
 interface Assets {
   fetch: (request: Request) => Promise<Response>;
@@ -115,6 +163,34 @@ interface Handlers {
 }
 
 /**
+ * Reads `path` (the index's path on the site, with `base`) from the build's static files, in the
+ * folder @astrojs/node serves them from: `client` from the closest folder named `server` above
+ * the generated module, or from the next one, should a page's folder have that name too.
+ */
+async function readBuilt(files: BuiltFiles, path: string): Promise<string> {
+  const file = path.slice(files.base.length).replace(/^\/+/, '');
+  const folders: URL[] = [];
+  for (let folder = new URL('.', files.url); ;) {
+    const name = folder.pathname.split('/').at(-2) ?? '';
+    if (decodeURIComponent(name) === files.server) folders.push(new URL(files.client, folder));
+    const parent = new URL('..', folder);
+    if (parent.href === folder.href) break;
+    folder = parent;
+  }
+  let failure: unknown = new Error(`there is no folder named ${files.server} above ${files.url}`);
+  for (const [i, folder] of folders.entries()) {
+    try {
+      return await files.read(new URL(file, folder));
+    } catch (error) {
+      if (i === 0) failure = error;
+    }
+  }
+  throw new Error(`Could not read the index ${file} from the build: ${String(failure)}`, {
+    cause: failure,
+  });
+}
+
+/**
  * The ask route's bot check, for a dialog with `challenge.turnstile`: Turnstile, with the secret
  * from the adapter's environment. Without the secret, every question gets a 503 and the log says
  * why; the MCP route, which is not checked, answers as before.
@@ -136,29 +212,39 @@ function turnstileChallenge(module: RouteModule): ChallengeVerifier {
  */
 export function routeHandlers(module: RouteModule): (context: RouteContext) => Promise<Handlers> {
   let handlers: Promise<Handlers> | null = null;
+  const { trustedHeader } = module.settings;
+  const key = (request: Request): string => clientId(request, trustedHeader);
   const limiter = (limit: RouteSettings['rateLimit']): RateLimiter | false =>
-    limit ? memoryRateLimit({ ...limit, key: byClient }) : false;
+    limit ? memoryRateLimit({ ...limit, key }) : false;
   const askLimit = limiter(module.settings.rateLimit);
   const mcpLimit = limiter(module.settings.mcpRateLimit);
 
   const create = async ({ url, locals }: RouteContext): Promise<Handlers> => {
     const { settings } = module;
+    const built = module.builtFiles;
     // A Vercel preview behind Deployment Protection lets the endpoint read its own files with the
-    // automation bypass secret, when the project has one.
-    const bypass = module.secret('VERCEL_AUTOMATION_BYPASS_SECRET');
+    // automation bypass secret, when the project has one. Only on Vercel, whose routing by Host
+    // keeps the request's origin the deployment's own.
+    const bypass = settings.vercel ? module.secret('VERCEL_AUTOMATION_BYPASS_SECRET') : undefined;
     const fetchAsset = assetsFetcher(module, locals);
     const fetchOptions = {
       ...(fetchAsset ? { fetch: fetchAsset } : {}),
       ...(bypass ? { headers: { 'x-vercel-protection-bypass': bypass } } : {}),
     };
-    const index: RemoteIndex = remoteIndex(new URL(settings.indexPath, url), fetchOptions);
+    // With the Node adapter, the build's own files, each read once. Elsewhere the site's, at the
+    // request's origin, which the host routes requests by, and checked again after a deploy.
+    const source = (path: string) =>
+      built ? () => readBuilt(built, path) : remoteIndex(new URL(path, url), fetchOptions);
+    const index: LoadedIndex | RemoteIndex = built
+      ? loadIndex(await readBuilt(built, settings.indexPath))
+      : remoteIndex(new URL(settings.indexPath, url), fetchOptions);
     const indexes = Object.fromEntries(
       Object.entries(settings.localeIndexPaths ?? {}).map(([locale, path]) => [
         locale,
-        remoteIndex(new URL(path, url), fetchOptions),
+        source(path),
       ]),
     );
-    const loaded = await index();
+    const loaded = typeof index === 'function' ? await index() : index;
     const query = await queryModel(module, loaded.embedding?.model);
     return {
       ask: createAskHandler({

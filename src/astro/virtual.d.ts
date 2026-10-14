@@ -6,4 +6,5 @@ declare module 'virtual:ondocs/route' {
   export const openaiEmbedding: unknown;
   export const secret: unknown;
   export const assets: unknown;
+  export const builtFiles: unknown;
 }

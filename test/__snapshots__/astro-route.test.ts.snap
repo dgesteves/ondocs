@@ -10,5 +10,6 @@ export const chatModel = () => openai()("gpt-5.4-mini");
 export const openaiEmbedding = (id) => openai().embedding(id);
 export const secret = (name) => getSecret(name);
 export const assets = () => undefined;
+export const builtFiles = null;
 "
 `;

@@ -2,8 +2,8 @@
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname, join, relative } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import type { AstroConfig, AstroIntegration } from 'astro';
 
@@ -34,7 +34,7 @@ import {
   type OndocsTheme,
   type SourceDocument,
 } from '../integration';
-import type { RouteSettings } from './route';
+import type { BuiltFiles, RouteSettings } from './route';
 
 /** What the dialog shows in one locale, over the dialog's own options. */
 export type OndocsLocaleDialogOptions = LocaleDialogOptions;
@@ -69,10 +69,21 @@ export interface OndocsRouteOptions {
    * key. Default `openai:gpt-5.4-mini`. Questions are embedded with the model the index records.
    */
   model?: string;
-  /** Questions a minute per visitor, by the client address the adapter reports. Default 10; `false` for no limit. */
+  /**
+   * Questions a minute per visitor, by the client address the adapter reports (an IPv6 address by
+   * its /64), or by `trustedHeader`. Default 10; `false` for no limit.
+   */
   rateLimit?: number | false;
   /** Tool calls a minute per client on the MCP endpoint. Default 60; `false` for no limit. */
   mcpRateLimit?: number | false;
+  /**
+   * The header your proxy sets to the client's address on every request, such as `x-real-ip`, or
+   * `x-forwarded-for` behind one proxy that appends to it: the limits key visitors by its last
+   * entry instead of the address the adapter reports. Astro's Node adapter reports the first
+   * `X-Forwarded-For` entry, which the client sends, on Astro 5, and later for a Host in
+   * `security.allowedDomains`.
+   */
+  trustedHeader?: string;
   /**
    * A daily cap for the endpoint, counted per server instance. Default
    * `{ requestsPerDay: 500, tokensPerDay: 1_500_000 }`; `false` for none. Set a spend limit with
@@ -151,6 +162,8 @@ const DEFAULT_PATH = '/api/ask';
 const DEFAULT_MCP_PATH = '/api/mcp';
 const DEFAULT_ROUTE_MODEL = 'openai:gpt-5.4-mini';
 const ROUTE_MODEL = /^(?:mock|openai:.+|[\w-]+\/.+)$/;
+/** A header's name: an HTTP token. */
+const HEADER_NAME = /^[\w!#$%&'*+.^`|~-]+$/;
 /** About 500 answers a day, at some 3,000 tokens each. */
 const DEFAULT_ROUTE_BUDGET = { requestsPerDay: 500, tokensPerDay: 1_500_000 };
 
@@ -229,6 +242,12 @@ export function createIntegration(
       `ondocs: route.model must be openai:<model>, an AI Gateway id <provider>/<model>, or mock (got '${model}').`,
     );
   }
+  const trustedHeader = routeOptions?.trustedHeader;
+  if (trustedHeader !== undefined && !HEADER_NAME.test(trustedHeader)) {
+    throw new Error(
+      `ondocs: route.trustedHeader must be a header's name, such as x-real-ip (got '${trustedHeader}').`,
+    );
+  }
   let endpoint = dialogEndpoint(options.endpoint);
   let config: AstroConfig | undefined;
   // The routes the integration serves, when it serves them: their paths under `base`.
@@ -276,14 +295,24 @@ export function createIntegration(
               ),
               rateLimit: perMinute(routeOptions?.rateLimit, 10),
               mcpRateLimit: perMinute(routeOptions?.mcpRateLimit, 60),
+              ...(trustedHeader ? { trustedHeader: trustedHeader.toLowerCase() } : {}),
               budget: routeOptions?.budget ?? DEFAULT_ROUTE_BUDGET,
               answerCache: routeOptions?.answerCache ?? true,
               // The dialog solves a Turnstile challenge: the route checks it.
               ...(options.dialog?.challenge?.turnstile ? { turnstile: true as const } : {}),
+              // Only on Vercel does the index's fetch carry the Deployment Protection bypass.
+              ...(/^@astrojs\/vercel(?:\/|$)/.test(astro.adapter?.name ?? '')
+                ? { vercel: true as const }
+                : {}),
             },
             model,
             hasPackage('@ai-sdk/openai', astro.root),
             astro.adapter?.name === '@astrojs/cloudflare',
+            // With the Node adapter, the built server reads the indexes from the build's files,
+            // not from the request's Host; `astro dev` serves them at their paths instead.
+            astro.adapter?.name === '@astrojs/node' && !dev
+              ? { ...builtFolders(astro), base }
+              : undefined,
           );
           for (const [which, pattern] of Object.entries(routes)) {
             injectRoute({
@@ -521,14 +550,35 @@ function hasPackage(name: string, root: URL): boolean {
 }
 
 /**
+ * Where the Node adapter's build puts the static files: the name of the server's folder, and the
+ * client's folder relative to it, which is how @astrojs/node finds them wherever `dist` is moved.
+ */
+function builtFolders(astro: AstroConfig): { server: string; client: string } {
+  // A test's partial config may have no build.
+  const { server, client } = (astro.build as Partial<AstroConfig['build']> | undefined) ?? {};
+  if (!server || !client) return { server: 'server', client: '../client/' };
+  const serverDir = fileURLToPath(server);
+  const clientDir = fileURLToPath(client);
+  const path = relative(serverDir, clientDir);
+  return {
+    server: basename(serverDir),
+    client: isAbsolute(path)
+      ? pathToFileURL(join(clientDir, '/')).href
+      : `${path.split(sep).join('/') || '.'}/`,
+  };
+}
+
+/**
  * The source of `virtual:ondocs/route`: the settings, and the model, imported from the
- * site's own packages, which is why it is generated rather than shipped.
+ * site's own packages, which is why it is generated rather than shipped. With `built` (the Node
+ * adapter), the routes read the indexes from the build's files, found from the module's own URL.
  */
 export function routeModuleCode(
   settings: RouteSettings,
   model: string,
   openai: boolean,
   cloudflare = false,
+  built?: Pick<BuiltFiles, 'server' | 'client' | 'base'>,
 ): string {
   const id = model.replace(/^openai:/, '');
   if (model.startsWith('openai:') && !openai) {
@@ -548,6 +598,7 @@ export function routeModuleCode(
     ...(model === 'mock' ? ["import { mockLanguageModel } from 'ondocs/mock';"] : []),
     // The Cloudflare adapter's bindings, where the route reads the index through ASSETS.
     ...(cloudflare ? ["import { env } from 'cloudflare:workers';"] : []),
+    ...(built ? ["import { readFile } from 'node:fs/promises';"] : []),
     ...(openai
       ? [
           'let provider;',
@@ -559,6 +610,11 @@ export function routeModuleCode(
     `export const openaiEmbedding = ${openai ? '(id) => openai().embedding(id)' : 'null'};`,
     'export const secret = (name) => getSecret(name);',
     `export const assets = ${cloudflare ? '() => env.ASSETS' : '() => undefined'};`,
+    `export const builtFiles = ${
+      built
+        ? `{ ...${JSON.stringify(built)}, url: import.meta.url, read: (file) => readFile(file, 'utf8') }`
+        : 'null'
+    };`,
     '',
   ].join('\n');
 }
