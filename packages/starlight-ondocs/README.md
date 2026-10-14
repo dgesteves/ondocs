@@ -5,8 +5,10 @@ The [ondocs](https://github.com/dgesteves/ondocs) Starlight plugin, under the na
 This package only re-exports `ondocs/starlight`, at the same version. Everything is documented on [the ondocs website](https://ondocs.vercel.app/docs/astro).
 
 ```sh
-npm i starlight-ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
+npm i starlight-ondocs ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
 ```
+
+Install `ondocs` with it, as the line above does: your project needs it itself. The plugin adds `ondocs/...` modules to your pages, the endpoint you deploy imports `ondocs/server`, and the `ondocs` command (`npx ondocs init`) comes from it. npm finds it as this package's dependency, but pnpm gives a project only its direct dependencies, so without it `astro build` stops and says to install it. The two are released together: keep them at the same version.
 
 ```js
 // astro.config.mjs

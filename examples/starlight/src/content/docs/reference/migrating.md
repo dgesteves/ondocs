@@ -61,7 +61,7 @@ It leaves links to `github.com/dgesteves/ask-my-site` and the demo site alone, s
 
 ### Docusaurus
 
-The plugin is `ondocs/docusaurus`, or `docusaurus-plugin-ondocs` under its own package:
+The plugin is `ondocs/docusaurus`, or `docusaurus-plugin-ondocs` under its own package, installed next to `ondocs` rather than in its place:
 
 ```ts
 // docusaurus.config.ts
@@ -79,7 +79,7 @@ export default { plugins: ['ondocs/docusaurus'] };
 
 ### Astro and Starlight
 
-Import the plugin or the integration from `ondocs/starlight` or `ondocs/astro`, or `starlight-ondocs` under its own package. The default export's name is yours to choose; these docs call it `ondocs`:
+Import the plugin or the integration from `ondocs/starlight` or `ondocs/astro`, or `starlight-ondocs` under its own package, installed next to `ondocs` rather than in its place: the site's build imports `ondocs/...` modules itself, and pnpm gives a project only its direct dependencies. The default export's name is yours to choose; these docs call it `ondocs`:
 
 ```js
 // astro.config.mjs
