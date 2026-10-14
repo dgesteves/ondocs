@@ -18,8 +18,8 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "dependabot/**": false,
-      "changeset-release/**": false
+      "**": false,
+      "main": true
     }
   }
 }
