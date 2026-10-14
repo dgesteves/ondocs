@@ -14,21 +14,21 @@
     "lint": "eslint --max-warnings 0 ."
   },
   "dependencies": {
-    "@ai-sdk/openai": "^4.0.83",
+    "@ai-sdk/openai": "^4.0.91",
     "@radix-ui/react-dialog": "^1.1.23",
     "@vercel/analytics": "^2.0.1",
-    "ai": "^7.0.127",
+    "ai": "^7.0.137",
     "ondocs": "workspace:*",
     "cmdk": "^1.1.1",
     "geist": "^1.7.2",
     "marked": "^18.1.0",
-    "next": "16.3.8",
+    "next": "16.4.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "shiki": "^4.5.0"
   },
   "devDependencies": {
-    "@types/node": "^24.19.1",
+    "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "typescript": "6.0.3"

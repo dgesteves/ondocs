@@ -6,3 +6,17 @@ allowBuilds:
   '@swc/core': false
   core-js: false
   esbuild: false
+# next 16.4.1 is a security release (GHSA-673q-mjm6-r5xr, GHSA-2464-fhr4-w9xw, GHSA-p3m5-59mp-jv5r),
+# published on 2026-10-14, so it is younger than pnpm's one-day minimum release age. These exact versions
+# are exempt so the fix lands now. The entries can go after 2026-10-15 17:44 UTC, when they are old enough.
+minimumReleaseAgeExclude:
+  - '@next/env@16.4.1'
+  - '@next/swc-darwin-arm64@16.4.1'
+  - '@next/swc-darwin-x64@16.4.1'
+  - '@next/swc-linux-arm64-gnu@16.4.1'
+  - '@next/swc-linux-arm64-musl@16.4.1'
+  - '@next/swc-linux-x64-gnu@16.4.1'
+  - '@next/swc-linux-x64-musl@16.4.1'
+  - '@next/swc-win32-arm64-msvc@16.4.1'
+  - '@next/swc-win32-x64-msvc@16.4.1'
+  - next@16.4.1
