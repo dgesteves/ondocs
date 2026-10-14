@@ -5,7 +5,7 @@ description: 'What ondocs is: open-source Ask AI for your docs, with an MCP serv
 slug: /
 ---
 
-ondocs is open-source Ask AI for your docs, with an MCP server for agents. A visitor types a question and gets a short answer written from your own pages, with numbered citations that link to the exact section each claim came from, or "I don't know" when the pages don't say. Coding agents search and read the same pages through the MCP server, with their own model. Both are served from one static index, built with your Starlight, Docusaurus, VitePress or Next.js site, by a function you deploy, and answers use your own model key: no vendor account and no vector database. It is an npm package under the MIT license, not a hosted service.
+ondocs is open-source Ask AI for your docs, with an MCP server for agents. A visitor types a question and gets a short answer written from your own pages, with numbered citations that link to the exact section each claim came from, or "I don't know" when the pages don't say. Coding agents search and read the same pages through the MCP server, with their own model. Both are served from one static index, built with your Starlight, Docusaurus, VitePress or Next.js site, by a function you deploy, and answers use a model you choose: no vendor account and no vector database. It is an npm package under the MIT license, not a hosted service.
 
 ## How it works
 

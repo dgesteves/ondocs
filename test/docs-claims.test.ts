@@ -155,6 +155,44 @@ describe('the docs’ numbers', () => {
   });
 });
 
+describe('the website’s own eval', () => {
+  // CI scores these pages with examples/nextjs/ask-eval.yaml, and the deploy recipes ask an index
+  // of them one of its off-topic questions. A page that quotes such a question (as an example of
+  // one the gate stops) gives it the keyword coverage to clear the gate, and both fail.
+  it('refuses the off-topic questions it asks of these pages, on the index the build writes', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'ondocs-docs-claims-'));
+    try {
+      const io = { cwd: dir, env: {}, stdout: () => undefined, stderr: () => undefined };
+      // As `pnpm index` builds it without a key: the mock model, and the framework detected.
+      const built = await main(
+        ['index', DOCS, '-o', 'ask-index.json', '--base-url', '/docs', '-e', 'mock', '-q'],
+        io,
+      );
+      expect(built).toBe(0);
+      const out: string[] = [];
+      const code = await main(
+        [
+          'eval',
+          join(root, 'examples/nextjs/ask-eval.yaml'),
+          '--index',
+          'ask-index.json',
+          '--json',
+        ],
+        { ...io, stdout: (line) => out.push(line) },
+      );
+      const { results } = JSON.parse(out.join('\n')) as {
+        results: { question: string; unanswerable: boolean; refused: boolean }[];
+      };
+      const answered = results.filter((result) => result.unanswerable && !result.refused);
+      expect(answered.map((result) => result.question)).toEqual([]);
+      expect(results.some((result) => result.unanswerable)).toBe(true);
+      expect(code).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 const corpus = join(
   process.env.ONDOCS_CORPUS ?? join(import.meta.dirname, '..', '.corpus'),
   'docusaurus',

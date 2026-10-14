@@ -56,7 +56,7 @@ On docusaurus.io's docs (1,070 chunks) and the 22 questions and 6 off-topic ones
 | Keywords only          | 14 of 22         | 19 of 22                | 0 of 6                       |
 | Keywords and BGE-small | 16 of 22         | 19 of 22                | 0 of 6                       |
 
-BGE-small scored even the off-topic questions 0.46 to 0.63 against their closest chunk, so the default gate of 0.25, set for OpenAI's models, would let every question through. An index embedded with it gets 0.65 instead: the lowest value at which no off-topic question in that set gets through. Those six are far from the docs' subject, such as the capital of France. A general programming question that shares common words with the docs can still clear the gate and reach the model, at the price of a model call. Another embedding model needs its own `retrieval.minSimilarity`; [How retrieval works](./retrieval.md) explains the gate.
+BGE-small scored even the off-topic questions 0.46 to 0.63 against their closest chunk, so the default gate of 0.25, set for OpenAI's models, would let every question through. An index embedded with it gets 0.65 instead: the lowest value at which no off-topic question in that set gets through. Those six have nothing to do with the docs' subject. A general programming question that shares common words with the docs can still clear the gate and reach the model, at the price of a model call. Another embedding model needs its own `retrieval.minSimilarity`; [How retrieval works](./retrieval.md) explains the gate.
 
 ## Choose the model that answers
 
