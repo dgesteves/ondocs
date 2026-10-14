@@ -73,12 +73,16 @@ async function parts(response: Response): Promise<Part[]> {
 /** What the dialog shows for a response from its endpoint, and what it warns in the console. */
 async function dialogShows(response: () => Promise<Response>) {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-  const { result } = renderHook(() => useAsk({ fetch: response }));
-  await act(() => result.current.ask('How do I install it?'));
-  return {
-    text: errorText(result.current.error, resolveLabels(undefined)),
-    warnings: warn.mock.calls.map(([message]) => String(message)),
-  };
+  try {
+    const { result } = renderHook(() => useAsk({ fetch: response }));
+    await act(() => result.current.ask('How do I install it?'));
+    return {
+      text: errorText(result.current.error, resolveLabels(undefined)),
+      warnings: warn.mock.calls.map(([message]) => String(message)),
+    };
+  } finally {
+    warn.mockRestore();
+  }
 }
 
 const html = (status: number) => () =>

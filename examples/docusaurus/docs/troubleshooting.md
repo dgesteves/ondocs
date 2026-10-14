@@ -42,9 +42,15 @@ Then compare what you have, from `npm ls ondocs`, `pnpm why ondocs` or `yarn why
 
 ## An option from these docs does nothing
 
-An option on these pages changes nothing, and the build prints no warning. Or an import fails with `Package subpath './embed/button.css' is not defined by "exports"`.
+An option on these pages changes nothing, and the build prints no warning. Or an import from these pages fails, such as `import 'ondocs/embed/button.css'`, and each bundler says so in its own words:
 
-These docs describe the newest version, and your project has an older one. The plugins do not check their options yet, so an option your version does not know is ignored. `dialog: { navbar: true }` and `ondocs/embed/button.css`, for example, are new in 0.11. Two things keep a project on an older version: a release-age gate (see above), and the caret range. Before 1.0, `^0.10.0` allows 0.10 releases only, so `npm update` never moves it to 0.11.
+- webpack, in Docusaurus: `"./embed/button.css" is not exported under the conditions`. An older webpack, such as the one `next build --webpack` uses, says `Package path ./embed/button.css is not exported from package`.
+- Rspack, in Docusaurus with `future: { faster: true }`: `Package subpath './embed/button.css' is not defined by "exports"`, as Node says it.
+- Vite 8, in Astro 7 and VitePress 2: `"./embed/button.css" is not exported under the conditions`.
+- Vite 5 to 7, in VitePress 1 and Astro 5 and 6: `Missing "./embed/button.css" specifier in "ondocs" package`.
+- Turbopack, in Next.js: `Module not found: Can't resolve 'ondocs/embed/button.css'`, as for a package that is not installed.
+
+These docs describe the newest version, and your project has an older one. The plugins check their options for ones that conflict, but not for ones they don't know, so an option newer than your version is ignored. A module newer than your version is not in its package's `exports`, which is what the bundlers' messages say. `dialog: { navbar: true }` and `ondocs/embed/button.css`, for example, are new in 0.11. Two things keep a project on an older version: a release-age gate (see above), and the caret range. Before 1.0, `^0.10.0` allows 0.10 releases only, so `npm update` never moves it to 0.11.
 
 Check the version you have with `npm ls ondocs`, and install the latest with `npm i ondocs@latest`, with the plugin package at the same version if you use one. [Upgrading](./upgrading.md) lists the options a minor version renames, and the [changelog](https://github.com/dgesteves/ondocs/blob/main/CHANGELOG.md) what each version adds.
 
