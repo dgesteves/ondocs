@@ -72,3 +72,7 @@ import 'ondocs/embed/launcher.css';
 ## Try it without an API key
 
 Mock mode runs the whole pipeline offline: a deterministic embedding model and a scripted model that answers by quoting the best-matching sentences, with citations. Build with `-e mock` and serve the endpoint locally with `npx ondocs dev`. [Try it locally](./local-development.md) walks through it.
+
+## When something fails
+
+[Troubleshooting](./troubleshooting.md) lists the messages a new site shows most often, from a package manager that installs an older version to a dialog that cannot answer, with the cause and the fix of each.
