@@ -41,6 +41,14 @@ export type DialogPanelProps = Omit<
 
 const cx = (...names: (string | undefined | false)[]): string => names.filter(Boolean).join(' ');
 
+// The command palette takes these keys for its list, and cancels them anywhere inside it. On the
+// answer and the Stop button they stop short of it: Enter follows the focused link or presses the
+// focused button, and the others scroll the answer. Escape, Tab and the shortcut still go on.
+const ownKeys = new Set(['Enter', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
+const keepOwnKeys = (event: KeyboardEvent): void => {
+  if (ownKeys.has(event.key)) event.stopPropagation();
+};
+
 function SearchIcon(): ReactNode {
   return (
     <svg className="ask-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -394,7 +402,12 @@ export function DialogPanel({
                 className={cx('ask-input', classNames.input)}
               />
               {busy ? (
-                <button type="button" className="ask-stop" onClick={state.stop}>
+                <button
+                  type="button"
+                  className="ask-stop"
+                  onClick={state.stop}
+                  onKeyDown={keepOwnKeys}
+                >
                   {labels.stop}
                 </button>
               ) : (
@@ -505,7 +518,7 @@ function AnswerPanel({
     state.sources.length > 0 && !state.refused && !(cited && citedSources(state).length === 0);
   const thread = state.turns.length > 0;
   return (
-    <div className="ask-panel">
+    <div className="ask-panel" onKeyDown={keepOwnKeys}>
       {/* The thread so far: each answer with its own citations, which link to its own sources. */}
       {state.turns.map((turn, i) => (
         <div key={i} className="ask-turn">
