@@ -30,6 +30,11 @@ export interface AskDialogLabels {
   escapeKey: string;
   /** The footer's disclaimer. */
   footer: string;
+  /**
+   * The footer's disclaimer when no sources are shown: after a refusal, an answer that cites
+   * none, or an error. When `footer` is given and this is not, `footer` is shown there too.
+   */
+  footerNoSources: string;
   /** The footer's hint for Enter, after the ↵ key. */
   footerAsk: string;
   /** The footer's hint for Escape, after the esc key. */
@@ -117,6 +122,7 @@ export const DEFAULT_LABELS: Readonly<DefaultLabels> = {
   stop: 'Stop',
   escapeKey: 'esc',
   footer: 'Answers come from this site and can be wrong. Check the sources.',
+  footerNoSources: 'Answers come from this site and can be wrong.',
   footerAsk: 'ask',
   footerClose: 'close',
   searching: 'Searching the site…',
@@ -158,6 +164,8 @@ export function resolveLabels(given: Partial<AskDialogLabels> | undefined): Reso
   for (const [key, value] of Object.entries(given ?? {})) {
     if (typeof value === 'string') own[key as keyof AskDialogLabels] = value;
   }
+  // A site's own footer, likely in its own language, beats the English one without the sources.
+  if (own.footer !== undefined) own.footerNoSources ??= own.footer;
   return { ...DEFAULT_LABELS, ...own };
 }
 

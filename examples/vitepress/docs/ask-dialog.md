@@ -121,6 +121,7 @@ The endpoint's own words, its "I don't know" answer, its rate limit and budget m
 | `stop`               | Stop                                                                                         |
 | `escapeKey`          | esc                                                                                          |
 | `footer`             | Answers come from this site and can be wrong. Check the sources.                             |
+| `footerNoSources`    | Answers come from this site and can be wrong.                                                |
 | `footerAsk`          | ask                                                                                          |
 | `footerClose`        | close                                                                                        |
 | `searching`          | Searching the site…                                                                          |
