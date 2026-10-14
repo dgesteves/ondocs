@@ -3,7 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import {
   buildLlmsFiles,
@@ -87,7 +87,8 @@ export interface WriteLlmsFilesOptions {
 /**
  * Writes the files for `pages` into `dir`, leaving out the outputs another plugin writes
  * (`owners`: output → plugin name) and never replacing a file already there, which came from
- * the site's static files or another plugin. Says what it wrote, and what it left alone.
+ * the site's static files or another plugin. Says what it wrote, and what it left alone. Never
+ * writes outside `dir`: a page whose URL leads out of it, as `/../../AGENTS`, gets no copy.
  */
 export async function writeLlmsFiles({
   pages,
@@ -114,9 +115,14 @@ export async function writeLlmsFiles({
 
   const files = buildLlmsFiles(pages, site, enabled);
   const kept: string[] = [];
+  const outside: string[] = [];
   let written = 0;
   for (const file of files) {
-    const target = join(dir, ...file.path.split('/'));
+    const target = inside(dir, file.path);
+    if (target === undefined) {
+      outside.push(file.path);
+      continue;
+    }
     if (!overwrite && existsSync(target)) {
       kept.push(file.path);
       continue;
@@ -126,7 +132,8 @@ export async function writeLlmsFiles({
     written += 1;
   }
   const pagesWritten = files.filter(
-    (file) => file.path.endsWith('.md') && !kept.includes(file.path),
+    (file) =>
+      file.path.endsWith('.md') && !kept.includes(file.path) && !outside.includes(file.path),
   ).length;
   const named = [
     enabled.index && !kept.includes('llms.txt') ? 'llms.txt' : null,
@@ -142,9 +149,18 @@ export async function writeLlmsFiles({
         'files or another plugin. Set llmsTxt: false (or turn off that file) to stop this warning.',
     );
   }
-  // Every copy is in `dir` now, written or already there.
+  if (outside.length > 0) {
+    const sample = outside.slice(0, 3).join(', ');
+    const more = outside.length > 3 ? ` and ${String(outside.length - 3)} more` : '';
+    log.warn(
+      `Left out ${sample}${more}: their pages’ URLs lead out of ${label}. Give each page a ` +
+        'path with no . or .. segment.',
+    );
+  }
+  // Every copy but those is in `dir` now, written or already there.
   if (enabled.markdown && linkPages) {
     for (const [page, copy] of markdownCopies(pages, site.base)) {
+      if (outside.includes(copy)) continue;
       const html = builtHtmlFile(dir, page.url, site.base, linkPages);
       const href = rootedPath(copy.split('/').map(encodeURIComponent).join('/'), site.base);
       if (html) rewrite(html, (text) => withMarkdownLink(text, href));
@@ -175,7 +191,22 @@ function builtHtmlFile(
       : path.endsWith('/') || layout === 'directory'
         ? [`${clean}/index.html`, `${clean}.html`]
         : [`${clean}.html`, `${clean}/index.html`];
-  return candidates.map((file) => join(dir, ...file.split('/'))).find((file) => existsSync(file));
+  return candidates
+    .map((file) => inside(dir, file))
+    .find((file): file is string => file !== undefined && existsSync(file));
+}
+
+/**
+ * The file at `path` (relative, with `/` separators) in `dir`, or `undefined` when `path` leads
+ * out of `dir`, as `../../AGENTS.md` does, or is `dir` itself.
+ */
+function inside(dir: string, path: string): string | undefined {
+  const root = resolve(dir);
+  const target = resolve(root, ...path.split('/'));
+  const rel = relative(root, target);
+  return rel === '' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)
+    ? undefined
+    : target;
 }
 
 const HEAD_END =

@@ -170,6 +170,18 @@ describe('document URLs', () => {
     'javascript :alert(1)',
     'https://',
     '',
+    // A `.` or `..` segment, as written or percent-encoded: read as a file path, as the .md copy
+    // of the page is written, it leads out of the folder.
+    '/../../AGENTS',
+    '/%2e%2e/%2e%2e/escaped/pwned',
+    '/docs/%2E%2E/%2e./README',
+    '/docs/./page',
+    '/%5c..%5cAGENTS',
+    '../page',
+    './page',
+    'docs/..',
+    'https://example.com/docs/../../a',
+    '/../a?x=1#y',
   ])('refuses to index a page at %j', async (url) => {
     await expect(buildIndex({ documents: [page(url)], embeddingModel: null })).rejects.toThrow(
       /Document "page\.md" has the URL .*which a citation cannot link to/,
@@ -186,13 +198,19 @@ describe('document URLs', () => {
     );
   });
 
-  it.each(['/docs/page', 'docs/page', '../page', 'page.html?x=1#y', 'https://example.com/docs/a'])(
-    'indexes a page at %j',
-    async (url) => {
-      const { index } = await buildIndex({ documents: [page(url)], embeddingModel: null });
-      expect(index.documents[0]?.url).toBe(url);
-    },
-  );
+  it.each([
+    '/docs/page',
+    'docs/page',
+    'page.html?x=1#y',
+    'https://example.com/docs/a',
+    '/docs/.well-known/a',
+    '/docs/v1..v2/...',
+    '/docs/a?next=../b#../c',
+    '/docs/%252e%252e/a',
+  ])('indexes a page at %j', async (url) => {
+    const { index } = await buildIndex({ documents: [page(url)], embeddingModel: null });
+    expect(index.documents[0]?.url).toBe(url);
+  });
 });
 
 describe('index file validation', () => {
