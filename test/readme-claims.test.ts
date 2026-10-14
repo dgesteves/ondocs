@@ -18,6 +18,16 @@ describe('what the README claims', () => {
     expect(read('CONTRIBUTING.md')).toContain(`Node ${String(required)} or later`);
   });
 
+  it('states the AI SDK version the ai peer range requires', () => {
+    // ondocs uses AI SDK 7's API, which AI SDK 6 lacks, and ai 7.0s before the floor fail
+    // (test/ai-peer-floor.test.ts): "any AI SDK provider" alone does not say so.
+    const range = (JSON.parse(read('package.json')) as { peerDependencies: { ai: string } })
+      .peerDependencies.ai;
+    const major = /^\^(\d+)\./.exec(range)?.[1];
+    expect(major).toBeDefined();
+    expect(readme).toContain(`AI SDK ${String(major)} (\`ai@${range}\`)`);
+  });
+
   it('does not say the live demo runs without a model key', () => {
     // The production site answers with OpenAI; only previews and local runs are in mock mode.
     for (const file of [

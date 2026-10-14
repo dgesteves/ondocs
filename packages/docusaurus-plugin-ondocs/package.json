@@ -48,7 +48,7 @@
     "react-dom": "^18.3.0 || ^19.0.0",
     "@radix-ui/react-dialog": "^1.1.23",
     "cmdk": "^1.1.1",
-    "ai": "^7.0.0",
+    "ai": "^7.0.95",
     "@ai-sdk/openai": ">=4"
   },
   "peerDependenciesMeta": {
