@@ -16,6 +16,10 @@ Cosine similarity ranks chunks by the meaning of the question, using the embeddi
 
 The two rankings are merged with reciprocal rank fusion (RRF). Each chunk scores the sum of 1 / (60 + rank) over the lists it appears in. Fusion uses ranks only, so BM25 scores and similarities never need to be put on one scale, and a chunk that both retrievers rank well beats one that only one of them ranks first.
 
+## Copies of a section
+
+A section can be on a site word for word at more than one URL: in each version of versioned docs, or on a page the site serves at two paths. Its copies score the same on every question, so they would fill the sources with one section, and cite whichever copy's URL sorts first, often an old version's. Chunks with the same title, heading and text count once instead, at the shortest URL, with the fewest path segments: `/docs/intro` over `/docs/next/intro` and `/docs/1.0/intro`. The copies are left out before the candidates are taken, so they take none of their places. `collapseCopies: false` searches every copy, for a `retrieve` hook that picks a version itself.
+
 ## Saying "I don't know"
 
 Before fusion, every candidate must clear a relevance gate: a cosine similarity of at least 0.25, or keyword coverage of at least 0.5 (0.4 on an index without embeddings). Keyword coverage is the share of the question's IDF weight that a chunk contains, so it is between 0 and 1. It depends on the question's length: every word adds to the weight a chunk has to cover, so a question with a sentence of context covers less of itself on the page that answers it than the same question in a few words.
@@ -67,7 +71,7 @@ export const POST = createAskHandler({
 
 That is one call to the reranking model per question, after the cache: a question answered from `answerCache` reranks nothing. A reranker can also be plain code, such as boosting a section: `rerank: (question, hits) => [...hits].sort((a, b) => boost(b) - boost(a))`, with `boost` reading `hit.chunk.url`.
 
-`retrieve` finds the candidates instead of the built-in retrieval. It gets the question's text and vector, and `search`, the built-in retrieval, to call with options of its own: `retrieve: (query, search) => search({ topK: 20 }).filter((hit) => hit.chunk.url.startsWith('/docs/v2/'))` answers from one version of the docs. It returns hits on the index's chunks, which `context.index` holds, and runs before `rerank` when both are set.
+`retrieve` finds the candidates instead of the built-in retrieval. It gets the question's text and vector, and `search`, the built-in retrieval, to call with options of its own: `retrieve: (query, search) => search({ topK: 20, collapseCopies: false }).filter((hit) => hit.chunk.url.startsWith('/docs/v2/'))` answers from one version of the docs, with every copy searched, so a section that version shares with another is still found at its own URL. It returns hits on the index's chunks, which `context.index` holds, and runs before `rerank` when both are set.
 
 Whatever the hooks return, each hit's chunk is measured again against the question, and a chunk that clears neither the similarity nor the keyword threshold is dropped, as are chunks not in the index: a hook can reorder and filter the sources, but not make an off-topic page count. With nothing left, the answer is "I don't know", with no model call. A hook that throws is reported to `onError`, and the question is answered without it. `gateHits` from `ondocs` applies the same gate to hits from anywhere, for a handler of your own.
 

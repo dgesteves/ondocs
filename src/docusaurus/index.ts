@@ -80,6 +80,14 @@ export type OndocsOptions = IndexOptions & {
    * `/docs/changelog` and, in French, `/docs/fr/changelog`.
    */
   exclude?: string[];
+  /**
+   * Which docs versions to index on a site with versioned docs. `'last'`, the default, indexes
+   * each docs plugin's last version, the one at the docs' own path (`/docs`, not `/docs/next` or
+   * `/docs/1.0`), so answers cite the version readers land on; `'all'` indexes every version.
+   * llms.txt and the `.md` copies follow it. Pages outside the docs, such as the blog, are always
+   * indexed.
+   */
+  versions?: 'last' | 'all';
   dialog?: OndocsDialogOptions;
   /**
    * The site's MCP endpoint (`createMcpHandler` from `ondocs/server`), as an absolute URL or a
@@ -129,14 +137,21 @@ interface LoadContext {
 interface PostBuildProps {
   outDir: string;
   routesPaths: string[];
-  /** Every plugin of the site, with its options. */
-  plugins?: readonly { name: string; options?: unknown }[];
+  /** Every plugin of the site, with its options and the content it loaded. */
+  plugins?: readonly { name: string; options?: unknown; content?: unknown }[];
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
 
 export default function ondocs(context: LoadContext, options: OndocsOptions = {}) {
   checkIndexOptions(options);
+  // Checked as the config gives it, which TypeScript may not have seen.
+  const versions: unknown = options.versions;
+  if (versions !== undefined && versions !== 'last' && versions !== 'all') {
+    throw new Error(
+      `ondocs: versions is 'last' (the default) or 'all', not ${JSON.stringify(versions)}.`,
+    );
+  }
   warnMissingDialogPeers(consoleLogger());
   warnOldSwizzle(context.siteDir, consoleLogger());
   const { title: siteTitle, titleDelimiter = '|' } = context.siteConfig;
@@ -203,8 +218,17 @@ export default function ondocs(context: LoadContext, options: OndocsOptions = {}
       const log = consoleLogger();
       const outputs = llmsOutputs(options.llmsTxt);
       const llms = outputs.index || outputs.full || outputs.markdown;
+      const versions = options.versions === 'all' ? [] : docsVersions(plugins ?? []);
+      const left = versions.filter((version) => !version.indexed).map((version) => version.path);
+      if (left.length > 0) {
+        log.info(
+          `Indexing the last docs version, without ${left.join(', ')}. Set versions: 'all' to ` +
+            'index every version.',
+        );
+      }
       const { documents, pages } = await loadBuiltPages(outDir, routesPaths, context.baseUrl, {
         exclude: options.exclude ?? [],
+        leftOut: (route) => !versionOf(route, versions).indexed,
         titleSuffix: ` ${titleDelimiter} ${siteTitle}`,
         markdown: llms,
       });
@@ -344,6 +368,53 @@ export function llmsOwners(
   return owners;
 }
 
+/** A docs version, as the docs plugin loaded it: its route path, and whether it is indexed. */
+interface DocsVersion {
+  path: string;
+  indexed: boolean;
+}
+
+/**
+ * The versions of each docs plugin instance (`loadedVersions` in the content the docs plugin
+ * loaded, each with its route `path` and whether it `isLast`), with only the last of each
+ * instance indexed. An instance whose content has another shape, or none, is left out, so all of
+ * its versions are indexed, as is everything when reading the content throws.
+ */
+function docsVersions(plugins: readonly { content?: unknown }[]): DocsVersion[] {
+  try {
+    return plugins.flatMap((plugin) => {
+      const loaded = option(plugin.content, 'loadedVersions');
+      if (!Array.isArray(loaded)) return [];
+      const versions = loaded.map((version: unknown) => ({
+        path: option(version, 'path'),
+        isLast: option(version, 'isLast'),
+      }));
+      if (!versions.some(({ isLast }) => isLast === true)) return [];
+      return versions.flatMap(({ path, isLast }) =>
+        typeof path === 'string'
+          ? [{ path: path.replace(/\/+$/, '') || '/', indexed: isLast === true }]
+          : [],
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The docs version a route is in: the one whose path holds it most closely (`/docs/next/intro`
+ * is in `/docs/next`, not `/docs`). A route in none, such as a blog post, counts as indexed.
+ */
+function versionOf(route: string, versions: readonly DocsVersion[]): DocsVersion {
+  let found: DocsVersion = { path: '', indexed: true };
+  for (const version of versions) {
+    const holds =
+      version.path === '/' || route === version.path || route.startsWith(`${version.path}/`);
+    if (holds && version.path.length > found.path.length) found = version;
+  }
+  return found;
+}
+
 /**
  * Docusaurus's page types, from the classes it puts on `<html>`. Docs, blog posts and MDX pages
  * are content; blog lists, tag and author pages list content that is indexed on its own page.
@@ -393,16 +464,22 @@ async function loadBuiltPages(
   baseUrl: string,
   {
     exclude,
+    leftOut,
     titleSuffix,
     markdown,
-  }: { exclude: readonly string[]; titleSuffix: string; markdown: boolean },
+  }: {
+    exclude: readonly string[];
+    leftOut: (route: string) => boolean;
+    titleSuffix: string;
+    markdown: boolean;
+  },
 ): Promise<{ documents: SourceDocument[]; pages: LlmsPage[] }> {
   const excluded = excluder(exclude);
   const documents: SourceDocument[] = [];
   const pages: LlmsPage[] = [];
   for (const route of [...new Set(routesPaths)].sort()) {
     const path = sitePath(route, baseUrl);
-    if (route.endsWith('404.html') || excluded(path)) continue;
+    if (route.endsWith('404.html') || excluded(path) || leftOut(route)) continue;
     const html = await readBuiltHtml(outDir, path);
     if (html === undefined || !isContentPage(html)) continue;
     const built = loadBuiltPage(html, { url: route, root: 'article', titleSuffix, markdown });

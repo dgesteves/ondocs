@@ -66,6 +66,15 @@ export interface RetrievalOptions {
    * embeddings match meaning without shared words.
    */
   similarityNeedsKeyword?: boolean;
+  /**
+   * Whether copies of a section count once. A chunk with the same title, heading and text as
+   * another, such as the same section in two versions of versioned docs, or a page a site serves
+   * at two paths, scores the same on every query, so its copies would fill the results. Default
+   * `true`: only the copy at the shortest URL is searched, in the fewest path segments, so
+   * `/docs/intro` over `/docs/next/intro` and `/docs/1.0/intro`. `false` searches every copy,
+   * for a retriever that picks a version itself.
+   */
+  collapseCopies?: boolean;
 }
 
 export interface RetrievalHit {
@@ -96,7 +105,7 @@ export const DEFAULT_RETRIEVAL = {
   rrfK: 60,
   minSimilarity: 0.25,
   minKeywordCoverage: 0.5,
-} as const satisfies Required<Omit<RetrievalOptions, 'similarityNeedsKeyword'>>;
+} as const satisfies Required<Omit<RetrievalOptions, 'similarityNeedsKeyword' | 'collapseCopies'>>;
 
 /** The model id `mockEmbeddingModel` records in an index. */
 const MOCK_EMBEDDING = /^mock-hash-\d+$/;
@@ -170,7 +179,7 @@ export function loadIndex(input: unknown): LoadedIndex {
     vectors = new VectorIndex(matrix, dimensions);
   }
 
-  return {
+  const loaded: LoadedIndex = {
     documents: file.documents.map(({ id, url, title }) => ({ id, url, title })),
     chunks,
     chunking: { maxChars: file.chunking.maxChars, overlap: file.chunking.overlap },
@@ -179,6 +188,49 @@ export function loadIndex(input: unknown): LoadedIndex {
     bm25,
     vectors,
   };
+  const copies = findCopies(file.chunks, chunks);
+  if (copies) copiesByIndex.set(loaded, copies);
+  return loaded;
+}
+
+/** Each loaded index's copies, when it has any: 1 for a chunk that another one stands for. */
+const copiesByIndex = new WeakMap<LoadedIndex, Uint8Array>();
+
+/**
+ * Which chunks are copies of another, by their `hash`, of their title, heading and text: of each
+ * set of copies, the one at the shortest URL stands for the rest, which are marked 1. `null`
+ * when no two chunks are the same.
+ */
+function findCopies(
+  indexChunks: readonly { hash: string }[],
+  chunks: readonly RetrievedChunk[],
+): Uint8Array | null {
+  const kept = new Map<string, number>();
+  let copies: Uint8Array | null = null;
+  for (let i = 0; i < indexChunks.length; i += 1) {
+    const hash = indexChunks[i]?.hash ?? '';
+    if (hash === '') continue;
+    const other = kept.get(hash);
+    if (other === undefined) {
+      kept.set(hash, i);
+      continue;
+    }
+    copies ??= new Uint8Array(chunks.length);
+    const keep = citedBefore(chunks[i]?.url ?? '', chunks[other]?.url ?? '') ? i : other;
+    copies[keep === i ? other : i] = 1;
+    kept.set(hash, keep);
+  }
+  return copies;
+}
+
+/** Path segments before the anchor: 2 for `/docs/intro`, 3 for `/docs/next/intro`. */
+function depth(url: string): number {
+  return (url.split('#', 1)[0] ?? '').replace(/\/+$/, '').split('/').length;
+}
+
+/** Whether a copy at `url` is cited over one at `other`: fewer path segments, then shorter. */
+function citedBefore(url: string, other: string): boolean {
+  return (depth(url) - depth(other) || url.length - other.length) < 0;
 }
 
 /** What a query scores on every chunk, and the relevance gate those scores decide. */
@@ -248,11 +300,14 @@ export function retrieve(
     options,
   );
 
-  const keywordList = keyword.ranked.slice(0, opts.candidates).filter(relevant);
+  // Copies are left out before the candidates are taken, so they take none of their places.
+  const copies = opts.collapseCopies === false ? undefined : copiesByIndex.get(index);
+  const ranked = copies ? keyword.ranked.filter((i) => copies[i] !== 1) : keyword.ranked;
+  const keywordList = ranked.slice(0, opts.candidates).filter(relevant);
   const lists: number[][] = [keywordList];
   let bestSimilarity: number | null = null;
   if (similarities) {
-    const order = topIndices(similarities, opts.candidates);
+    const order = topIndices(similarities, opts.candidates, copies);
     bestSimilarity = order.length > 0 ? (similarities[order[0] ?? 0] ?? 0) : 0;
     lists.push(order.filter(relevant));
   }
@@ -316,11 +371,12 @@ export function gateHits(
   };
 }
 
-/** Indices of the `k` largest values, largest first. */
-function topIndices(values: Float32Array, k: number): number[] {
+/** Indices of the `k` largest values, largest first, without those `skip` marks 1. */
+function topIndices(values: Float32Array, k: number, skip?: Uint8Array): number[] {
   if (k <= 0) return [];
   const top: number[] = [];
   for (let i = 0; i < values.length; i += 1) {
+    if (skip?.[i] === 1) continue;
     const value = values[i] ?? 0;
     if (top.length === k && value <= (values[top[k - 1] ?? 0] ?? 0)) continue;
     let position = top.length < k ? top.length : k - 1;
