@@ -5,8 +5,8 @@
 #   ondocs index website/docs --framework docusaurus --base-url /docs -e none
 #   ondocs eval docusaurus.io.yaml --index ask-index.json
 
-# Keyword-only, these docs score hit@1 14/22 and hit@3 18/22, refuse all six off-topic
-# questions, and refuse two they do answer (refusal precision 6/8): the thresholds hold that.
+# Keyword-only, these docs score hit@1 14/22 and hit@3 19/22, refuse all six off-topic
+# questions, and refuse one they do answer (refusal precision 6/7): the thresholds hold that.
 thresholds:
   hit@3: 0.8
   refusalPrecision: 0.75

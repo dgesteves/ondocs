@@ -20,7 +20,7 @@ The two rankings are merged with reciprocal rank fusion (RRF). Each chunk scores
 
 ## Saying "I don't know"
 
-Before fusion, every candidate must clear a relevance gate: a cosine similarity of at least 0.25, or keyword coverage of at least 0.5. Keyword coverage is the share of the question's IDF weight that a chunk contains, so it is between 0 and 1 and comparable across questions of any length.
+Before fusion, every candidate must clear a relevance gate: a cosine similarity of at least 0.25, or keyword coverage of at least 0.5 (0.4 on an index without embeddings). Keyword coverage is the share of the question's IDF weight that a chunk contains, so it is between 0 and 1. It depends on the question's length: every word adds to the weight a chunk has to cover, so a question with a sentence of context covers less of itself on the page that answers it than the same question in a few words.
 
 When no chunk clears the gate, the handler answers "I don't know" immediately and never calls the language model. That makes refusals fast, free and deterministic. The default message is "I don't know. I couldn't find anything about that on this site.", with your `siteName`, and `noAnswerMessage` replaces it. The model's instructions add a second layer: answer only from the numbered sources, cite each claim, and say so when the sources are not enough.
 
@@ -34,9 +34,9 @@ If the embedding provider fails while embedding a question, that request falls b
 
 ## Tuning
 
-The defaults are `{ topK: 6, candidates: 40, rrfK: 60, minSimilarity: 0.25, minKeywordCoverage: 0.5, maxContextChars: 8000 }`, passed to the handler as `retrieval`. The similarity threshold is calibrated for OpenAI's `text-embedding-3-small`. An index embedded with Workers AI's `@cf/baai/bge-small-en-v1.5` gets 0.65 instead, measured on docusaurus.io's docs (see [Workers AI](/guides/workers-ai/#keywords-or-meaning-too)). Other embedding models produce other ranges, so check the `best` scores that `retrieve()` returns on real questions and set `minSimilarity` to match.
+The defaults are `{ topK: 6, candidates: 40, rrfK: 60, minSimilarity: 0.25, minKeywordCoverage: 0.5, maxContextChars: 8000 }`, passed to the handler as `retrieval`, with `minKeywordCoverage: 0.4` for an index without embeddings. The similarity threshold is chosen for OpenAI's `text-embedding-3-small`. An index embedded with Workers AI's `@cf/baai/bge-small-en-v1.5` gets 0.65 instead, measured on docusaurus.io's docs (see [Workers AI](/guides/workers-ai/#keywords-or-meaning-too)). Other embedding models produce other ranges, so check the `best` scores that `retrieve()` returns on real questions and set `minSimilarity` to match.
 
-The keyword side is conservative: IDF comes from your pages, so a question word that appears on none of them carries the most weight. A question that adds one such word, like a product or company name, can fall below 0.5 on keywords alone even when the rest of it matches a page exactly. With embeddings, the similarity side catches such questions; for a keyword-only index, lower `minKeywordCoverage`.
+The keyword side is conservative: IDF comes from your pages, so a question word that appears on none of them carries the most weight. A question that adds one such word, like a product or company name, or a sentence of context, can fall under the keyword threshold even when the rest of it matches a page exactly. With embeddings, the similarity side catches such questions, so the keyword threshold stays at 0.5. A keyword-only index has nothing else to catch them, so its threshold is 0.4. On real questions about Docusaurus, Astro and Vitest (Stack Overflow and GitHub issue titles whose answers link the docs), 0.5 turned away 26 to 39% of the answerable ones and 0.4 turns away 13 to 17%, while one or two more of 15 off-topic questions reach the model, whose instructions tell it to say when the sources are not enough. With a sentence of detail after the title, 0.4 still turns away 50 to 59%. To answer more on a keyword-only index, lower `minKeywordCoverage` further, which lets more off-topic questions through, or embed the index.
 
 ## Rerank, or retrieve your own way
 

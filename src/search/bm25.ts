@@ -2,10 +2,11 @@
  * Okapi BM25 over an in-memory inverted index.
  *
  * Besides the score, every search reports each document's *query coverage*: the share of the
- * query's IDF mass that the document contains. Coverage is bounded to [0, 1] and comparable across
- * query lengths, which BM25 scores are not, so it is what the relevance gate uses. It still
- * depends on the corpus: a query term no document contains gets the highest IDF, so it weighs
- * heavily against every document.
+ * query's IDF mass that the document contains. Coverage is bounded to [0, 1], which BM25 scores
+ * are not, so it is what the relevance gate uses. It still depends on the query and the corpus:
+ * each extra query term adds to the mass a document has to cover, so a longer query covers less
+ * of itself on the same document, and a term no document contains gets the highest IDF, so it
+ * weighs heavily against every document.
  */
 
 export interface Bm25Options {

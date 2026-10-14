@@ -192,16 +192,17 @@ describe.skipIf(!present)(
       expect(ranks.filter((r) => r >= 0 && r < 3).length).toBe(20);
     });
 
-    it('returns nothing for off-topic queries', async () => {
+    it('returns nothing for off-topic queries, with a note on what to try', async () => {
       const counts = await Promise.all(
         OFF_TOPIC.map(async (query) => {
-          const { results } = (await call('search', { query })).structuredContent as {
+          const { results, note } = (await call('search', { query })).structuredContent as {
             results: unknown[];
+            note?: string;
           };
-          return results.length;
+          return [results.length, note?.includes('list_pages')];
         }),
       );
-      expect(counts).toEqual(OFF_TOPIC.map(() => 0));
+      expect(counts).toEqual(OFF_TOPIC.map(() => [0, true]));
     });
 
     it('scores the sample eval file of the audit’s questions, as asked, within its thresholds', async () => {
@@ -222,6 +223,8 @@ describe.skipIf(!present)(
         const { scores } = JSON.parse(out.join('\n')) as {
           scores: Record<string, { count: number; of: number }>;
         };
+        // A keyword-only index gates at 0.4 rather than 0.5: one question more is answered, from
+        // the right page, and no off-topic one.
         expect(
           Object.fromEntries(
             Object.entries(scores).map(([name, { count, of }]) => [
@@ -231,8 +234,8 @@ describe.skipIf(!present)(
           ),
         ).toEqual({
           'hit@1': '14/22',
-          'hit@3': '18/22',
-          refusalPrecision: '6/8',
+          'hit@3': '19/22',
+          refusalPrecision: '6/7',
           refusalRecall: '6/6',
         });
         expect(code).toBe(0);

@@ -48,6 +48,15 @@ export const MCP_RETRIEVAL = { minKeywordCoverage: 0.3 } as const satisfies Retr
 /** Sections `search` returns at most. */
 export const SEARCH_RESULTS = 8;
 
+/**
+ * What `search` says when no section clears its gate: a word the docs never use outweighs the
+ * rest of a query, so a plain question can find nothing that keywords would find.
+ */
+export const NO_RESULTS_NOTE =
+  'No section matched enough of the query. Search again with fewer or different keywords, such ' +
+  'as a feature, option or API name, or call list_pages to browse the pages, before concluding ' +
+  'that the docs do not cover it.';
+
 const READ_ONLY = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -94,6 +103,7 @@ export function mcpTools(siteName: string, maxQueryLength: number): McpTool[] {
               required: ['id', 'title', 'heading', 'url', 'text'],
             },
           },
+          note: { type: 'string' },
         },
         required: ['results'],
       },
@@ -227,6 +237,11 @@ export function searchSections(
     if (results.length === SEARCH_RESULTS) break;
   }
   return results;
+}
+
+/** `search`'s result: the sections, with {@link NO_RESULTS_NOTE} when there are none. */
+export function searchResult(results: McpSearchResult[]): McpToolResult {
+  return result(results.length > 0 ? { results } : { results, note: NO_RESULTS_NOTE });
 }
 
 /** Characters `fetch` returns at most; a longer page is cut, with its sections listed after. */
