@@ -3,16 +3,15 @@ import Link from 'next/link';
 import { INTEGRATIONS_SECTION, getSections } from '../lib/docs';
 import { githubStars, starLabel } from '../lib/github';
 import { GITHUB_URL, NPM_URL } from '../lib/site';
-import { VERSION } from '../lib/version';
 import { AskButton } from './ask';
 import { GitHubIcon, Spark, StarIcon } from './icons';
 import { NavLinks, SiteMenu, type NavItem } from './site-nav';
 import { ThemeSwitch } from './theme-switch';
 
 /**
- * The header the three sibling sites share: the name and version on the left; on the right the
- * site's pages, Ask, the theme and GitHub. On a phone the pages, the theme and GitHub move into
- * a menu.
+ * The header the three sibling sites share: the name on the left; on the right the site's pages,
+ * Ask, the theme and GitHub. On a phone the pages, the theme and GitHub move into a menu. The
+ * version is in the footer.
  */
 export async function SiteHeader() {
   const [sections, stars] = await Promise.all([getSections(), githubStars()]);
@@ -34,7 +33,6 @@ export async function SiteHeader() {
           </span>
           ondocs
         </Link>
-        <span className="version-pill">v{VERSION}</span>
         <nav aria-label="Site" className="header-nav">
           <NavLinks items={items} className="header-link" />
         </nav>

@@ -732,6 +732,12 @@ summary.sidebar-heading:hover {
   border-color: color-mix(in srgb, var(--cyan) 45%, transparent);
 }
 
+.chooser-demos {
+  margin: 14px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
 /* Two or three cards a row, as the section's count divides (app/docs/page.tsx), so no row is
    left with one; one a row on a phone. */
 .cards {

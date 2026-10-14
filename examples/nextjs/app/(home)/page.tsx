@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { AskButton } from '../../components/ask';
-import { ArrowRight, CopyIcon, GitHubIcon } from '../../components/icons';
+import { ArrowRight, GitHubIcon } from '../../components/icons';
 import { Flow } from '../../components/landing/flow';
 import { HeroDemo } from '../../components/landing/hero-demo';
 import { SetupTabs, type SetupTab } from '../../components/landing/setup-tabs';
@@ -13,6 +13,7 @@ import { jsonLd, softwareSourceCode } from '../../lib/json-ld';
 import { mcpSample } from '../../lib/mcp-sample';
 import { sampleAnswer } from '../../lib/sample-answer';
 import {
+  demoUrl,
   GITHUB_URL,
   HOME_DESCRIPTION as description,
   HOME_TITLE as title,
@@ -21,7 +22,6 @@ import {
   SUGGESTIONS,
 } from '../../lib/site';
 import { gzippedSize } from '../../lib/sizes';
-import { VERSION } from '../../lib/version';
 
 import './landing.css';
 
@@ -58,32 +58,12 @@ async function setupTabs(): Promise<SetupTab[]> {
   };
   return [
     {
-      id: 'docusaurus',
-      label: 'Docusaurus',
-      summary:
-        'A Docusaurus 3 plugin. After every build it indexes the pages your site serves into build/ask-index.json, and it adds the dialog behind a floating “Ask AI” button and ⌘I.',
-      docs: { href: '/docs/docusaurus', label: 'Docusaurus guide' },
-      steps: [
-        {
-          title: 'Install',
-          code: await codeBlock('npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk', 'sh'),
-        },
-        {
-          title: 'Add the plugin',
-          code: await codeBlock(
-            "// docusaurus.config.ts\nexport default {\n  plugins: ['ondocs/docusaurus'],\n};",
-            'ts',
-          ),
-        },
-        DEPLOY_STEP,
-      ],
-    },
-    {
       id: 'astro',
       label: 'Astro and Starlight',
       summary:
         'A Starlight plugin, and an integration for any other Astro site. It indexes what Starlight’s own search indexes into dist/ask-index.json, and adds the dialog to every page.',
       docs: { href: '/docs/astro', label: 'Astro and Starlight guide' },
+      demo: { href: demoUrl('Starlight'), label: 'Live Starlight demo' },
       steps: [
         {
           title: 'Install',
@@ -103,11 +83,34 @@ async function setupTabs(): Promise<SetupTab[]> {
       ],
     },
     {
+      id: 'docusaurus',
+      label: 'Docusaurus',
+      summary:
+        'A Docusaurus 3 plugin. After every build it indexes the pages your site serves into build/ask-index.json, and it adds the dialog behind a floating “Ask AI” button and ⌘I.',
+      docs: { href: '/docs/docusaurus', label: 'Docusaurus guide' },
+      demo: { href: demoUrl('Docusaurus'), label: 'Live Docusaurus demo' },
+      steps: [
+        {
+          title: 'Install',
+          code: await codeBlock('npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk', 'sh'),
+        },
+        {
+          title: 'Add the plugin',
+          code: await codeBlock(
+            "// docusaurus.config.ts\nexport default {\n  plugins: ['ondocs/docusaurus'],\n};",
+            'ts',
+          ),
+        },
+        DEPLOY_STEP,
+      ],
+    },
+    {
       id: 'vitepress',
       label: 'VitePress',
       summary:
         'A VitePress plugin that wraps your config. After every build it indexes the pages your site serves into .vitepress/dist/ask-index.json, and it adds the dialog behind a floating “Ask AI” button and ⌘I.',
       docs: { href: '/docs/vitepress', label: 'VitePress guide' },
+      demo: { href: demoUrl('VitePress'), label: 'Live VitePress demo' },
       steps: [
         {
           title: 'Install',
@@ -180,7 +183,15 @@ async function setupTabs(): Promise<SetupTab[]> {
   ];
 }
 
-const NUMBERS = [
+/** Where the queries behind the two retrieval numbers live, checked on every pull request. */
+const QUERIES_URL = `${GITHUB_URL}/blob/main/test/corpus.test.ts`;
+
+const NUMBERS: {
+  value: string;
+  label: string;
+  note: string;
+  link?: { href: string; label: string };
+}[] = [
   {
     value: '1.6 MB',
     label: 'index for 1,000 chunks',
@@ -192,20 +203,21 @@ const NUMBERS = [
     note: 'BM25, cosine scan and fusion, in memory. 6.96 ms at 10,000 chunks.',
   },
   {
-    value: '22 / 22',
-    label: 'agent searches with the right page in the top three',
-    note: 'On docusaurus.io’s own docs, keyword-only: no model call. Checked in CI.',
-  },
-  {
     // Measured from the package as the site builds.
     value: gzippedSize('embed.global.js'),
     label: 'script tag on each page, gzipped',
     note: 'The button and shortcut. The dialog loads the first time it is wanted.',
   },
   {
-    value: '0',
-    label: 'model calls to answer what the docs don’t cover',
-    note: 'When nothing in the docs is relevant, the gate says “I don’t know” before the model is reached. A question close to the docs can still reach it, and a follow-up may cost a short rewrite first.',
+    value: '22 / 22',
+    label: 'agent-style searches we wrote, with the right page in the top three',
+    note: 'On docusaurus.io’s own docs, keyword-only: no model call. Checked in CI.',
+    link: { href: QUERIES_URL, label: 'The queries' },
+  },
+  {
+    value: '20 / 22',
+    label: 'the same needs, asked as a person asks',
+    note: 'Questions we wrote too. Real Stack Overflow and GitHub questions, in their own words, find the right page far less often.',
   },
   {
     value: '≤ 800',
@@ -237,7 +249,7 @@ const COMPARISON: { label: string; hosted: Cell; ours: Cell; search: Cell }[] = 
   },
   {
     label: 'Model and key',
-    hosted: 'The vendor’s',
+    hosted: 'The vendor’s (Algolia Ask AI: yours)',
     ours: { text: 'Yours, through any AI SDK provider', good: true },
     search: 'None',
   },
@@ -249,8 +261,11 @@ const COMPARISON: { label: string; hosted: Cell; ours: Cell; search: Cell }[] = 
   },
   {
     label: 'For agents',
-    hosted: 'Varies by vendor',
-    ours: { text: 'An MCP server and llms.txt from the same index', good: true },
+    hosted: 'Hosted MCP on most plans',
+    ours: {
+      text: 'Your own MCP endpoint and llms.txt; by default, agent search calls no model',
+      good: true,
+    },
     search: 'No',
   },
   {
@@ -266,28 +281,6 @@ function CellText({ cell }: { cell: Cell }) {
     cell
   ) : (
     <span data-good={cell.good ? '' : undefined}>{cell.text}</span>
-  );
-}
-
-function Install() {
-  return (
-    <div className="install">
-      <code>
-        <span className="install-prompt" aria-hidden="true">
-          $
-        </span>
-        {INSTALL}
-      </code>
-      <button
-        type="button"
-        className="install-copy"
-        data-copy={INSTALL}
-        aria-label={`Copy “${INSTALL}”`}
-      >
-        <CopyIcon />
-        <span className="copy-label">Copy</span>
-      </button>
-    </div>
   );
 }
 
@@ -319,26 +312,22 @@ export default async function Home() {
           <div className="hero-copy">
             <p className="hero-badge">
               <span className="hero-badge-dot" aria-hidden="true" />
-              Open source · MIT · v{VERSION}
+              Open source · MIT
             </p>
             <h1 id="hero-title" className="hero-title">
-              Make your docs answerable, by people and by agents.
+              {/* The category stays on one line. */}
+              Open-source Ask&nbsp;AI for your docs.
             </h1>
             <p className="hero-lead">
-              One static index, built with your site, serves a cited Ask box for people, and an MCP
-              server and llms.txt for agents. A function you deploy searches it in memory and
-              answers with your own model key, citing the exact section. Agents bring their own
-              model, so their traffic costs you no model tokens.
+              Cited answers on your own model key, and an MCP server for coding agents, from one
+              index built with your Starlight, Docusaurus or VitePress site. No vendor, no vector
+              database.
             </p>
-            <ul className="hero-facts" aria-label="What it does without">
-              <li>No vector database</li>
-              <li>No vendor</li>
-              <li>Your own function and key</li>
-              <li>MCP and llms.txt included</li>
-            </ul>
             <div className="hero-actions">
-              <AskButton className="button button-primary">Try it: ask these docs</AskButton>
-              <Install />
+              <AskButton className="button button-primary">Ask these docs</AskButton>
+              <a href={demoUrl('Starlight')} className="button button-secondary">
+                Try the live demo
+              </a>
               <Link href="/docs/getting-started" className="text-link">
                 Get started
                 <ArrowRight />
@@ -353,7 +342,7 @@ export default async function Home() {
         <div className="container">
           <p className="eyebrow">Set up</p>
           <h2 id="setup-title" className="section-title">
-            One line for Docusaurus, Starlight and VitePress. A script tag for everything else.
+            One line for Starlight, Docusaurus and VitePress. A script tag for everything else.
           </h2>
           <p className="section-lead">
             Every setup has the same two halves: an index built with your site, and one function
@@ -438,8 +427,9 @@ export default async function Home() {
             <div>
               <h3>A gate before the model</h3>
               <p>
-                Nothing relevant means “I don’t know”, fast and free. The model only sees questions
-                your docs can answer, and is told to answer from the sources alone.
+                Most off-topic questions get “I don’t know” before the model is called, fast and
+                free. One that shares enough words with your docs can still reach it, and the model
+                is told to answer from the sources alone.
               </p>
             </div>
             <div>
@@ -470,7 +460,15 @@ export default async function Home() {
                   <span className="number-value">{item.value}</span>
                   <span className="number-label">{item.label}</span>
                 </dt>
-                <dd>{item.note}</dd>
+                <dd>
+                  {item.note}
+                  {item.link ? (
+                    <>
+                      {' '}
+                      <a href={item.link.href}>{item.link.label}</a>
+                    </>
+                  ) : null}
+                </dd>
               </div>
             ))}
           </dl>

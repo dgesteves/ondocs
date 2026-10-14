@@ -3,7 +3,7 @@ import { ImageResponse } from 'next/og';
 import { Brand, COLORS, OG_SIZE, Spark, ogFonts } from '../../lib/og';
 
 export const alt =
-  'ondocs: make your docs answerable by people and by agents. Beside the headline, the dialog answers “How do I add it to Docusaurus?” with the plugin config and a citation.';
+  'ondocs: open-source Ask AI for your docs, with an MCP server for agents. Beside the headline, the dialog answers “How do I add it to Docusaurus?” with the plugin config and a citation.';
 export const size = OG_SIZE;
 export const contentType = 'image/png';
 
@@ -41,8 +41,8 @@ export default async function Image() {
             letterSpacing: '-0.04em',
           }}
         >
-          <span>Docs answerable by</span>
-          <span>people and agents.</span>
+          <span>Open-source Ask AI</span>
+          <span>for your docs.</span>
         </div>
         <div
           style={{
@@ -53,8 +53,8 @@ export default async function Image() {
             color: COLORS.muted,
           }}
         >
-          One static index: a cited Ask box, an MCP server and llms.txt. Your own function and key,
-          no vector database.
+          Cited answers on your own model key, and an MCP server for coding agents. No vendor, no
+          vector database.
         </div>
         <div
           style={{
@@ -66,8 +66,8 @@ export default async function Image() {
             color: COLORS.subtle,
           }}
         >
-          <span>Docusaurus</span>
           <span>Starlight</span>
+          <span>Docusaurus</span>
           <span>VitePress</span>
           <span>Next.js</span>
           <span>any site</span>

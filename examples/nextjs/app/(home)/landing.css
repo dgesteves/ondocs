@@ -73,37 +73,10 @@
 
 .hero-lead {
   max-width: 62ch;
-  margin: 0 0 24px;
+  margin: 0 0 36px;
   font-size: 19px;
   line-height: 1.6;
   color: var(--muted);
-}
-
-.hero-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 22px;
-  margin: 0 0 36px;
-  padding: 0;
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--fg-soft);
-  list-style: none;
-}
-
-.hero-facts li {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.hero-facts li::before {
-  width: 14px;
-  height: 14px;
-  content: '';
-  background: var(--cyan);
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3.5 8.5 3 3 6-7' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
-    center / contain no-repeat;
 }
 
 .hero-actions {
@@ -131,12 +104,6 @@
   .hero-title {
     max-width: none;
     font-size: clamp(46px, 4vw, 58px);
-  }
-
-  .hero-facts {
-    display: grid;
-    grid-template-columns: repeat(2, max-content);
-    gap: 10px 32px;
   }
 
   .hero-lead {
@@ -492,6 +459,12 @@
   margin: 0 0 24px;
   padding: 0;
   list-style: none;
+}
+
+.setup-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
 }
 
 .setup-step {
@@ -1202,16 +1175,8 @@
     gap: 40px;
   }
 
-  .hero-actions .button-primary {
+  .hero-actions .button {
     width: 100%;
-  }
-
-  .hero-actions .install {
-    width: 100%;
-  }
-
-  .hero-actions .install code {
-    flex: 1;
   }
 
   .demo-input {

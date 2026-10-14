@@ -195,11 +195,13 @@ describe('the header', () => {
     return document.querySelector('header')!;
   }
 
-  it('has the name and version, the pages, Ask, the theme and GitHub, in that order', async () => {
+  it('has the name, the pages, Ask, the theme and GitHub, in that order', async () => {
     const element = await header(null);
     const brand = element.querySelector('.brand')!;
     expect(brand.textContent).toBe('ondocs');
-    expect(brand.nextElementSibling?.textContent).toBe(`v${VERSION}`);
+    // The version is in the footer.
+    expect(brand.nextElementSibling?.matches('nav.header-nav')).toBe(true);
+    expect(element.textContent).not.toContain(VERSION);
     const nav = element.querySelector('nav.header-nav')!;
     expect(
       [...nav.querySelectorAll('a')].map((a) => [a.textContent, a.getAttribute('href')]),
