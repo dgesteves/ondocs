@@ -175,19 +175,6 @@ h3 {
   border-radius: 7px;
 }
 
-.version-pill {
-  flex: none;
-  padding: 0 7px;
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 20px;
-  color: var(--muted);
-  white-space: nowrap;
-  background: var(--ink-raised);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-}
-
 .header-nav {
   display: flex;
   gap: 2px;
@@ -515,51 +502,6 @@ h3 {
 
 .text-link:hover .arrow {
   transform: translateX(2px);
-}
-
-/* Install command */
-
-.install {
-  display: inline-flex;
-  align-items: center;
-  height: 44px;
-  font-size: 14px;
-  background: var(--ink-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-}
-
-.install code {
-  padding: 0 14px;
-  color: var(--fg);
-  white-space: nowrap;
-}
-
-.install-prompt {
-  margin-right: 10px;
-  color: var(--subtle);
-  user-select: none;
-}
-
-.install-copy {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  height: 100%;
-  padding: 0 12px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--muted);
-  cursor: pointer;
-  background: none;
-  border: 0;
-  border-left: 1px solid var(--border);
-  border-radius: 0 10px 10px 0;
-}
-
-.install-copy:hover,
-.install-copy[data-copied] {
-  color: var(--cyan);
 }
 
 /* Inline code: one style on every page, the docs, the landing and the MCP card alike. */

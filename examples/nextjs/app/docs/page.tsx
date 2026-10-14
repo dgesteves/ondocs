@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Fragment } from 'react';
 
 import { DocsBar } from '../../components/docs-nav';
 import {
@@ -9,7 +10,7 @@ import {
   getSections,
   sectionId,
 } from '../../lib/docs';
-import { DOCS_DESCRIPTION as description } from '../../lib/site';
+import { DEMOS, DOCS_DESCRIPTION as description } from '../../lib/site';
 
 export const metadata: Metadata = {
   title: 'Documentation',
@@ -71,6 +72,16 @@ export default async function DocsHome() {
                 </li>
               ))}
             </ul>
+            <p className="chooser-demos">
+              These docs, live with each plugin:{' '}
+              {DEMOS.map((demo, i) => (
+                <Fragment key={demo.href}>
+                  {i === 0 ? null : i === DEMOS.length - 1 ? ' and ' : ', '}
+                  <a href={demo.href}>{demo.label}</a>
+                </Fragment>
+              ))}
+              .
+            </p>
           </section>
         ) : null}
         {rest.map((section) => {

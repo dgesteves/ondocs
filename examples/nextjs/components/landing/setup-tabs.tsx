@@ -18,6 +18,8 @@ export interface SetupTab {
   label: string;
   summary: string;
   docs: { href: string; label: string };
+  /** The framework's live demo: an example site, deployed. */
+  demo?: { href: string; label: string };
   steps: SetupStep[];
 }
 
@@ -128,10 +130,18 @@ export function SetupTabs({ tabs }: { tabs: SetupTab[] }) {
               </li>
             ))}
           </ol>
-          <Link href={tab.docs.href} className="text-link">
-            {tab.docs.label}
-            <ArrowRight />
-          </Link>
+          <div className="setup-links">
+            <Link href={tab.docs.href} className="text-link">
+              {tab.docs.label}
+              <ArrowRight />
+            </Link>
+            {tab.demo ? (
+              <a href={tab.demo.href} className="text-link">
+                {tab.demo.label}
+                <ArrowRight />
+              </a>
+            ) : null}
+          </div>
         </div>
       ))}
     </div>
