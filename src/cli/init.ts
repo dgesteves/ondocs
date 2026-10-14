@@ -185,11 +185,18 @@ export function configLocales(source: string | null, starlight: boolean): string
   return quoted(list).filter((locale) => locale !== defaultLocale);
 }
 
-/** A URL and a base path joined: `https://acme.github.io` and `/docs/` give `https://acme.github.io/docs`. */
+/**
+ * A URL and a base path joined: `https://acme.github.io` and `/docs/` give
+ * `https://acme.github.io/docs`. A URL whose path already ends with the base keeps it once, as
+ * VitePress's `sitemap.hostname` has it on a project site: `https://acme.github.io/docs/` and
+ * `/docs/` give the same.
+ */
 function joinUrl(url: string | undefined, base: string | undefined): string | undefined {
   if (!url || !/^https?:\/\//.test(url)) return undefined;
   const path = (base ?? '').replace(/^\/+|\/+$/g, '');
-  return `${url.replace(/\/+$/, '')}${path ? `/${path}` : ''}`;
+  const site = url.replace(/\/+$/, '');
+  if (!path || site.replace(/^https?:\/\/[^/]*/, '').endsWith(`/${path}`)) return site;
+  return `${site}/${path}`;
 }
 
 const STATIC_GENERATORS: { label: string; files: string[]; out: string }[] = [
@@ -700,9 +707,12 @@ function planFor(
       });
     }
     const spec = workersAi ? ` -e workers-ai:${WORKERS_AI_EMBEDDING}` : '';
+    // A project site, at https://user.github.io/repo, serves its pages under /repo. The Worker
+    // links to them by their URLs in the index, on SITE_URL's origin, so the URLs need the path.
+    const base = site.kind === 'static' ? new URL(`${site.url}/`).pathname.replace(/\/+$/, '') : '';
     if (site.indexCommand) {
       next.push(
-        `Build the index with the site: ${site.kind === 'next' ? `${site.indexCommand} -o public/ask-index.json` : site.indexCommand}${spec}${workersAi ? ' (with the two Cloudflare variables set; -e none builds a keyword-only index without them)' : WITHOUT_KEY}`,
+        `Build the index with the site: ${site.kind === 'next' ? `${site.indexCommand} -o public/ask-index.json` : site.indexCommand}${base ? ` --base-url ${base}` : ''}${spec}${workersAi ? ' (with the two Cloudflare variables set; -e none builds a keyword-only index without them)' : WITHOUT_KEY}`,
       );
     }
     next.push(
