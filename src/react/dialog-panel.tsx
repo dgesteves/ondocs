@@ -225,6 +225,15 @@ function citedSources(state: AskState): AskState['sources'] {
   return state.sources.filter((source) => cited.has(source.id));
 }
 
+/**
+ * Whether the dialog shows the answer's sources. A refusal shows none, and so, once it is
+ * complete, does an answer that cites none: they were searched, and did not answer it.
+ */
+function showsSources(state: AskState): boolean {
+  if (state.sources.length === 0 || state.refused) return false;
+  return state.status !== 'done' || citedSources(state).length > 0;
+}
+
 function statusMessage(state: AskState, labels: ResolvedLabels): string {
   switch (state.status) {
     case 'loading':
@@ -479,7 +488,12 @@ export function DialogPanel({
           </p>
           {footer ?? (
             <div className={cx('ask-footer', classNames.footer)}>
-              <span>{labels.footer}</span>
+              {/* Under an answer with no sources, it does not send the reader to them. */}
+              <span>
+                {state.status === 'done' && !showsSources(state)
+                  ? labels.footerNoSources
+                  : labels.footer}
+              </span>
               <span className="ask-footer-keys" aria-hidden="true">
                 <kbd className="ask-kbd">↵</kbd> {labels.footerAsk}{' '}
                 <kbd className="ask-kbd">{labels.escapeKey}</kbd> {labels.footerClose}
@@ -511,11 +525,9 @@ function AnswerPanel({
 }): ReactNode {
   const streaming = state.status === 'streaming';
   const settled = state.status === 'done' || state.status === 'error';
-  // Once the answer is complete, sources it never cites are de-emphasized, and an answer that
-  // cites none shows none: they were searched, and did not answer it.
+  // Once the answer is complete, sources it never cites are de-emphasized.
   const cited = state.status === 'done' ? citedSourceIds(state.answer) : null;
-  const showSources =
-    state.sources.length > 0 && !state.refused && !(cited && citedSources(state).length === 0);
+  const showSources = showsSources(state);
   const thread = state.turns.length > 0;
   return (
     <div className="ask-panel" onKeyDown={keepOwnKeys}>
