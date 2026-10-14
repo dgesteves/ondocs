@@ -31,7 +31,11 @@ describe('release workflow', () => {
     expect(scripts[command!.slice('pnpm '.length)]).toBeDefined();
   });
 
-  it('moves the Worker template when it versions the packages', () => {
-    expect(scripts['version-packages']).toBe('changeset version && node scripts/sync-template.mjs');
+  // Without the pins, the release pull request fails test/package.test.ts: its version is the next
+  // minor, and the docs' script tags are still at the last one.
+  it('moves the Worker template and the docs’ jsDelivr pins when it versions the packages', () => {
+    expect(scripts['version-packages']).toBe(
+      'changeset version && node scripts/sync-template.mjs && node scripts/sync-cdn-range.mjs',
+    );
   });
 });
