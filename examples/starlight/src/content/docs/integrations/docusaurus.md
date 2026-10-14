@@ -92,6 +92,7 @@ Build the site once, run `npx ondocs dev` in its folder, which answers from `bui
 | `chunking`                 | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                           |
 | `indexFile`                | `ask-index.json`                   | Where the index is written in `build/` and served from.                                          |
 | `exclude`                  | `[]`                               | Path prefixes to leave out, relative to `baseUrl`.                                               |
+| `versions`                 | `'last'`                           | Docs versions to index: the last one, or `'all'`.                                                |
 | `dialog`                   |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar`, `labels`, `locales`.    |
 | `mcp`                      | none                               | The [MCP endpoint](/integrations/mcp/)'s URL or path, for `<OndocsMcp />`.                       |
 | `llmsTxt`                  | on                                 | Write [llms.txt, llms-full.txt and .md copies](/integrations/llms-txt/); `false` turns them off. |
@@ -120,7 +121,9 @@ plugins: [
 ],
 ```
 
-Every label is listed in [The ask dialog](/reference/ask-dialog/#labels-and-languages). Versioned docs index every version, so an answer can cite an old one; leave versions out with `exclude`, as in `exclude: ['/docs/next', '/docs/1.0']`.
+Every label is listed in [The ask dialog](/reference/ask-dialog/#labels-and-languages).
+
+With versioned docs, the plugin indexes the last version, the one at `/docs` that readers land on, and leaves out the others, such as `/docs/next` and `/docs/1.0`, so answers cite the version people use. llms.txt and the `.md` copies follow the index. `versions: 'all'` indexes every version; to keep only some, add the others to `exclude`, as in `versions: 'all', exclude: ['/docs/1.0']`. When several indexed versions have a section word for word, search returns it once, from the shortest URL: see [Copies of a section](/guides/retrieval/#copies-of-a-section).
 
 ## When another plugin wraps Root
 

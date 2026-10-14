@@ -9,10 +9,11 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { buildIndex, loadIndex } from '../src';
+import { buildIndex, loadIndex, type AskIndexFile } from '../src';
 import { main } from '../src/cli/main';
 import { loadDirectory, writeIndexFile } from '../src/node';
 import { createMcpHandler } from '../src/server';
+import { searchSections } from '../src/server/mcp-tools';
 
 const corpus = join(
   process.env.ONDOCS_CORPUS ?? join(import.meta.dirname, '..', '.corpus'),
@@ -113,6 +114,47 @@ const NEEDS: [question: string, query: string, pages: string[]][] = [
   ],
 ];
 
+/** What `ondocs eval` of the sample eval file scores on the corpus, keyword-only. */
+const SCORES = {
+  'hit@1': '14/22',
+  'hit@3': '19/22',
+  refusalPrecision: '6/7',
+  refusalRecall: '6/6',
+};
+
+/** `ondocs eval` of the sample eval file of the audit’s questions on `index`: each score, and the exit code. */
+async function evalScores(index: AskIndexFile) {
+  const dir = await mkdtemp(join(tmpdir(), 'ondocs-corpus-eval-'));
+  try {
+    await writeIndexFile(join(dir, 'ask-index.json'), index);
+    const out: string[] = [];
+    const code = await main(
+      [
+        'eval',
+        join(import.meta.dirname, 'eval/docusaurus.io.yaml'),
+        '--index',
+        'ask-index.json',
+        '--json',
+      ],
+      { cwd: dir, env: {}, stdout: (line) => out.push(line), stderr: () => undefined },
+    );
+    const { scores } = JSON.parse(out.join('\n')) as {
+      scores: Record<string, { count: number; of: number }>;
+    };
+    return {
+      code,
+      scores: Object.fromEntries(
+        Object.entries(scores).map(([name, { count, of }]) => [
+          name,
+          `${String(count)}/${String(of)}`,
+        ]),
+      ),
+    };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 const OFF_TOPIC = [
   'What is the capital of France?',
   'How do I bake sourdough bread?',
@@ -206,42 +248,9 @@ describe.skipIf(!present)(
     });
 
     it('scores the sample eval file of the audit’s questions, as asked, within its thresholds', async () => {
-      const dir = await mkdtemp(join(tmpdir(), 'ondocs-corpus-eval-'));
-      try {
-        await writeIndexFile(join(dir, 'ask-index.json'), index);
-        const out: string[] = [];
-        const code = await main(
-          [
-            'eval',
-            join(import.meta.dirname, 'eval/docusaurus.io.yaml'),
-            '--index',
-            'ask-index.json',
-            '--json',
-          ],
-          { cwd: dir, env: {}, stdout: (line) => out.push(line), stderr: () => undefined },
-        );
-        const { scores } = JSON.parse(out.join('\n')) as {
-          scores: Record<string, { count: number; of: number }>;
-        };
-        // A keyword-only index gates at 0.4 rather than 0.5: one question more is answered, from
-        // the right page, and no off-topic one.
-        expect(
-          Object.fromEntries(
-            Object.entries(scores).map(([name, { count, of }]) => [
-              name,
-              `${String(count)}/${String(of)}`,
-            ]),
-          ),
-        ).toEqual({
-          'hit@1': '14/22',
-          'hit@3': '19/22',
-          refusalPrecision: '6/7',
-          refusalRecall: '6/6',
-        });
-        expect(code).toBe(0);
-      } finally {
-        await rm(dir, { recursive: true, force: true });
-      }
+      // A keyword-only index gates at 0.4 rather than 0.5: one question more is answered, from
+      // the right page, and no off-topic one.
+      expect(await evalScores(index)).toEqual({ code: 0, scores: SCORES });
     });
 
     it('fetches every page and every result, and lists them all', async () => {
@@ -262,6 +271,50 @@ describe.skipIf(!present)(
       }
       const list = await call('list_pages', {});
       expect(list.structuredContent.total).toBe(92);
+    });
+  },
+);
+
+// A versioned site serves its docs once per version: here the same docs at /docs, the last
+// version, and at /docs/next, the unreleased one, as Docusaurus serves them. Every section has a
+// copy, word for word, that scores the same on every query; retrieval counts the copies once, at
+// the shorter URL, so the second version takes no place in the results and cites nothing at
+// /docs/next.
+describe.skipIf(!present)(
+  'search on docusaurus.io’s docs in two versions, at /docs and /docs/next',
+  async () => {
+    const version = async (baseUrl: string) =>
+      present
+        ? (await loadDirectory(docs, { baseUrl, framework: 'docusaurus' })).map((document) => ({
+            ...document,
+            id: `${baseUrl}/${document.id}`,
+          }))
+        : [];
+    const { index } = await buildIndex({
+      documents: [...(await version('/docs')), ...(await version('/docs/next'))],
+    });
+    const loaded = loadIndex(index);
+
+    it('indexes both versions', () => {
+      expect([index.documents.length, index.chunks.length]).toEqual([184, 2140]);
+    });
+
+    it('finds what one version finds for an agent, and cites only the last version', () => {
+      const results = NEEDS.map(([, query]) => searchSections(loaded, query, null, {}));
+      const ranks = results.map((found, i) =>
+        [...new Set(found.map((result) => result.id.split('#')[0] ?? ''))].findIndex((page) =>
+          NEEDS[i]?.[2].includes(page),
+        ),
+      );
+      expect({
+        top1: ranks.filter((r) => r === 0).length,
+        top3: ranks.filter((r) => r >= 0 && r < 3).length,
+        next: results.flat().filter((result) => result.id.startsWith('/docs/next/')).length,
+      }).toEqual({ top1: 19, top3: 22, next: 0 });
+    });
+
+    it('scores the sample eval file as one version does', async () => {
+      expect(await evalScores(index)).toEqual({ code: 0, scores: SCORES });
     });
   },
 );
