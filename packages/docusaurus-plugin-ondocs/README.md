@@ -5,8 +5,10 @@ The [ondocs](https://github.com/dgesteves/ondocs) Docusaurus plugin, under the n
 This package only re-exports `ondocs/docusaurus`, at the same version. Everything is documented on [the ondocs website](https://ondocs.vercel.app/docs/docusaurus).
 
 ```sh
-npm i docusaurus-plugin-ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
+npm i docusaurus-plugin-ondocs ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
 ```
+
+Install `ondocs` with it, as the line above does: your project needs it itself. The endpoint you deploy imports `ondocs/server`, and the `ondocs` command (`npx ondocs init`) comes from it. npm finds it as this package's dependency, but pnpm gives a project only its direct dependencies. The two are released together: keep them at the same version.
 
 ```ts
 // docusaurus.config.ts
