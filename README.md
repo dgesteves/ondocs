@@ -1,6 +1,6 @@
 # ondocs
 
-**Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Agent traffic costs you no model tokens.**
+**Make your docs answerable by people and by agents, from one static index:** a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Agent traffic costs you no model tokens.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/dgesteves/ondocs/ci.yml?branch=main&label=CI&style=flat-square&labelColor=181c22)](https://github.com/dgesteves/ondocs/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ondocs?style=flat-square&labelColor=181c22&color=0e7490)](https://www.npmjs.com/package/ondocs)
@@ -80,13 +80,23 @@ After `docusaurus build`, it indexes the pages into `build/ask-index.json`, writ
 
 ```js
 // astro.config.mjs
-integrations: [starlight({ title: 'Acme Docs', plugins: [ondocs()] })],
+import starlight from '@astrojs/starlight';
+import ondocs from 'ondocs/starlight';
+import { defineConfig } from 'astro/config';
+
+export default defineConfig({
+  integrations: [starlight({ title: 'Acme Docs', plugins: [ondocs()] })],
+});
 ```
 
 **Next.js.** With `OPENAI_API_KEY` set, index your content with `npx ondocs index ./content --base-url /docs --llms-txt public`, then:
 
 ```ts
 // app/api/ask/route.ts
+import { openai } from '@ai-sdk/openai';
+import { createAskHandler } from 'ondocs/server';
+import index from '../../../ask-index.json';
+
 export const POST = createAskHandler({
   index,
   model: openai('gpt-5.4-mini'),
@@ -123,6 +133,9 @@ The same index, served to agents with `createMcpHandler`:
 
 ```ts
 // app/api/mcp/route.ts
+import { createMcpHandler } from 'ondocs/server';
+import index from '../../../ask-index.json';
+
 const handler = createMcpHandler({ index, siteName: 'the Acme docs' });
 export { handler as POST, handler as GET, handler as DELETE, handler as OPTIONS };
 ```
