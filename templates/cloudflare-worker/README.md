@@ -26,7 +26,7 @@ Wrangler prints the Worker's URL. Point the dialog at it, plus `/api/ask`:
 
 `package.json` allows the install scripts of esbuild and workerd, which Wrangler needs to set up their binaries, and declines fsevents (macOS file watching, with a prebuilt fallback). npm 12 runs no install scripts unless they are allowed this way.
 
-The site must serve its index at `SITE_URL/ask-index.json`. The Docusaurus and Starlight plugins write it with every build; for another generator, run `npx ondocs index <build folder> -o <build folder>/ask-index.json -e none` after the build.
+The site must serve its index at `SITE_URL/ask-index.json`. The Docusaurus and Starlight plugins write it with every build; for another generator, run `npx ondocs index <build folder> -o <build folder>/ask-index.json -e none` after the build. For a project site, at `https://user.github.io/repo`, add `--base-url /repo` to that command: the pages' URLs in the index, which the dialog's citations and the MCP results link to, then start with `/repo`, as the site serves them.
 
 ## What it does
 

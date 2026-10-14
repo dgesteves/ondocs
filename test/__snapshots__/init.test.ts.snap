@@ -889,7 +889,7 @@ Set (init reads none of these):
   CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN, for the index build, optional: repository secrets, to embed the pages with @cf/baai/bge-small-en-v1.5 for semantic search (a token allowed to run Workers AI); without them, nothing is embedded and questions are matched on keywords
 
 Next:
-  1. Build the index with the site: npx ondocs index public -o public/ask-index.json -e workers-ai:@cf/baai/bge-small-en-v1.5 (with the two Cloudflare variables set; -e none builds a keyword-only index without them)
+  1. Build the index with the site: npx ondocs index public -o public/ask-index.json --base-url /site -e workers-ai:@cf/baai/bge-small-en-v1.5 (with the two Cloudflare variables set; -e none builds a keyword-only index without them)
   2. cd ondocs-worker && npm install && npx wrangler deploy: it prints the Worker's URL, https://acme-ask.<your-subdomain>.workers.dev
   3. Add to your base template: <script src="https://cdn.jsdelivr.net/npm/ondocs@<minor>/dist/embed.global.js" data-endpoint="https://acme-ask.<your-subdomain>.workers.dev/api/ask" defer></script>
   4. Deploy as you do now. init has deployed nothing."

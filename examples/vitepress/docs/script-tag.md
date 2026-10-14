@@ -39,6 +39,8 @@ hugo && npx ondocs index public -o public/ask-index.json \
 
 `-o public/ask-index.json` puts the index in the folder the site deploys, where the endpoint reads it. The OpenAI embedding needs `OPENAI_API_KEY` set. Without a key, `-e none` builds a keyword-only index, which works too.
 
+A site served under a path, such as a GitHub Pages project site at `https://user.github.io/repo`, needs `--base-url /repo` too. Citations and the MCP endpoint's results then link to `/repo/guide.html`, where the page is, rather than `/guide.html`, which is not found. `npx ondocs init --host github-pages` adds it to the command it prints, from the site's URL.
+
 The output folder is `public` after `hugo`, `_site` after Jekyll or Eleventy, and `site` after `mkdocs build`. HTML is read from each page's `<main>`, and citations link to the headings' own `id`s. `index.html` stands for its folder, and other HTML files keep `.html` in their URLs unless you pass `--clean-urls`, for hosts that serve `/guide.html` at `/guide`.
 
 ## Deploy the endpoint for a static site
