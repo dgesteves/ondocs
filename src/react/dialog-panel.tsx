@@ -296,7 +296,6 @@ export function DialogPanel({
   const state = useAsk(
     siteKey ? { ...askOptions, challengeToken: () => widgetRef.current?.token() } : askOptions,
   );
-  const descriptionId = useId();
 
   // Closing the dialog, however it happens, cancels the answer in flight: nobody is reading it,
   // and the model would otherwise keep generating (and billing) to the end.
@@ -375,7 +374,6 @@ export function DialogPanel({
         <Dialog.Content
           className={cx('ask-dialog', classNames.content)}
           data-ask-theme={themeAttribute}
-          aria-describedby={descriptionId}
           onOpenAutoFocus={() => {
             // Runs before focus moves in, however the dialog was opened (shortcut, trigger,
             // controlled prop), so this is still the element to give focus back to.
@@ -395,9 +393,7 @@ export function DialogPanel({
           }}
         >
           <Dialog.Title className="ask-sr-only">{title}</Dialog.Title>
-          <Dialog.Description id={descriptionId} className="ask-sr-only">
-            {labels.description}
-          </Dialog.Description>
+          <Dialog.Description className="ask-sr-only">{labels.description}</Dialog.Description>
 
           <Command label={title} shouldFilter={false} loop className="ask-command">
             <div className="ask-input-row">

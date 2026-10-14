@@ -427,6 +427,21 @@ describe('AskDialog', () => {
     expect(await violations()).toEqual([]);
   });
 
+  it('names and describes the dialog by elements that are in the page', async () => {
+    render(<AskDialog fetch={handlerFetch()} defaultOpen />);
+    const dialog = await screen.findByRole('dialog');
+    // Radix Dialog 1.2 adds its own description's id to any aria-describedby the dialog is given,
+    // so an id of ours there would leave one pointing at nothing.
+    const text = (attribute: string) =>
+      (dialog.getAttribute(attribute) ?? '')
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent);
+    expect(text('aria-labelledby')).toEqual(['Ask this site']);
+    expect(text('aria-describedby')).toEqual([
+      'Type a question and press Enter. Answers are generated from this site’s pages and cite them.',
+    ]);
+  });
+
   it('leaves the shortcut to text fields and editors, where ⌘I means italic', async () => {
     const user = userEvent.setup();
     render(
