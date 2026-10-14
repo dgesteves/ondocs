@@ -207,7 +207,10 @@ describe('tools/call', () => {
       .structuredContent as { results: { id: string }[] };
     expect(new Set(results.map((result) => result.id)).size).toBe(results.length);
     const none = await call('search', { query: 'sourdough bread recipe' });
-    expect(none.structuredContent).toEqual({ results: [] });
+    expect(none.structuredContent).toEqual({
+      results: [],
+      note: expect.stringContaining('list_pages') as string,
+    });
   });
 
   it('search: makes absolute URLs from siteUrl when the endpoint runs elsewhere', async () => {

@@ -11,6 +11,7 @@ import {
   fetchPage,
   listPages,
   mcpTools,
+  searchResult,
   searchSections,
   toolError,
   type McpTool,
@@ -598,11 +599,7 @@ export function createMcpHandler(
         });
         event.results = results.map((entry) => entry.id);
         event.retrieval = vector ? 'hybrid' : 'keyword';
-        const structured = { results };
-        return {
-          content: [{ type: 'text', text: JSON.stringify(structured) }],
-          structuredContent: structured,
-        };
+        return searchResult(results);
       }
       case 'fetch': {
         const reference = string('id', true);

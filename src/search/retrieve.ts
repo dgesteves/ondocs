@@ -47,14 +47,16 @@ export interface RetrievalOptions {
   rrfK?: number;
   /**
    * Minimum cosine similarity for a chunk to count as relevant on meaning alone. Default 0.25,
-   * calibrated for OpenAI `text-embedding-3-small`, and 0.65 for an index embedded with Workers
-   * AI's `@cf/baai/bge-small-en-v1.5`; other models need their own value.
+   * chosen for OpenAI `text-embedding-3-small`, and 0.65 for an index embedded with Workers AI's
+   * `@cf/baai/bge-small-en-v1.5`; other models need their own value.
    */
   minSimilarity?: number;
   /**
    * Minimum share of the query's IDF mass a chunk must contain to count as relevant on keywords
-   * alone. Default 0.5, which is conservative: a question word found on no page carries the most
-   * IDF, so one such word can sink a reasonable question when retrieval is keyword-only.
+   * alone. Default 0.5 for an index with embeddings, whose similarity side catches what the
+   * keywords miss, and 0.4 for a keyword-only index: a question word found on no page carries the
+   * most IDF, and every extra word adds to what a chunk has to cover, so a plain question can
+   * fall under 0.5 with no other signal to catch it.
    */
   minKeywordCoverage?: number;
   /**
@@ -119,6 +121,15 @@ export function defaultMinSimilarity(model: string | undefined): number {
 }
 
 /**
+ * `minKeywordCoverage` for an index without embeddings, where keywords are the only signal. On
+ * real questions about Docusaurus, Astro and Vitest (Stack Overflow and GitHub issue titles whose
+ * answers link the docs), 0.5 refused 26 to 39% of the answerable ones and 0.4 refuses 13 to 17%,
+ * letting one or two more of 15 off-topic questions reach the model. On docusaurus.io's docs and
+ * the audit's 22 questions and 6 off-topic ones, it answers one more, and still refuses all 6.
+ */
+const KEYWORD_ONLY_MIN_KEYWORD_COVERAGE = 0.4;
+
+/**
  * Builds the in-memory search structures from an index file, its JSON text, or the parsed JSON
  * (for example a static `import index from './ask-index.json'`).
  *
@@ -179,6 +190,9 @@ function measure(
   const opts = {
     ...DEFAULT_RETRIEVAL,
     minSimilarity: defaultMinSimilarity(index.embedding?.model),
+    minKeywordCoverage: index.vectors
+      ? DEFAULT_RETRIEVAL.minKeywordCoverage
+      : KEYWORD_ONLY_MIN_KEYWORD_COVERAGE,
     ...stripUndefined(options),
   };
   const keyword = index.bm25.search(tokenize(query.text));
