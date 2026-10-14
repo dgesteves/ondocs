@@ -34,7 +34,7 @@ MDX is reduced to text without being evaluated, so components that render conten
 
 ## Tuning per embedding model
 
-The relevance gate's thresholds are calibrated for OpenAI's `text-embedding-3-small`, and measured for Workers AI's `@cf/baai/bge-small-en-v1.5`. Another embedding model needs its own `minSimilarity`, found by checking the `best` scores `retrieve()` reports on real questions. That is the main tuning cost.
+The relevance gate's thresholds are chosen for OpenAI's `text-embedding-3-small`, and measured for Workers AI's `@cf/baai/bge-small-en-v1.5`. Another embedding model needs its own `minSimilarity`, found by checking the `best` scores `retrieve()` reports on real questions. That is the main tuning cost.
 
 ## Prompt injection
 
@@ -45,6 +45,7 @@ Text on your pages reaches the model as data inside tags it cannot forge, but it
 - Search results without any server code: Pagefind.
 - Answers over content that changes per user or per request: a vector database with a write path.
 - A hosted dashboard and analytics, and no endpoint of your own to run: a hosted assistant such as Kapa or Inkeep.
+- Docs for agents with no endpoint of your own: an aggregator such as Context7, if it indexes your docs.
 
 ## What is planned
 

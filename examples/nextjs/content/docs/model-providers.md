@@ -82,7 +82,7 @@ export const POST = createAskHandler({
 });
 ```
 
-`outputDimensionality` shrinks Gemini's vectors, as `dimensions` does OpenAI's; leave it out to keep the model's full size. The relevance gate's similarity threshold is calibrated for OpenAI, so [check it](#tuning-for-another-embedding-model) against Gemini's scores.
+`outputDimensionality` shrinks Gemini's vectors, as `dimensions` does OpenAI's; leave it out to keep the model's full size. The relevance gate's similarity threshold is chosen for OpenAI, so [check it](#tuning-for-another-embedding-model) against Gemini's scores.
 
 ## xAI and Grok
 
@@ -160,4 +160,4 @@ An index built with `-e none` has no vectors, and retrieval is BM25 alone. It co
 
 ## Tuning for another embedding model
 
-The relevance gate's similarity threshold, 0.25, is calibrated for OpenAI's `text-embedding-3-small`, and an index embedded with Workers AI's `@cf/baai/bge-small-en-v1.5` gets the 0.65 measured for it. Other embedding models produce other similarity ranges, so check the `best` scores that `retrieve()` reports on real questions and pass `retrieval: { minSimilarity }` to the handler. [How retrieval works](/docs/retrieval#tuning) explains the gate.
+The relevance gate's similarity threshold, 0.25, is chosen for OpenAI's `text-embedding-3-small`, and an index embedded with Workers AI's `@cf/baai/bge-small-en-v1.5` gets the 0.65 measured for it. Other embedding models produce other similarity ranges, so check the `best` scores that `retrieve()` reports on real questions and pass `retrieval: { minSimilarity }` to the handler. [How retrieval works](/docs/retrieval#tuning) explains the gate.

@@ -45,8 +45,8 @@ ondocs eval: 28 questions against ask-index.json (1070 chunks, keyword-only sear
   ✓ refused   Write me a poem about the sea                              cov 0.16
 
   hit@1              0.64  (14/22)
-  hit@3              0.82  (18/22)  threshold 0.8 ✓
-  refusal precision  0.75  (6/8)  threshold 0.75 ✓
+  hit@3              0.86  (19/22)  threshold 0.8 ✓
+  refusal precision  0.86  (6/7)  threshold 0.75 ✓
   refusal recall     1.00  (6/6)  threshold 1 ✓
 ```
 
@@ -60,7 +60,7 @@ The scores:
 
 It runs what the endpoint runs before the model, embedding each question as the index was, so it calls no language model. With an embedded index it makes one embedding call per question, with the key the index's model needs; `--keyword-only` makes none. It measures retrieval and the relevance gate, not the wording of the answers.
 
-This repository runs two eval files in CI: one of this site's own questions against the website's index, and one of the 22 questions and 6 off-topic ones the 2026-10-10 audit asked of docusaurus.io's docs, where keyword search scores hit@1 14 of 22, hit@3 18 of 22, and refuses all 6 off-topic questions and 2 it should answer. Copy `test/eval/docusaurus.io.yaml` from the repository as a start. When you change `minSimilarity` or `minKeywordCoverage`, the eval shows what moved.
+This repository runs two eval files in CI: one of this site's own questions against the website's index, and one of the 22 questions and 6 off-topic ones the 2026-10-10 audit asked of docusaurus.io's docs, where keyword search scores hit@1 14 of 22, hit@3 19 of 22, and refuses all 6 off-topic questions and 1 it should answer. Those questions were written for the audit with the docs at hand, so they are a best case, not what your readers' own wording will score. Copy `test/eval/docusaurus.io.yaml` from the repository as a start. When you change `minSimilarity` or `minKeywordCoverage`, the eval shows what moved.
 
 ## With OpenAI's embeddings
 
@@ -70,7 +70,7 @@ The eval of docusaurus.io's docs in CI searches by keywords only, since embeddin
 
 | Search                                         | Right page first | Right page in the top 3 | Off-topic questions answered | Answerable questions refused |
 | ---------------------------------------------- | ---------------- | ----------------------- | ---------------------------- | ---------------------------- |
-| Keywords only                                  | 14 of 22         | 18 of 22                | 0 of 6                       | 2 of 22                      |
+| Keywords only                                  | 14 of 22         | 19 of 22                | 0 of 6                       | 1 of 22                      |
 | Keywords and text-embedding-3-small, gate 0.25 | not run yet      | not run yet             | not run yet                  | not run yet                  |
 
 The gate from 0.15 to 0.40: not run yet.

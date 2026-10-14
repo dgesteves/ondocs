@@ -8,7 +8,7 @@ sidebar:
 
 ## What is ondocs?
 
-ondocs is a self-hosted "Ask AI" box for documentation sites: a build-time index, in-memory hybrid search, and streamed answers with citations from a model you choose. It is an open-source npm package, not a hosted service. See the [introduction](/).
+ondocs is open-source Ask AI for your docs, with an MCP server for agents: a build-time index, in-memory hybrid search, streamed answers with citations from a model you choose, and search and fetch tools that agents call with their own model. It is an npm package under the MIT license, not a hosted service. See the [introduction](/).
 
 ## Is it free?
 
@@ -16,7 +16,7 @@ Yes. ondocs is free and open source under the MIT license, with no paid tier and
 
 ## How much does it cost to run?
 
-An answered question costs one embedding call and one model call, with at most 8,000 characters of sources in and 800 tokens out by default, and a follow-up that needs rewriting one more short call. A question the docs can't answer costs the embedding call only: the model is never asked to answer it. A follow-up that needs rewriting costs the short rewrite call as well. Hosting is one function and one static file. See [cost](/guides/deployment/#cost).
+An answered question costs one embedding call and one model call, with at most 8,000 characters of sources in and 800 tokens out by default, and a follow-up that needs rewriting one more short call. A question the relevance gate turns away costs the embedding call only: the model is never asked to answer it. Most questions the docs don't cover are turned away there, but one that shares enough words with your pages, such as a general programming question, reaches the model and costs a model call, even when the model's answer is that it doesn't know. A follow-up that needs rewriting costs the short rewrite call as well. Hosting is one function and one static file. See [cost](/guides/deployment/#cost).
 
 ## Do I need a vector database?
 
@@ -48,7 +48,7 @@ ondocs is comfortable on sites as large as 10,000 chunks, and workable to about 
 
 ## What happens when the docs don't cover a question?
 
-The relevance gate finds nothing good enough and the endpoint answers "I don't know. I couldn't find anything about that on this site." without calling the model. That refusal is fast, free and deterministic. See [Saying "I don't know"](/guides/retrieval/#saying-i-dont-know).
+Usually the relevance gate finds nothing good enough and the endpoint answers "I don't know. I couldn't find anything about that on this site." without calling the model. That refusal is fast, free and deterministic. A question that shares enough words with your pages can still clear the gate though they don't answer it, such as a general programming question. It then reaches the model, whose instructions are to say it doesn't know when the sources don't hold the answer. See [Saying "I don't know"](/guides/retrieval/#saying-i-dont-know).
 
 ## Does it support follow-up questions?
 
@@ -60,7 +60,11 @@ Yes, through the embedding model: a multilingual model such as Cohere's `embed-m
 
 ## How is it different from Kapa, Inkeep or Algolia Ask AI?
 
-Those are hosted services: your docs are ingested into their platform, and answers come from their infrastructure under their pricing. ondocs is a library. The index is a file in your build, the endpoint is a function on your host, and the model is one you choose under your own key. You give up their dashboards and analytics: you get `ondocs eval`, readers' ratings and a log of unanswered questions to wire as you like instead, and no account, no vendor, and nothing to keep in sync.
+Those are hosted services: your docs are ingested into their platform, and answers come from their infrastructure under their pricing. Algolia's Ask AI lets you bring your own LLM provider and key, but it answers from the index Algolia's crawler builds on its platform, under an Algolia account. Several of these services now serve an MCP endpoint for agents as well. ondocs is a library. The index is a file in your build, the endpoint is a function on your host, and the model is one you choose under your own key. You give up their dashboards and analytics: you get `ondocs eval`, readers' ratings and a log of unanswered questions to wire as you like instead, and no account, no vendor, and nothing to keep in sync.
+
+## Why serve my own MCP server when Context7, DeepWiki or DocSearch MCP index docs?
+
+Those serve docs for many projects behind one server, so an agent whose user added one of them can find your docs there, if they are indexed. If they are, keep them there: the two don't exclude each other. Your own endpoint is the first-party copy. It serves your docs as you last deployed them, from the index the Ask box answers from, with every URL on your site, and it works whether or not an aggregator has indexed them. `onToolCall` shows you what agents search for. With keyword search it calls no model, so agent traffic costs you no model tokens, only the function's run time. See [MCP server](/integrations/mcp/).
 
 ## How is it different from Pagefind?
 

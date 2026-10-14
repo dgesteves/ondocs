@@ -10,8 +10,8 @@ Every setup has the same two halves: an index built with your site, and an endpo
 
 ## Pick your setup
 
+- **Starlight or Astro.** One plugin or integration in `astro.config.mjs`, which builds the index and adds the dialog. See [Astro and Starlight](/integrations/astro/).
 - **Docusaurus.** One line in `docusaurus.config.ts`: the plugin builds the index and adds the dialog. See [Docusaurus](/integrations/docusaurus/).
-- **Astro or Starlight.** One plugin or integration in `astro.config.mjs`, which builds the index and adds the dialog. See [Astro and Starlight](/integrations/astro/).
 - **VitePress.** Wrap the config in `.vitepress/config.mts` with `withOndocs`, which builds the index and adds the dialog. See [VitePress](/integrations/vitepress/).
 - **Next.js or another React app.** Index with the CLI, mount `createAskHandler` as a route, and render `<AskDialog />`. See [Next.js and React](/integrations/nextjs/).
 - **Fumadocs or Nextra.** The same, with the CLI following the framework's URLs. See [Fumadocs](/integrations/fumadocs/) and [Nextra](/integrations/nextra/).
@@ -25,7 +25,7 @@ Install the package with the Vercel AI SDK and a model provider. The two package
 npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
 ```
 
-ondocs needs Node.js 22.12 or later to build the index. The endpoint itself uses Web APIs only, so it also runs on Bun, Deno and Cloudflare Workers.
+ondocs is built on AI SDK 7: install `ai` 7 and its provider packages, such as `@ai-sdk/openai` 4. A project still on AI SDK 6 has to move to 7 first. ondocs needs Node.js 22.12 or later to build the index. The endpoint itself uses Web APIs only, so it also runs on Bun, Deno and Cloudflare Workers.
 
 ## Build the index
 
