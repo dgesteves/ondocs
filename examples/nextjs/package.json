@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.83",
-    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-dialog": "^1.2.0",
     "@vercel/analytics": "^2.0.1",
     "ai": "^7.0.127",
     "ondocs": "workspace:*",

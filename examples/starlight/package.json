@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@astrojs/starlight": "0.42.5",
-    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-dialog": "^1.2.0",
     "ondocs": "workspace:*",
     "astro": "7.3.6",
     "cmdk": "^1.1.1",
