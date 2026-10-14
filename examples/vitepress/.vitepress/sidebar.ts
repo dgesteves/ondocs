@@ -8,6 +8,7 @@ export const sidebar: DefaultTheme.Sidebar = [
       { text: 'Introduction', link: '/' },
       { text: 'Getting started', link: '/getting-started' },
       { text: 'Try it locally', link: '/local-development' },
+      { text: 'Troubleshooting', link: '/troubleshooting' },
     ],
   },
   {

@@ -7,7 +7,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Get started',
       collapsible: false,
-      items: ['introduction', 'getting-started', 'local-development'],
+      items: ['introduction', 'getting-started', 'local-development', 'troubleshooting'],
     },
     {
       type: 'category',

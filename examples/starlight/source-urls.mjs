@@ -6,6 +6,7 @@ export const sourceUrls = {
     '/docs/introduction': '/',
     '/docs/getting-started': '/get-started/getting-started/',
     '/docs/local-development': '/get-started/local-development/',
+    '/docs/troubleshooting': '/get-started/troubleshooting/',
     '/docs/docusaurus': '/integrations/docusaurus/',
     '/docs/astro': '/integrations/astro/',
     '/docs/vitepress': '/integrations/vitepress/',
