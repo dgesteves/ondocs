@@ -51,14 +51,14 @@ npx ondocs index public -o public/ask-index.json \
 
 The build calls Cloudflare's REST API with `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, a token with Workers AI Read and Edit permissions, set as repository secrets for a GitHub Actions build. It sends each chunk's text, 100 at a time, and gets back BGE-small's 384-dimension vectors, at $0.020 per million tokens (1,841 neurons per million). The Worker embeds each question with the same model through its AI binding. Both send only the text, so both get the model's default pooling, as they must to compare.
 
-On docusaurus.io's docs (1,070 chunks) and the 22 questions and 6 off-topic ones the 2026-10-10 audit asked, with BGE-small run locally (the same open weights, with Workers AI's default mean pooling):
+On docusaurus.io's docs (1,070 chunks) and the 22 questions and 6 off-topic ones the 2026-10-10 audit asked, with BGE-small run locally (the same open weights, with Workers AI's default mean pooling), each at its index's default gate:
 
 | Search                 | Right page first | Right page in the top 3 | Off-topic questions answered |
 | ---------------------- | ---------------- | ----------------------- | ---------------------------- |
-| Keywords only          | 14 of 22         | 18 of 22                | 0 of 6                       |
+| Keywords only          | 14 of 22         | 19 of 22                | 0 of 6                       |
 | Keywords and BGE-small | 16 of 22         | 19 of 22                | 0 of 6                       |
 
-BGE-small scored even the off-topic questions 0.46 to 0.63 against their closest chunk, so the default gate of 0.25, set for OpenAI's models, would let every question through. An index embedded with it gets 0.65 instead: the lowest value at which no off-topic question in that set gets through. Another embedding model needs its own `retrieval.minSimilarity`; [How retrieval works](/guides/retrieval/) explains the gate.
+BGE-small scored even the off-topic questions 0.46 to 0.63 against their closest chunk, so the default gate of 0.25, set for OpenAI's models, would let every question through. An index embedded with it gets 0.65 instead: the lowest value at which no off-topic question in that set gets through. Those six have nothing to do with the docs' subject. A general programming question that shares common words with the docs can still clear the gate and reach the model, at the price of a model call. Another embedding model needs its own `retrieval.minSimilarity`; [How retrieval works](/guides/retrieval/) explains the gate.
 
 ## Choose the model that answers
 
