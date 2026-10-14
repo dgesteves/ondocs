@@ -137,7 +137,7 @@
     "template:check": "node scripts/sync-template.mjs --check",
     "validate": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm check:package && pnpm examples:check && pnpm template:check && pnpm example:build && pnpm --filter ask-my-site-example-nextjs lint && pnpm --filter ask-my-site-example-docusaurus build && pnpm --filter ask-my-site-example-starlight build && pnpm --filter ask-my-site-example-vitepress build",
     "changeset": "changeset",
-    "version-packages": "changeset version && node scripts/sync-template.mjs",
+    "version-packages": "changeset version && node scripts/sync-template.mjs && node scripts/sync-cdn-range.mjs",
     "release": "pnpm build && changeset publish",
     "prepack": "node scripts/npm-readme.mjs prepack",
     "postpack": "node scripts/npm-readme.mjs postpack"
