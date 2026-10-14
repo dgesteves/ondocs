@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-// The footer after an answer that shows no sources: a refusal, from the gate or the model, or an
-// answer that cites none. "Check the sources" would point at nothing there, so the footer drops
-// it, and says it again once an answer shows sources. Requests go to a real handler.
+// The footer when no sources are shown: after a refusal, from the gate or the model, an answer
+// that cites none, or an error. "Check the sources" would point at nothing there, so the footer
+// drops it, and says it again once an answer shows sources. Requests go to a real handler.
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { simulateReadableStream } from 'ai';
@@ -42,13 +42,17 @@ function answering(text: string) {
 }
 
 /** A fetch that routes to a real handler, with the scripted mock model unless one is given. */
-function handlerFetch(model?: ReturnType<typeof answering>) {
+function handlerFetch(
+  model?: MockLanguageModelV4,
+  overrides: Partial<Parameters<typeof createAskHandler>[0]> = {},
+) {
   const handler = createAskHandler({
     index,
     model: model ?? mockLanguageModel({ initialDelayMs: 0, wordDelayMs: 0 }),
     embeddingModel,
     retrieval: { minSimilarity: MOCK_MIN_SIMILARITY },
     rateLimit: false,
+    ...overrides,
   });
   return vi.fn((input: string | URL | Request, init?: RequestInit) =>
     handler(
@@ -73,8 +77,12 @@ afterEach(() => {
   cleanup();
 });
 
-/** Opens the dialog, asks `question`, and waits for the answer to finish. */
-async function ask(question: string, props: Partial<AskDialogProps> = {}) {
+/** Opens the dialog, asks `question`, and waits for the answer to end as `status`. */
+async function ask(
+  question: string,
+  props: Partial<AskDialogProps> = {},
+  status: 'done' | 'error' = 'done',
+) {
   const user = userEvent.setup();
   render(<AskDialog fetch={handlerFetch()} defaultOpen {...props} />);
   const dialog = await screen.findByRole('dialog');
@@ -82,7 +90,7 @@ async function ask(question: string, props: Partial<AskDialogProps> = {}) {
   const before = footer();
   await user.type(within(dialog).getByRole('combobox'), `${question}{Enter}`);
   await waitFor(() => {
-    expect(dialog.querySelector('[data-status="done"]')).not.toBeNull();
+    expect(dialog.querySelector(`[data-status="${status}"]`)).not.toBeNull();
   });
   const sources = within(dialog).queryByRole('navigation', { name: 'Sources' }) !== null;
   return { user, dialog, footer, before, sources };
@@ -132,6 +140,50 @@ describe('the footer', () => {
     expect(sources).toBe(false);
     expect(footer()).not.toContain('Check the sources');
     expect(footer()).toContain(DEFAULT_LABELS.footerNoSources);
+  });
+
+  it.each([
+    [
+      'a rate limit',
+      () => handlerFetch(undefined, { rateLimit: () => ({ success: false, reset: Date.now() }) }),
+      'Too many questions. Try again shortly.',
+    ],
+    [
+      'the day’s budget running out',
+      // A store that has already counted the day's one question.
+      () =>
+        handlerFetch(undefined, { budget: { requestsPerDay: 1, store: { increment: () => 2 } } }),
+      'The assistant has reached its daily limit. Please try again later.',
+    ],
+    [
+      'a network failure',
+      () => vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))),
+      DEFAULT_LABELS.errorNetwork,
+    ],
+  ])('does not ask to check the sources after %s', async (_, fetch, message) => {
+    const { dialog, footer, sources } = await ask(
+      'How is an int8 vector scaled?',
+      { fetch: fetch() },
+      'error',
+    );
+    expect(within(dialog).getByRole('alert').textContent).toContain(message);
+    expect(sources).toBe(false);
+    expect(footer()).not.toContain('Check the sources');
+    expect(footer()).toContain(DEFAULT_LABELS.footerNoSources);
+  });
+
+  it('asks to check the sources after an error that comes once they show', async () => {
+    const broken = new MockLanguageModelV4({
+      doStream: () => Promise.reject(new Error('provider down')),
+    });
+    const { dialog, footer, sources } = await ask(
+      'How is an int8 vector scaled?',
+      { fetch: handlerFetch(broken, { onError: vi.fn() }) },
+      'error',
+    );
+    expect(within(dialog).getByRole('alert')).toBeTruthy();
+    expect(sources).toBe(true);
+    expect(footer()).toContain(DEFAULT_LABELS.footer);
   });
 
   it('takes its words from footerNoSources, or from a given footer without it', async () => {

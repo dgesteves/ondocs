@@ -31,8 +31,8 @@ export interface AskDialogLabels {
   /** The footer's disclaimer. */
   footer: string;
   /**
-   * The footer's disclaimer under an answer that shows no sources: a refusal, or an answer that
-   * cites none. When `footer` is given and this is not, `footer` is shown there too.
+   * The footer's disclaimer when no sources are shown: after a refusal, an answer that cites
+   * none, or an error. When `footer` is given and this is not, `footer` is shown there too.
    */
   footerNoSources: string;
   /** The footer's hint for Enter, after the ↵ key. */

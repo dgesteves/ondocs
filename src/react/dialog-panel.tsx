@@ -488,9 +488,9 @@ export function DialogPanel({
           </p>
           {footer ?? (
             <div className={cx('ask-footer', classNames.footer)}>
-              {/* Under an answer with no sources, it does not send the reader to them. */}
+              {/* Under an answer or an error with no sources, it does not send the reader to them. */}
               <span>
-                {state.status === 'done' && !showsSources(state)
+                {(state.status === 'done' || state.status === 'error') && !showsSources(state)
                   ? labels.footerNoSources
                   : labels.footer}
               </span>
