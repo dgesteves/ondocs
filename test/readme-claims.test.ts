@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const root = join(import.meta.dirname, '..');
@@ -106,7 +107,7 @@ describe('what the README claims', () => {
 
   it('leads with what it is now: people and agents, from one static index', () => {
     expect(readme.split('\n')[2]).toBe(
-      '**Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Agent traffic costs you no model tokens.**',
+      '**Make your docs answerable by people and by agents, from one static index:** a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Agent traffic costs you no model tokens.',
     );
     const manifest = JSON.parse(read('package.json')) as {
       description: string;
@@ -116,5 +117,143 @@ describe('what the README claims', () => {
     expect(manifest.keywords).toEqual(
       expect.arrayContaining(['mcp', 'mcp-server', 'llms-txt', 'ask-ai', 'ai-search', 'utility']),
     );
+  });
+});
+
+/** A JavaScript or TypeScript block of a Markdown file, with the line its code starts on. */
+interface Block {
+  file: string;
+  line: number;
+  /** As the file a reader pastes it into: a JavaScript config is an `.mjs` file. */
+  extension: string;
+  code: string;
+}
+
+const codeBlocks = (file: string): Block[] => {
+  const text = read(file);
+  return [...text.matchAll(/^```(js|jsx|ts|tsx)\n([\s\S]*?)^```$/gm)].map((match) => ({
+    file,
+    line: text.slice(0, match.index).split('\n').length + 1,
+    extension: match[1] === 'js' ? 'mjs' : String(match[1]),
+    code: String(match[2]),
+  }));
+};
+
+/** The source each import of the package resolves to: its entries, and the plugin packages. */
+const entries = () => {
+  const manifest = JSON.parse(read('package.json')) as { exports: Record<string, unknown> };
+  const sources = new Map<string, string>();
+  for (const subpath of Object.keys(manifest.exports)) {
+    const base = subpath === '.' ? 'src/index' : `src${subpath.slice(1)}`;
+    const source = [`${base}/index`, base].find((path) => existsSync(join(root, `${path}.ts`)));
+    if (source !== undefined) sources.set(`ondocs${subpath.slice(1)}`, join(root, source));
+  }
+  for (const dir of readdirSync(join(root, 'packages'))) {
+    const { name } = JSON.parse(read(`packages/${dir}/package.json`)) as { name: string };
+    sources.set(name, join(root, 'packages', dir, 'index'));
+  }
+  return { exported: Object.keys(manifest.exports), sources };
+};
+
+/** "Cannot find module", the errors a module left unresolved gets. */
+const UNRESOLVED_MODULE = new Set([2307, 2792, 2882]);
+
+/**
+ * Type-checks each block on its own, as a module, against the package's source. An import of
+ * `ondocs/<entry>` or of a plugin package resolves to that entry's source; every other module (the
+ * framework, the AI SDK, the index's JSON) stays unresolved, so what a block imports from it is
+ * `any`. What is left is what a reader hits on pasting the block into a file: code that does not
+ * parse, a name used and never imported, an entry the package does not export, or a name it does
+ * not export.
+ */
+const compile = (blocks: Block[]) => {
+  const { exported, sources } = entries();
+  const files = new Map(
+    blocks.map((block, i) => [
+      join(root, 'readme-blocks', `${String(i)}.${block.extension}`),
+      block,
+    ]),
+  );
+  const options: ts.CompilerOptions = {
+    target: ts.ScriptTarget.ES2023,
+    lib: ['lib.es2023.d.ts', 'lib.dom.d.ts', 'lib.dom.iterable.d.ts'],
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    moduleDetection: ts.ModuleDetectionKind.Force,
+    jsx: ts.JsxEmit.ReactJSX,
+    types: [],
+    strict: true,
+    allowJs: true,
+    checkJs: true,
+    skipLibCheck: true,
+    noEmit: true,
+  };
+  const base = ts.createCompilerHost(options);
+  const host: ts.CompilerHost = {
+    ...base,
+    fileExists: (file) => files.has(file) || base.fileExists(file),
+    readFile: (file) => files.get(file)?.code ?? base.readFile(file),
+    getSourceFile: (file, language, onError) => {
+      const block = files.get(file);
+      return block === undefined
+        ? base.getSourceFile(file, language, onError)
+        : ts.createSourceFile(file, block.code, language, true);
+    },
+    resolveModuleNameLiterals: (literals, containingFile) =>
+      literals.map(({ text }) => {
+        const source = sources.get(text);
+        const relative = text.startsWith('.') && !files.has(containingFile);
+        return {
+          resolvedModule:
+            source !== undefined || relative
+              ? ts.resolveModuleName(source ?? text, containingFile, options, base).resolvedModule
+              : undefined,
+        };
+      }),
+  };
+  const program = ts.createProgram([...files.keys()], options, host);
+
+  const problems: string[] = [];
+  for (const [file, block] of files) {
+    const source = program.getSourceFile(file);
+    if (source === undefined) throw new Error(`${file} was not compiled`);
+    const at = (position: number) =>
+      `${block.file}:${String(block.line + source.getLineAndCharacterOfPosition(position).line)}`;
+    for (const statement of source.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
+        continue;
+      }
+      const specifier = statement.moduleSpecifier.text;
+      if (
+        /^ondocs(\/|$)/.test(specifier) &&
+        !exported.includes(specifier.replace(/^ondocs/, '.'))
+      ) {
+        problems.push(`${at(statement.getStart())}: ondocs exports no '${specifier}'`);
+      }
+    }
+    for (const diagnostic of [
+      ...program.getSyntacticDiagnostics(source),
+      ...program.getSemanticDiagnostics(source),
+    ]) {
+      const { code, start = 0, length = 0, messageText } = diagnostic;
+      // The module's name, inside its quotes: one other than the package's stays unresolved.
+      const specifier = source.text.slice(start + 1, start + length - 1);
+      if (UNRESOLVED_MODULE.has(code) && !sources.has(specifier)) continue;
+      problems.push(
+        `${at(start)}: TS${String(code)} ${ts.flattenDiagnosticMessageText(messageText, ' ')}`,
+      );
+    }
+  }
+  return problems;
+};
+
+describe('the README’s code, as copied', () => {
+  it('compiles: every name it uses is imported, from an entry the package exports', () => {
+    const blocks = [
+      'README.md',
+      ...readdirSync(join(root, 'packages')).map((dir) => `packages/${dir}/README.md`),
+    ].flatMap(codeBlocks);
+    expect(blocks.filter((block) => block.file === 'README.md').length).toBeGreaterThan(3);
+    expect(compile(blocks)).toEqual([]);
   });
 });
