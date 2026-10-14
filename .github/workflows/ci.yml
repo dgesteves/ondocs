@@ -204,3 +204,28 @@ jobs:
       - run: node scripts/corpus.mjs
       - run: pnpm test
       - run: pnpm build
+
+  # The oldest ai the peer range allows, over the lockfile's: a site that already has an older
+  # ai 7 keeps it when it installs ondocs, while the jobs above run the lockfile's ai and the fresh
+  # sites the latest. ai 7.0.0 to 7.0.50 crashed the Docusaurus plugin's load under jiti, and
+  # before 7.0.92 the endpoint's onAbort had no reason. test/ai-peer-floor.test.ts keeps the ai
+  # version here at the peer range's floor.
+  ai-floor:
+    name: Typecheck and test on the oldest ai the peer range allows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The AI SDK's packages depend on each other at exact versions, so @ai-sdk/openai is one
+      # released with this ai, on the same @ai-sdk/provider. A newer one brings a second copy of
+      # the provider's types, which the typecheck rejects.
+      - name: Install ai at the peer range's floor, and an @ai-sdk/openai released with it
+        run: pnpm add -D -w ai@7.0.95 @ai-sdk/openai@4.0.63 --ignore-scripts
+      - run: pnpm typecheck
+      - run: node scripts/corpus.mjs
+      - run: pnpm test

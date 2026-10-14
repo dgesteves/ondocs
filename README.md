@@ -177,4 +177,4 @@ What ondocs adds is one index you host serving both people and agents, on Docusa
 - [Getting started](https://ondocs.vercel.app/docs/getting-started), [Deploying](https://ondocs.vercel.app/docs/deployment), [API](https://ondocs.vercel.app/docs/api), [CLI](https://ondocs.vercel.app/docs/cli), [Benchmarks](https://ondocs.vercel.app/docs/benchmarks) and [FAQ](https://ondocs.vercel.app/docs/faq)
 - [Changelog](./CHANGELOG.md), [Contributing](./CONTRIBUTING.md), [Security](./SECURITY.md)
 
-Requires Node.js 22.12 or later, and any AI SDK provider. [MIT](./LICENSE) © Diogo Esteves
+Requires Node.js 22.12 or later and AI SDK 7 (`ai@^7.0.95`). [MIT](./LICENSE) © Diogo Esteves
