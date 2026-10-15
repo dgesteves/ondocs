@@ -40,6 +40,7 @@ const PACKAGES = [
     entry: 'ondocs/docusaurus',
     guide: 'docusaurus',
     keywords: ['docusaurus', 'docusaurus-plugin', 'ask-ai'],
+    noise: ['chatbot', 'ui', 'utility', 'edge', 'command-palette'],
     // Docusaurus loads the plugin's theme and stylesheets by their paths inside ondocs, so a
     // project that only has this package builds; the endpoint and the CLI still need ondocs.
     wraps: false,
@@ -51,13 +52,16 @@ const PACKAGES = [
     // The Astro integrations library finds packages by withastro or astro-integration, and files
     // them by keyword: utility is Utilities, ui is CSS + UI.
     keywords: ['starlight', 'starlight-plugin', 'withastro', 'astro-integration', 'utility', 'ui'],
+    // ondocs dropped ui and utility from its own keywords as noise on npm; this package keeps
+    // them for the Astro library's categories, so that ondocs is not listed there twice.
+    noise: ['chatbot', 'edge', 'command-palette'],
     // The Astro integration adds `ondocs/...` modules to the pages, which the build resolves from
     // the project: the plugin checks it can, before Starlight sets up.
     wraps: true,
   },
 ];
 
-describe.each(PACKAGES)('$dir', ({ dir, entry, guide, keywords, wraps }) => {
+describe.each(PACKAGES)('$dir', ({ dir, entry, guide, keywords, noise, wraps }) => {
   const pkg = manifest(`${dir}/package.json`);
 
   it('re-exports its entry of ondocs, default and named, in JavaScript and types', () => {
@@ -136,8 +140,9 @@ describe.each(PACKAGES)('$dir', ({ dir, entry, guide, keywords, wraps }) => {
     );
   });
 
-  it('has the keywords people search for', () => {
+  it('has the keywords people search for, and none that only add noise to npm search', () => {
     expect(pkg.keywords).toEqual(expect.arrayContaining(keywords));
+    expect(pkg.keywords.filter((keyword) => noise.includes(keyword))).toEqual([]);
   });
 
   it('links its guide on the website from npm', () => {

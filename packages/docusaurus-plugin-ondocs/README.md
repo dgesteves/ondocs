@@ -1,6 +1,6 @@
 # docusaurus-plugin-ondocs
 
-The [ondocs](https://github.com/dgesteves/ondocs) Docusaurus plugin, under the name Docusaurus users search for. It makes your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor.
+The [ondocs](https://github.com/dgesteves/ondocs) Docusaurus plugin, under the name Docusaurus users search for: open-source Ask AI for your docs, with an MCP server for agents. Cited answers on your own model key, and llms.txt, from one static index built with your site, with no vendor and no vector database.
 
 This package only re-exports `ondocs/docusaurus`, at the same version. Everything is documented on [the ondocs website](https://ondocs.vercel.app/docs/docusaurus).
 

@@ -1,7 +1,7 @@
 {
   "name": "ondocs",
   "version": "0.10.0",
-  "description": "Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Docusaurus, Starlight and VitePress plugins, Next.js, or one script tag.",
+  "description": "Open-source Ask AI for your docs, with an MCP server for agents: cited answers on your own model key, from one static index built with your site. No vendor, no vector database. Starlight, Docusaurus and VitePress plugins, Next.js, or one script tag.",
   "keywords": [
     "ask-ai",
     "ai-search",
@@ -14,9 +14,7 @@
     "retrieval",
     "bm25",
     "embeddings",
-    "command-palette",
     "docs-search",
-    "edge",
     "react",
     "docusaurus",
     "docusaurus-plugin",
@@ -28,10 +26,7 @@
     "vitepress",
     "vitepress-plugin",
     "fumadocs",
-    "nextra",
-    "chatbot",
-    "ui",
-    "utility"
+    "nextra"
   ],
   "homepage": "https://ondocs.vercel.app",
   "bugs": "https://github.com/dgesteves/ondocs/issues",

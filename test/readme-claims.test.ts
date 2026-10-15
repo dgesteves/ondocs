@@ -26,6 +26,10 @@ describe('what the README claims', () => {
     const major = /^\^(\d+)\./.exec(range)?.[1];
     expect(major).toBeDefined();
     expect(readme).toContain(`AI SDK ${String(major)} (\`ai@${range}\`)`);
+    // A project on AI SDK 6 has to move to 7 first: say so, as Getting started does.
+    expect(readme).toContain(
+      `AI SDK ${String(major)} (\`ai@${range}\`); AI SDK ${String(Number(major) - 1)} is not supported`,
+    );
   });
 
   it('does not say the live demo runs without a model key', () => {
@@ -114,18 +118,158 @@ describe('what the README claims', () => {
     expect(words).toBeGreaterThan(800);
     expect(words).toBeLessThan(1200);
   });
+});
 
-  it('leads with what it is now: people and agents, from one static index', () => {
-    expect(readme.split('\n')[2]).toBe(
-      '**Make your docs answerable by people and by agents, from one static index:** a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Agent traffic costs you no model tokens.',
-    );
-    const manifest = JSON.parse(read('package.json')) as {
-      description: string;
-      keywords: string[];
-    };
-    expect(manifest.description).toMatch(/people and by agents/);
+/** The README from one line that starts with `from` to the next that starts with `to`. */
+const section = (from: string, to: string) => {
+  const start = readme.indexOf(`\n${from}`);
+  expect([from, start]).not.toEqual([from, -1]);
+  const end = readme.indexOf(`\n${to}`, start + 1);
+  return readme.slice(start, end === -1 ? undefined : end);
+};
+
+const packages = readdirSync(join(root, 'packages')).map((dir) => `packages/${dir}`);
+const readmes = ['README.md', ...packages.map((dir) => `${dir}/README.md`)];
+const manifests = ['package.json', ...packages.map((dir) => `${dir}/package.json`)];
+const manifest = JSON.parse(read('package.json')) as { description: string; keywords: string[] };
+
+describe('how the README places ondocs, as the website does', () => {
+  const landing = read('examples/nextjs/app/(home)/page.tsx');
+  const text = (jsx: string) =>
+    jsx
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  it('leads with open-source Ask AI, in the landing page’s heading and lead', () => {
+    // The category people search for first, and the MCP server second.
+    const h1 = text(/<h1 id="hero-title"[^>]*>([\s\S]*?)<\/h1>/.exec(landing)?.[1] ?? '');
+    const lead = text(/<p className="hero-lead">([\s\S]*?)<\/p>/.exec(landing)?.[1] ?? '');
+    expect(h1).toBe('Open-source Ask AI for your docs.');
+    expect(readme.split('\n')[2]).toBe(`**${h1}** ${lead}`);
+  });
+
+  it('says who it is for, as the introduction does', () => {
+    const audience =
+      'teams that run their own developer docs, at product, API and platform companies';
+    expect(readme.split('<!-- npm-readme:video -->')[0]).toContain(audience);
+    expect(read('examples/nextjs/content/docs/introduction.md')).toContain(audience);
+  });
+
+  it('puts Starlight first: in the setup table, the snippets and the live demos', () => {
+    const setup = section('## Pick your setup', '## For agents');
+    const rows = setup.split('\n').filter((line) => /^\| [A-Z]/.test(line));
+    expect(rows[1]).toMatch(/^\| Starlight/);
+    const snippets = ['**Starlight.**', '**Docusaurus.**', '**Next.js.**', '**Any other site.**'];
+    const at = snippets.map((name) => setup.indexOf(`\n${name}`));
+    expect(at.every((position) => position > 0)).toBe(true);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
+    expect(setup).toContain('**Live demos:** [Starlight](https://ondocs-starlight.vercel.app)');
+  });
+
+  it('describes each package on npm as open-source Ask AI, within what npm shows', () => {
+    // npm cuts a description at 255 characters: 0.10.0's ended "…Next.js, or one script".
+    for (const file of manifests) {
+      const { description } = JSON.parse(read(file)) as { description: string };
+      expect([file, description.length <= 255]).toEqual([file, true]);
+      expect([
+        file,
+        /open-source Ask AI for your docs, with an MCP server/i.test(description),
+      ]).toEqual([file, true]);
+    }
+    expect(manifest.description).toMatch(/^Open-source Ask AI for your docs/);
+    for (const file of readmes) {
+      expect([file, read(file).includes('answerable by people and by agents')]).toEqual([
+        file,
+        false,
+      ]);
+    }
+  });
+
+  it('keeps the npm keywords to what people search for ondocs by', () => {
     expect(manifest.keywords).toEqual(
-      expect.arrayContaining(['mcp', 'mcp-server', 'llms-txt', 'ask-ai', 'ai-search', 'utility']),
+      expect.arrayContaining(['ask-ai', 'ai-search', 'mcp', 'mcp-server', 'llms-txt', 'starlight']),
+    );
+    const noise = ['chatbot', 'ui', 'utility', 'edge', 'command-palette'];
+    expect(manifest.keywords.filter((keyword) => noise.includes(keyword))).toEqual([]);
+  });
+
+  it('compares it fairly: Algolia takes your own key, hosted assistants serve agents too', () => {
+    const compare = section('## How it compares', '## Links');
+    const line = (name: string) =>
+      compare.split('\n').find((text) => text.startsWith(`- **${name}`)) ?? '';
+    // Algolia's Ask AI is bring-your-own-LLM: the difference is where the index lives.
+    expect(line('Algolia DocSearch Ask AI')).toMatch(/your own LLM provider and key/);
+    expect(line('Algolia DocSearch Ask AI')).toMatch(/crawler/);
+    // Several hosted assistants now serve an MCP endpoint too, and aggregators serve docs to
+    // agents: one index for people and agents is no longer what sets ondocs apart.
+    expect(compare).toMatch(/MCP endpoint for agents as well/);
+    expect(line('Context7')).toMatch(/DocSearch MCP/);
+    expect(line('Context7')).toMatch(/first-party copy/);
+    expect(compare).not.toMatch(/one index you host serving both people and agents/);
+  });
+});
+
+describe('what the README says was measured', () => {
+  it('scopes the agent-search count, with the count as people ask, and links the queries', () => {
+    // The queries were written knowing the docs, in their words, so the count is a best case. The
+    // counts are the ones test/corpus.test.ts checks in CI.
+    const corpus = read('test/corpus.test.ts');
+    const agent = /top3: (\d+),\s+misses: \[\]/.exec(corpus)?.[1];
+    const person = /asked as a person asks them'[\s\S]*?\.toBe\((\d+)\)/.exec(corpus)?.[1];
+    expect([agent, person]).toEqual([
+      expect.stringMatching(/^\d+$/),
+      expect.stringMatching(/^\d+$/),
+    ]);
+    const quality = readme.split('\n').find((line) => line.startsWith('- **Quality.**')) ?? '';
+    expect(quality).toContain(`${String(agent)} of ${String(agent)} agent-style queries we wrote`);
+    expect(quality).toContain(`${String(person)} of ${String(agent)} asked as a person asks`);
+    expect(quality).toContain('a best case');
+    expect(quality).toContain(
+      '(https://github.com/dgesteves/ondocs/blob/main/test/corpus.test.ts)',
+    );
+    const counted = new RegExp(` of ${String(agent)}\\b`);
+    for (const line of readme.split('\n').filter((text) => counted.test(text))) {
+      expect(line).toContain('we wrote');
+    }
+  });
+
+  it('does not say every question the docs don’t cover stops before the model', () => {
+    // A general programming question that shares common words with the docs clears the gate, and
+    // costs a model call.
+    for (const file of readmes) {
+      const text = read(file);
+      expect([
+        file,
+        /\b0 model calls|question your docs don['’]t cover stops before the model/i.test(text),
+      ]).toEqual([file, false]);
+    }
+    expect(section('## Cost and safety defaults', '## How it compares')).toMatch(
+      /Most questions your docs don['’]t cover stop before the model; one that shares enough words with your pages/,
+    );
+  });
+
+  it('says “chosen”, not “calibrated”, of the similarity gate no eval has measured', () => {
+    for (const file of readmes) {
+      expect([file, /calibrat/i.test(read(file))]).toEqual([file, false]);
+    }
+  });
+
+  it('shows no downloads badge: a count of npm downloads is not a count of users', () => {
+    for (const file of readmes) {
+      const text = read(file);
+      expect([file, /img\.shields\.io\/npm\/d[wmyt]\/|\[!\[Downloads\]/i.test(text)]).toEqual([
+        file,
+        false,
+      ]);
+    }
+  });
+
+  it('tells a GitHub Pages project site to add --base-url to the index command', () => {
+    // Without it, every citation and MCP link on user.github.io/repo drops /repo and 404s.
+    expect(section('**Any other site.**', '**Try it without a key.**')).toMatch(
+      /project site,? at `https:\/\/user\.github\.io\/repo`[^\n]*`--base-url \/repo`/,
     );
   });
 });
