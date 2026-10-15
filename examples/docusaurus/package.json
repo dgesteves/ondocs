@@ -15,7 +15,7 @@
     "@docusaurus/faster": "3.10.2",
     "@docusaurus/preset-classic": "3.10.2",
     "@mdx-js/react": "^3.0.0",
-    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-dialog": "^1.2.0",
     "ondocs": "workspace:*",
     "clsx": "^2.0.0",
     "cmdk": "^1.1.1",

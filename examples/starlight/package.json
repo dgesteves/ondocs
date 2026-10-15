@@ -10,8 +10,8 @@
     "api": "ondocs dev"
   },
   "dependencies": {
-    "@astrojs/starlight": "0.42.5",
-    "@radix-ui/react-dialog": "^1.1.23",
+    "@astrojs/starlight": "0.42.6",
+    "@radix-ui/react-dialog": "^1.2.0",
     "ondocs": "workspace:*",
     "astro": "7.3.8",
     "cmdk": "^1.1.1",
