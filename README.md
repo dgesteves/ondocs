@@ -146,7 +146,9 @@ export { handler as POST, handler as GET, handler as DELETE, handler as OPTIONS 
 ```
 
 ```sh
-claude mcp add --transport http acme-docs https://docs.acme.dev/api/mcp
+claude mcp add --transport http acme-docs https://docs.acme.dev/api/mcp               # Claude Code
+codex mcp add acme-docs --url https://docs.acme.dev/api/mcp                           # Codex
+gemini mcp add --transport http --scope user acme-docs https://docs.acme.dev/api/mcp  # Gemini CLI
 ```
 
 - **Protocol.** MCP 2026-07-28, and 2025-11-25 back to 2024-11-05 for clients that start with `initialize`, tested with the official TypeScript client.

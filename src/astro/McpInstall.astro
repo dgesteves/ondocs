@@ -1,7 +1,8 @@
 ---
 // How to connect an AI tool to the site's MCP endpoint, the `mcp` option of ondocs/starlight
 // or ondocs/astro: "Add to Cursor", "Add to VS Code" and "Add to Claude" links, the Claude
-// Code command and the JSON for other clients. For an MDX page:
+// Code, Codex and Gemini CLI commands, and the JSON and Codex's TOML for other clients. For an
+// MDX page:
 //
 //   import McpInstall from 'ondocs/astro/McpInstall.astro';
 //
@@ -39,9 +40,15 @@ const links = mcpInstallLinks({ url, name });
   </p>
   <p>Claude Code:</p>
   <pre><code>{links.claudeCode}</code></pre>
+  <p>Codex:</p>
+  <pre><code>{links.codex}</code></pre>
+  <p>Gemini CLI:</p>
+  <pre><code>{links.gemini}</code></pre>
   <p>ChatGPT: add a custom MCP server with this URL at chatgpt.com/plugins.</p>
   <details>
     <summary>Other clients</summary>
     <pre><code>{links.json}</code></pre>
+    <p>Codex, in ~/.codex/config.toml:</p>
+    <pre><code>{links.codexToml}</code></pre>
   </details>
 </div>

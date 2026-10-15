@@ -10,6 +10,7 @@ import type { EmbeddingModel, LanguageModel } from 'ai';
 
 import type { EmbeddingProviderOptions } from '../build';
 import type { AskIndexFile } from '../index-file';
+import { mcpInstallLinks } from '../mcp-install';
 import { MOCK_MIN_SIMILARITY, mockEmbeddingModel, mockLanguageModel } from '../mock';
 import { readIndexFile } from '../node';
 import { importOptional } from '../node/optional';
@@ -556,12 +557,16 @@ export async function dev(args: string[], io: CliIO): Promise<number> {
   const { endpoint } = server;
   const label = relative(io.cwd, file) || file;
   const cors = origins.includes('*') ? 'any origin' : ['localhost', ...origins].join(', ');
+  const mcp = mcpInstallLinks({ url: server.mcp, name: 'docs' });
   io.stdout(
     [
       `ondocs dev: ${label} (${String(server.chunks)} chunks), ${server.description}`,
       '',
       `  Endpoint  ${endpoint}  (CORS: ${cors})`,
-      `  MCP       ${server.mcp}  (claude mcp add --transport http docs ${server.mcp})`,
+      `  MCP       ${server.mcp}`,
+      `            Claude Code  ${mcp.claudeCode}`,
+      `            Codex        ${mcp.codex}`,
+      `            Gemini CLI   ${mcp.gemini}`,
       '',
       'Point the dialog at it:',
       `  Docusaurus, Astro, Starlight  start the site with ASK_ENDPOINT=${endpoint}`,
