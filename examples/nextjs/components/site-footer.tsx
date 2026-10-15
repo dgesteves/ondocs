@@ -30,7 +30,7 @@ export function SiteFooter() {
             ondocs
           </p>
           <p>
-            Docs answerable by people and by agents, from one static index. MIT licensed, built by{' '}
+            Open-source Ask AI for your docs, with an MCP server for agents. MIT licensed, built by{' '}
             <a href="https://github.com/dgesteves">Diogo Esteves</a>.
           </p>
         </div>

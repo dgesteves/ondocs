@@ -17,7 +17,7 @@ const shared = {
   llmsTxt: {
     title: 'ondocs',
     description:
-      'Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor.',
+      'Open-source Ask AI for your docs. Cited answers on your own model key, and an MCP server for coding agents, from one index built with your Starlight, Docusaurus or VitePress site. No vendor, no vector database.',
     siteUrl: 'https://ondocs.vercel.app',
     mcp: 'https://ondocs.vercel.app/api/mcp',
   },
