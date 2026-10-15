@@ -9,13 +9,9 @@ import { CopyIcon } from '../icons';
  */
 export function AgentStrip({ url, name }: { url: string; name: string }) {
   const links = mcpInstallLinks({ url, name });
-  // Codex's own command for a streamable HTTP server, as Codex CLI 0.163.0 takes it: it writes
-  // `[mcp_servers.<name>]` with the URL to ~/.codex/config.toml. The name and URL are already
-  // safe as shell arguments.
-  const codex = `codex mcp add ${links.name} --url ${links.url}`;
   const commands = [
     { label: 'Claude Code', command: links.claudeCode },
-    { label: 'Codex', command: codex },
+    { label: 'Codex', command: links.codex },
   ];
   return (
     <div className="agent-strip">
