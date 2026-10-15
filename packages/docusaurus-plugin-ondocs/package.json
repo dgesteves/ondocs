@@ -1,14 +1,13 @@
 {
   "name": "docusaurus-plugin-ondocs",
   "version": "0.10.0",
-  "description": "The ondocs Docusaurus plugin, under the name Docusaurus users search for: a cited Ask AI box, an MCP server and llms.txt for your docs, from one static index, on your own function and key.",
+  "description": "The ondocs Docusaurus plugin, under the name Docusaurus users search for: open-source Ask AI for your docs, with an MCP server for agents. Cited answers on your own model key, from one static index, with no vendor and no vector database.",
   "keywords": [
     "docusaurus",
     "docusaurus-plugin",
     "docusaurus-theme",
     "ask-ai",
     "ai-search",
-    "chatbot",
     "docs-search",
     "search",
     "mcp",

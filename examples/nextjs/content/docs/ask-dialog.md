@@ -60,7 +60,7 @@ In React, with a controlled `open`, the `question` prop does the same: set both 
 
 A page carries only the dialog's shortcut and, with `launcher` or `trigger`, its button. The dialog itself, Radix Dialog, cmdk and the answer, is a separate chunk that your bundler splits off, and it loads the first time the dialog is wanted: a pointer over or focus on its button or trigger, the shortcut, or `open`. A shortcut pressed while it loads is kept, so the dialog opens, with focus in its input, once it arrives; Escape before then cancels it. Focus goes back to where it was when the dialog closes, or to the button that opened it. Call `loadAskDialog()` from `ondocs/react` to load it sooner, such as when the page is idle.
 
-In the plugins' sites this takes the JavaScript ondocs adds to each page from about 22 KB to about 3 KB with Docusaurus, and from about 88 KB to under 2 KB with Starlight, which has no React of its own; see [Benchmarks](/docs/benchmarks#bundle-size).
+In the plugins' sites this takes the JavaScript ondocs adds to each page from about 22 KB to 3.9 KB with Docusaurus, and from about 88 KB to 2.4 KB with Starlight, which has no React of its own; see [Benchmarks](/docs/benchmarks#bundle-size).
 
 ## The launcher button
 
