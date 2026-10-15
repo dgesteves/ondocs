@@ -82,7 +82,7 @@ Give the plugin the endpoint's URL with `mcp`, and a page can show how to add it
 - **React:** `<McpInstall url="https://docs.example.com/api/mcp" name="acme-docs" />` from `ondocs/react`.
 - **Anything else:** `mcpInstallLinks({ url, name })` from `ondocs` returns the Cursor and VS Code install links, the claude.ai link, the Claude Code command and the JSON for other clients.
 
-A path is resolved against the site's URL. The name defaults to the site title, as `acme-docs`. The URL also goes into [`llms.txt`](/docs/llms-txt), for agents that start there. `npx ondocs init` says which `mcp` to set for the endpoint it writes.
+A path is resolved against the site's URL. A URL that does not parse, such as the Worker's with `<your-subdomain>` left in, stops the build. The name defaults to the site title, as `acme-docs`. The URL also goes into [`llms.txt`](/docs/llms-txt), for agents that start there. `npx ondocs init` says which `mcp` to set for the endpoint it writes.
 
 ## Try it locally
 

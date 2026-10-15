@@ -479,6 +479,10 @@ describe('ondocs/starlight', () => {
     );
     expect(await mcpModule({})).toBe('export default null;');
     await expect(mcpModule({ mcp: '/api/mcp' })).rejects.toThrow(/astro.config's site/);
+    // A placeholder left in a URL stops the build, rather than going into llms.txt as it is.
+    await expect(
+      mcpModule({ mcp: 'https://<your-site>/api/mcp' }, 'https://docs.acme.dev'),
+    ).rejects.toThrow(/is not a valid URL/);
   });
 
   it('names the MCP route it serves with an adapter in llms.txt and McpInstall.astro', async () => {
@@ -537,6 +541,19 @@ describe('ondocs/starlight', () => {
         llms: null,
       });
     }
+    // Without `site`, the log says what would name the route.
+    const hint = 'Set site in astro.config so llms.txt names /docs/api/mcp for agents.';
+    const logged = async (options: Parameters<typeof starlightOndocs>[0], site?: string) => {
+      const { logger } = await build(starlightIntegration(options), STARLIGHT_PAGES, {
+        adapter: '@astrojs/node',
+        base: '/docs/',
+        ...(site ? { site } : {}),
+      });
+      return logger.info.mock.calls.map(([message]) => String(message)).join('\n');
+    };
+    expect(await logged({ route: mock })).toContain(hint);
+    expect(await logged({ route: mock }, 'https://acme.dev')).not.toContain('Set site');
+    expect(await logged({ route: mock, mcp: 'https://mcp.acme.dev/' })).not.toContain('Set site');
   });
 
   it('ships McpInstall.astro next to the integration, importing what exists', async () => {

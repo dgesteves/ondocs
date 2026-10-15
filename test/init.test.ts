@@ -395,6 +395,15 @@ describe('ondocs init', () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('Astro with @astrojs/node: nothing to write.');
     expect(await files(cwd)).toEqual(before);
+    // Without `site`, llms.txt has no URL to name the MCP route by: init says what to set.
+    const hint =
+      "Set site in astro.config to the site's URL, so llms.txt names /api/mcp for agents.";
+    expect(result.stdout).toContain(hint);
+    await site({
+      'astro.config.mjs':
+        "import node from '@astrojs/node';\nexport default { site: 'https://acme.dev', adapter: node() };\n",
+    });
+    expect((await run([])).stdout).not.toContain(hint);
   });
 
   it('gives the plugin the MCP endpoint it writes, so llms.txt points agents at it', async () => {
@@ -423,9 +432,24 @@ describe('ondocs init', () => {
     );
     await site({ 'docusaurus.config.ts': config("['ondocs/docusaurus', { mcp: '/api/mcp' }]") });
     expect(steps((await run(['--dry-run'])).stdout)).not.toMatch(/plugin/i);
+    // `route: { mcp: false }` and a commented-out line are not the plugin's `mcp`.
+    for (const plugin of [
+      "['ondocs/docusaurus', { route: { mcp: false } }]",
+      "\n    // ['ondocs/docusaurus', { mcp: '/api/mcp' }],\n    'ondocs/docusaurus'",
+    ]) {
+      await site({ 'docusaurus.config.ts': config(plugin) });
+      expect(steps((await run(['--dry-run'])).stdout)).toContain(
+        "Pass { mcp: '/api/mcp' } to the ondocs plugin in docusaurus.config.ts",
+      );
+    }
 
-    // Astro resolves a path against `site`, VitePress against `sitemap.hostname`: without
-    // them in the config, a URL, from --site-url or the package's homepage when there is one.
+    // Astro resolves the path against `site`, VitePress against `sitemap.hostname` (or
+    // withOndocs's siteUrl), set to a literal or to an expression. Without one, the step says to
+    // set it first, so a build that skips it stops and says so; it never makes a URL up, nor
+    // takes package.json's homepage, which npm init sets to the repository's page.
+    const named = '(mcp points agents that read llms.txt at the MCP endpoint)';
+    const siteFirst =
+      "(mcp points agents that read llms.txt at the MCP endpoint; set site in astro.config to the site's URL first, which the path is resolved against)";
     const starlight = (astroConfig: string, pkg: Record<string, unknown> = {}) => ({
       'package.json': JSON.stringify({
         ...pkg,
@@ -434,31 +458,37 @@ describe('ondocs init', () => {
       'astro.config.mjs': `import starlight from '@astrojs/starlight';\nexport default { ${astroConfig}integrations: [starlight({ title: 'Acme' })] };\n`,
       'vercel.json': '{}',
     });
+    const vitepress = (config: string) => ({
+      'package.json': JSON.stringify({ devDependencies: { vitepress: '1.6.4' } }),
+      '.vitepress/config.mts': `export default defineConfig({ title: 'Acme'${config} });\n`,
+      'netlify.toml': '',
+    });
+    const withOndocs = "withOndocs(defineConfig({ ... }), { mcp: '/api/mcp' })";
     const cases: [Record<string, string>, string][] = [
-      [starlight("site: 'https://docs.acme.dev', "), "ondocs({ mcp: '/api/mcp' })"],
       [
-        starlight('', { homepage: 'https://docs.acme.dev/guide/' }),
-        "ondocs({ mcp: 'https://docs.acme.dev/api/mcp' })",
-      ],
-      [starlight(''), "ondocs({ mcp: 'https://<your-site>/api/mcp' })"],
-      [
-        {
-          'package.json': JSON.stringify({ devDependencies: { vitepress: '1.6.4' } }),
-          '.vitepress/config.mts':
-            "export default defineConfig({ title: 'Acme', sitemap: { hostname: 'https://acme.dev' } });\n",
-          'netlify.toml': '',
-        },
-        "withOndocs(defineConfig({ ... }), { mcp: '/api/mcp' })",
+        starlight("site: 'https://docs.acme.dev', "),
+        `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${named}`,
       ],
       [
-        {
-          'package.json': JSON.stringify({ devDependencies: { vitepress: '1.6.4' } }),
-          '.vitepress/config.mts': "export default defineConfig({ title: 'Acme' });\n",
-          'netlify.toml': '',
-        },
-        "withOndocs(defineConfig({ ... }), { mcp: 'https://<your-site>/api/mcp' })",
+        starlight("site: process.env.SITE_URL ?? 'https://docs.acme.dev', "),
+        `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${named}`,
       ],
-      // The script tag takes no `mcp`, and a relative baseURL is no URL to make one from.
+      [starlight(''), `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${siteFirst}`],
+      [
+        starlight('', { homepage: 'https://github.com/acme/docs#readme' }),
+        `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${siteFirst}`,
+      ],
+      [
+        starlight("\n  // site: 'https://docs.acme.dev',\n  "),
+        `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${siteFirst}`,
+      ],
+      [vitepress(", sitemap: { hostname: 'https://acme.dev' }"), `${withOndocs} ${named}`],
+      [vitepress(', sitemap: { hostname: process.env.SITE_URL }'), `${withOndocs} ${named}`],
+      [
+        vitepress(''),
+        `${withOndocs} (mcp points agents that read llms.txt at the MCP endpoint; set sitemap.hostname in .vitepress/config.mts to the site's URL first, which the path is resolved against)`,
+      ],
+      // The script tag takes no `mcp`.
       [
         { 'hugo.toml': 'baseURL = "/site/"\ntitle = "Acme"\n', 'vercel.json': '{}' },
         'data-endpoint="/api/ask" defer></script>',
@@ -471,6 +501,8 @@ describe('ondocs init', () => {
       const result = await run(['--dry-run']);
       expect(result.code).toBe(0);
       expect(steps(result.stdout)).toContain(expected);
+      // A URL init cannot know is never filled in for it.
+      expect(result.stdout).not.toMatch(/mcp: 'https?:/);
     }
   });
 

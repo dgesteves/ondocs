@@ -329,7 +329,8 @@ export type McpOption = string | { url: string; name?: string };
 /**
  * The `mcp` option as an absolute URL and a name: a path is resolved against the site's own URL
  * (`where` names the setting that holds it, for the error), and the name defaults to the site
- * title's slug. Throws on a path when the site has no URL.
+ * title's slug. Throws on a path when the site has no URL, and on a URL that does not parse, as one
+ * with a placeholder such as `<your-subdomain>` left in does not.
  */
 export function resolveMcp(
   option: McpOption | undefined,
@@ -340,8 +341,15 @@ export function resolveMcp(
   if (option === undefined) return undefined;
   const { url, name } = typeof option === 'string' ? { url: option, name: undefined } : option;
   let absolute: string;
-  if (/^https?:\/\//i.test(url)) absolute = url;
-  else if (siteUrl && URL.canParse(siteUrl)) absolute = new URL(url, siteUrl).href;
+  if (/^https?:\/\//i.test(url)) {
+    if (!URL.canParse(url)) {
+      throw new Error(
+        `ondocs: mcp: '${url}' is not a valid URL. ` +
+          `Replace any placeholder left in it, such as <your-subdomain>, so that it is the MCP endpoint's real URL.`,
+      );
+    }
+    absolute = url;
+  } else if (siteUrl && URL.canParse(siteUrl)) absolute = new URL(url, siteUrl).href;
   else {
     throw new Error(
       `ondocs: mcp: '${url}' is a path, so the site's URL is needed to make it absolute. ` +
