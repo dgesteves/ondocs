@@ -21,8 +21,11 @@ const pitch = (read('README.md').split('\n')[2] ?? '').replace(/\*\*/g, '');
 const SHORT = 'Open-source Ask AI for your docs, with an MCP server for agents.';
 
 const OLD = [/answerable by people and by agents/i, /an ask box for your docs/i];
-// Changelogs keep what was published; the tests name the old pitch to rule it out.
-const KEEP = [/(?:^|\/)changelog\.md$/i, /^test\//];
+// Changelogs keep what was published; these two tests name the old pitch to rule it out.
+const KEEP = [
+  /(?:^|\/)changelog\.md$/i,
+  /^test\/(?:website-pitch\.test\.tsx|readme-claims\.test\.ts)$/,
+];
 const BINARY = /\.(?:png|jpe?g|webp|gif|ico|svg|mp4|webm|woff2?|ttf|pdf)$/i;
 
 describe('the pitch on the website and the example sites', () => {
