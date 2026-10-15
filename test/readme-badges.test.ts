@@ -35,6 +35,18 @@ describe("the README's badges", () => {
     expect(read('examples/nextjs/content/docs/mcp.md')).toContain(site.claudeCode);
   });
 
+  it('show the commands and config that add an MCP server to Codex and Gemini CLI, as mcpInstallLinks makes them', () => {
+    const page = read('examples/nextjs/content/docs/mcp.md');
+    for (const snippet of [site.codex, site.codexToml, site.gemini, site.json]) {
+      expect(page).toContain(snippet);
+    }
+    const example = mcpInstallLinks({ name: 'acme-docs', url: 'https://docs.acme.dev/api/mcp' });
+    const agents = read('README.md').split('## For agents')[1]?.split('\n## ')[0] ?? '';
+    for (const command of [example.claudeCode, example.codex, example.gemini]) {
+      expect(agents).toContain(command);
+    }
+  });
+
   it('link each model provider to its section of the model providers page', () => {
     const slugger = new GithubSlugger();
     const page = read('examples/nextjs/content/docs/model-providers.md');

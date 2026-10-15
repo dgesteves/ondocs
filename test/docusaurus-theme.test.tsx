@@ -199,6 +199,13 @@ describe('@theme/OndocsMcp', () => {
       'connectorUrl=https%3A%2F%2Fdocs.acme.dev%2Fapi%2Fmcp',
     );
     expect(screen.getByText(/^claude mcp add --transport http acme-docs /)).toBeTruthy();
+    expect(
+      screen.getByText(/^codex mcp add acme-docs --url https:\/\/docs\.acme\.dev\//),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/^gemini mcp add --transport http --scope user acme-docs /),
+    ).toBeTruthy();
+    expect(screen.getByText(/^\[mcp_servers\.acme-docs\]\surl = "https:/)).toBeTruthy();
   });
 
   it('renders nothing for a plugin instance without an MCP endpoint', () => {

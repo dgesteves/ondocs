@@ -845,6 +845,11 @@ a > code {
   margin: 12px 0 0;
 }
 
+/* A label under a code block in Other clients: Codex's config.toml. */
+.ask-mcp details p {
+  margin: 12px 0 0;
+}
+
 /* Footer */
 
 .site-footer {
