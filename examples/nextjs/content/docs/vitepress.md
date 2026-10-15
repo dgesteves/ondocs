@@ -46,7 +46,7 @@ The plugin reads each page's Markdown as the default theme renders it, the `.vp-
 
 ## The dialog in VitePress
 
-The plugin adds a floating "Ask AI" button and opens the dialog with ⌘I or Ctrl+I, so ⌘K stays with VitePress's search. The button takes the default theme's colors, and the button and the dialog follow VitePress's light and dark modes, as its appearance switch sets them. A page loads only the button, about 2 KB of JavaScript, and the dialog loads the first time it is wanted. The plugin adds the button through VitePress's own client entry, so there is no theme file to write. With `mpa: true`, VitePress ships no client entry, and pages get no button: add the [script tag](/docs/script-tag) to `head` instead.
+The plugin adds a floating "Ask AI" button and opens the dialog with ⌘I or Ctrl+I, so ⌘K stays with VitePress's search. The button takes the default theme's colors, and the button and the dialog follow VitePress's light and dark modes, as its appearance switch sets them. A page loads only the button, about 3 KB of JavaScript, and the dialog loads the first time it is wanted. The plugin adds the button through VitePress's own client entry, so there is no theme file to write. With `mpa: true`, VitePress ships no client entry, and pages get no button: add the [script tag](/docs/script-tag) to `head` instead.
 
 Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. `dialog: { links: 'sources' }` keeps only the answer's links to its source pages.
 
