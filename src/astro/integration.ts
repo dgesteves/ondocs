@@ -326,8 +326,12 @@ export function createIntegration(
             `Serving ${served.join(' and ')} with the adapter, answering with ${model}; route: false turns this off.`,
           );
         }
+        // The MCP route the integration serves, unless `mcp` names another endpoint. Only with
+        // `site`, as llms.txt and MCP clients need an absolute URL.
+        const mcpRoute =
+          routes?.mcp && astro.site ? `${astro.base.replace(/\/+$/, '')}${routes.mcp}` : undefined;
         const mcp = resolveMcp(
-          options.mcp,
+          options.mcp ?? mcpRoute,
           astro.site,
           preset.siteTitle ?? 'docs',
           "astro.config's site",

@@ -73,7 +73,7 @@ Embeddings work as in the Docusaurus plugin. OpenAI's `text-embedding-3-small` a
 
 ## Deploy the endpoint for Astro
 
-With an SSR adapter, there is nothing to deploy apart from the site: the integration serves `POST /api/ask` and `/api/mcp` itself, from the index it builds, and the dialog posts there. Set `OPENAI_API_KEY` where the site builds and where it runs. `route` changes the model and the limits, and `route: false` turns the routes off; see [Astro with an adapter](./deployment.md#astro-with-an-adapter). With `dialog.challenge.turnstile`, the ask route checks each question's [bot check](./bot-challenge.md) token, with the secret in `TURNSTILE_SECRET_KEY`.
+With an SSR adapter, there is nothing to deploy apart from the site: the integration serves `POST /api/ask` and `/api/mcp` itself, from the index it builds, and the dialog posts there. Set `OPENAI_API_KEY` where the site builds and where it runs. `route` changes the model and the limits, and `route: false` turns the routes off; see [Astro with an adapter](./deployment.md#astro-with-an-adapter). With `site` set, `llms.txt` and `McpInstall.astro` point agents at the MCP route, unless `mcp` names another endpoint. With `dialog.challenge.turnstile`, the ask route checks each question's [bot check](./bot-challenge.md) token, with the secret in `TURNSTILE_SECRET_KEY`.
 
 With the Node adapter, the server reads the index from the build's `dist/client/`, which it finds as the adapter does, so `dist` can move. It never fetches the index from the request's Host, which Astro 5 takes from the Host or X-Forwarded-Host header the client sends. On Vercel and Netlify, which route each request by its Host, the routes fetch it from the site's own URL, and on Cloudflare through the `ASSETS` binding.
 
@@ -96,7 +96,7 @@ To try it locally, build the site once and start `astro dev`: with an adapter, t
 | `dialog`                                     |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar` (Starlight), `theme`, `labels`, `locales`. |
 | `route`                                      | on with an SSR adapter             | The endpoints the integration serves: `{ model, rateLimit, trustedHeader, budget, mcp }`, or `false`.              |
 | `content`, `ignore`                          | `main`                             | Astro integration only: what to read from each page, and what to skip.                                             |
-| `mcp`                                        | none                               | The [MCP endpoint](./mcp.md)'s URL or path, for `McpInstall.astro`.                                                |
+| `mcp`                                        | the route it serves, with `site`   | The [MCP endpoint](./mcp.md)'s URL or path, for `llms.txt` and `McpInstall.astro`.                                 |
 | `llmsTxt`                                    | on                                 | Write [llms.txt, llms-full.txt and .md copies](./llms-txt.md); `false` turns them off.                             |
 
 ## Locales in Starlight

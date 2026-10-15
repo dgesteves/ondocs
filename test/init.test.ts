@@ -306,10 +306,10 @@ describe('ondocs init', () => {
     expect(asked.stderr).toContain(
       "! The site's URL, https://your-docusaurus-site.example.com, looks like a template's placeholder",
     );
-    // The plugin is in the config already: the step gives it the Worker's endpoint.
+    // The plugin is in the config already: the step gives it the Worker's endpoints.
     expect(asked.stdout).not.toContain('Add the plugin');
     expect(asked.stdout).toContain(
-      "Pass { endpoint: 'https://acme-docs-ask.<your-subdomain>.workers.dev/api/ask', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' } to the ondocs plugin in docusaurus.config.ts",
+      "Pass { endpoint: 'https://acme-docs-ask.<your-subdomain>.workers.dev/api/ask', mcp: 'https://acme-docs-ask.<your-subdomain>.workers.dev/api/mcp', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' } to the ondocs plugin in docusaurus.config.ts",
     );
 
     // Given the real URL, it uses it, and has nothing to warn about.
@@ -318,13 +318,17 @@ describe('ondocs init', () => {
     expect(await readFile(join(cwd, 'ondocs-worker/wrangler.jsonc'), 'utf8')).toContain(
       '"SITE_URL": "https://acme.github.io/docs"',
     );
-    // And on a host whose endpoint is the site's own, there is no plugin step left at all.
+    // And on a host whose endpoint is the site's own, the plugin needs only the MCP endpoint's
+    // path.
     const vercel = await run(['--host', 'vercel', '--dry-run']);
     expect(vercel.code).toBe(0);
     expect(vercel.stderr).toBe('');
     const steps = vercel.stdout.slice(vercel.stdout.lastIndexOf('\nNext:'));
     expect(steps).toContain('Deploy as you do now.');
-    expect(steps).not.toMatch(/plugin/i);
+    expect(steps).toContain(
+      "Pass { mcp: '/api/mcp' } to the ondocs plugin in docusaurus.config.ts",
+    );
+    expect(steps).not.toContain('endpoint:');
   });
 
   it('takes the gh-pages package or a script that runs it for GitHub Pages', async () => {
@@ -391,6 +395,83 @@ describe('ondocs init', () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('Astro with @astrojs/node: nothing to write.');
     expect(await files(cwd)).toEqual(before);
+  });
+
+  it('gives the plugin the MCP endpoint it writes, so llms.txt points agents at it', async () => {
+    const steps = (stdout: string) => stdout.slice(stdout.lastIndexOf('\nNext:'));
+    const config = (plugins: string) =>
+      `export default { title: 'Acme Docs', url: 'https://acme.dev', plugins: [${plugins}] };\n`;
+
+    // A path, which the plugin resolves against the config's url.
+    await site({ ...DOCUSAURUS, 'vercel.json': '{}' });
+    const added = await run(['--dry-run']);
+    expect(added.code).toBe(0);
+    expect(steps(added.stdout)).toContain(
+      "Add the plugin to docusaurus.config: plugins: [['ondocs/docusaurus', { mcp: '/api/mcp' }]] (mcp points agents that read llms.txt at the MCP endpoint)",
+    );
+    // No MCP endpoint, nothing to name.
+    const without = await run(['--dry-run', '--no-mcp']);
+    expect(steps(without.stdout)).toContain(
+      "Add the plugin to docusaurus.config: plugins: ['ondocs/docusaurus']",
+    );
+    expect(without.stdout).not.toContain('mcp:');
+
+    // The plugin is in the config: the option alone, until the config sets it.
+    await site({ 'docusaurus.config.ts': config("'ondocs/docusaurus'") });
+    expect(steps((await run(['--dry-run'])).stdout)).toContain(
+      "Pass { mcp: '/api/mcp' } to the ondocs plugin in docusaurus.config.ts (mcp points agents that read llms.txt at the MCP endpoint)",
+    );
+    await site({ 'docusaurus.config.ts': config("['ondocs/docusaurus', { mcp: '/api/mcp' }]") });
+    expect(steps((await run(['--dry-run'])).stdout)).not.toMatch(/plugin/i);
+
+    // Astro resolves a path against `site`, VitePress against `sitemap.hostname`: without
+    // them in the config, a URL, from --site-url or the package's homepage when there is one.
+    const starlight = (astroConfig: string, pkg: Record<string, unknown> = {}) => ({
+      'package.json': JSON.stringify({
+        ...pkg,
+        dependencies: { astro: '7', '@astrojs/starlight': '0.42' },
+      }),
+      'astro.config.mjs': `import starlight from '@astrojs/starlight';\nexport default { ${astroConfig}integrations: [starlight({ title: 'Acme' })] };\n`,
+      'vercel.json': '{}',
+    });
+    const cases: [Record<string, string>, string][] = [
+      [starlight("site: 'https://docs.acme.dev', "), "ondocs({ mcp: '/api/mcp' })"],
+      [
+        starlight('', { homepage: 'https://docs.acme.dev/guide/' }),
+        "ondocs({ mcp: 'https://docs.acme.dev/api/mcp' })",
+      ],
+      [starlight(''), "ondocs({ mcp: 'https://<your-site>/api/mcp' })"],
+      [
+        {
+          'package.json': JSON.stringify({ devDependencies: { vitepress: '1.6.4' } }),
+          '.vitepress/config.mts':
+            "export default defineConfig({ title: 'Acme', sitemap: { hostname: 'https://acme.dev' } });\n",
+          'netlify.toml': '',
+        },
+        "withOndocs(defineConfig({ ... }), { mcp: '/api/mcp' })",
+      ],
+      [
+        {
+          'package.json': JSON.stringify({ devDependencies: { vitepress: '1.6.4' } }),
+          '.vitepress/config.mts': "export default defineConfig({ title: 'Acme' });\n",
+          'netlify.toml': '',
+        },
+        "withOndocs(defineConfig({ ... }), { mcp: 'https://<your-site>/api/mcp' })",
+      ],
+      // The script tag takes no `mcp`, and a relative baseURL is no URL to make one from.
+      [
+        { 'hugo.toml': 'baseURL = "/site/"\ntitle = "Acme"\n', 'vercel.json': '{}' },
+        'data-endpoint="/api/ask" defer></script>',
+      ],
+    ];
+    for (const [contents, expected] of cases) {
+      await rm(cwd, { recursive: true, force: true });
+      await mkdir(cwd, { recursive: true });
+      await site(contents);
+      const result = await run(['--dry-run']);
+      expect(result.code).toBe(0);
+      expect(steps(result.stdout)).toContain(expected);
+    }
   });
 
   it('lists what a static site’s functions import, with npm init when it has no package.json', async () => {

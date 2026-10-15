@@ -75,12 +75,12 @@ Browsers on other sites get no CORS headers, so they cannot read the answers. Re
 Give the plugin the endpoint's URL with `mcp`, and a page can show how to add it to Cursor, VS Code, Claude, Claude Code and ChatGPT:
 
 - **Docusaurus:** `['ondocs/docusaurus', { mcp: '/api/mcp' }]`, then in an MDX page, `import OndocsMcp from '@theme/OndocsMcp'` and `<OndocsMcp />`.
-- **Astro and Starlight:** `ondocs({ mcp: '/api/mcp' })`, with `site` set, then in an MDX page, `import McpInstall from 'ondocs/astro/McpInstall.astro'` and `<McpInstall />`.
+- **Astro and Starlight:** `ondocs({ mcp: '/api/mcp' })`, with `site` set, then in an MDX page, `import McpInstall from 'ondocs/astro/McpInstall.astro'` and `<McpInstall />`. With an SSR adapter and `site` set, the MCP route the integration serves is the default.
 - **VitePress:** `withOndocs(config, { mcp: '/api/mcp' })`, with `sitemap.hostname` set, points `llms.txt` at it; for the links on a page, use `mcpInstallLinks` below.
 - **React:** `<McpInstall url="https://docs.example.com/api/mcp" name="acme-docs" />` from `ondocs/react`.
 - **Anything else:** `mcpInstallLinks({ url, name })` from `ondocs` returns the Cursor and VS Code install links, the claude.ai link, the Claude Code command and the JSON for other clients.
 
-A path is resolved against the site's URL. The name defaults to the site title, as `acme-docs`.
+A path is resolved against the site's URL. The name defaults to the site title, as `acme-docs`. The URL also goes into [`llms.txt`](./llms-txt.md), for agents that start there. `npx ondocs init` says which `mcp` to set for the endpoint it writes.
 
 ## Try it locally
 

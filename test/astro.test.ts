@@ -66,6 +66,8 @@ interface SiteOptions {
   trailingSlash?: TrailingSlash;
   base?: string;
   i18n?: unknown;
+  /** An SSR adapter's name, such as `@astrojs/node`: the integration then serves the routes. */
+  adapter?: string;
 }
 
 /**
@@ -83,6 +85,7 @@ async function build(
     trailingSlash = 'ignore',
     base = '/',
     i18n,
+    adapter,
   }: SiteOptions = {},
 ) {
   const outDir = join(root, 'dist');
@@ -106,8 +109,19 @@ async function build(
   const updateConfig = vi.fn();
   const hooks = integration.hooks as Record<string, (options: unknown) => unknown>;
   await hooks['astro:config:setup']?.({
-    config: { site },
+    config: {
+      site,
+      ...(adapter
+        ? {
+            adapter: { name: adapter, hooks: {} },
+            base,
+            root: pathToFileURL(`${root}/`),
+            srcDir: pathToFileURL(`${root}/src/`),
+          }
+        : {}),
+    },
     injectScript: (stage: string, content: string) => injected.push([stage, content]),
+    injectRoute: vi.fn(),
     updateConfig,
     logger,
   });
@@ -465,6 +479,64 @@ describe('ondocs/starlight', () => {
     );
     expect(await mcpModule({})).toBe('export default null;');
     await expect(mcpModule({ mcp: '/api/mcp' })).rejects.toThrow(/astro.config's site/);
+  });
+
+  it('names the MCP route it serves with an adapter in llms.txt and McpInstall.astro', async () => {
+    const line = 'Agents can search these docs over MCP, with search, fetch and list_pages tools:';
+    const mock = { model: 'mock' } as const;
+    const advertised = async (
+      options: Parameters<typeof starlightOndocs>[0],
+      site: SiteOptions,
+    ) => {
+      // A build keeps an llms.txt it finds, so each starts from none.
+      await rm(join(root, 'dist'), { recursive: true, force: true });
+      const { outDir, updateConfig } = await build(starlightIntegration(options), STARLIGHT_PAGES, {
+        adapter: '@astrojs/node',
+        ...site,
+      });
+      const { plugins } = (
+        updateConfig.mock.calls[0]?.[0] as {
+          vite: { plugins: { name: string; load?: (id: string) => unknown }[] };
+        }
+      ).vite;
+      const llms = await readFile(join(outDir, 'llms.txt'), 'utf8');
+      return {
+        module: plugins
+          .find((plugin) => plugin.name === 'ondocs:virtual-module')
+          ?.load?.('\0virtual:ondocs/mcp'),
+        llms: llms.split('\n').find((text) => text.startsWith(line)) ?? null,
+      };
+    };
+    expect(await advertised({ route: mock }, { site: 'https://acme.dev' })).toEqual({
+      module: 'export default {"url":"https://acme.dev/api/mcp","name":"acme-docs"};',
+      llms: `${line} https://acme.dev/api/mcp`,
+    });
+    // Under base, at route.mcp's path, or at the URL `mcp` gives.
+    expect(
+      (await advertised({ route: mock }, { site: 'https://acme.dev', base: '/docs/' })).llms,
+    ).toBe(`${line} https://acme.dev/docs/api/mcp`);
+    expect(
+      (await advertised({ route: { ...mock, mcp: '/mcp' } }, { site: 'https://acme.dev/' })).llms,
+    ).toBe(`${line} https://acme.dev/mcp`);
+    expect(
+      (
+        await advertised(
+          { route: mock, mcp: 'https://mcp.acme.dev/' },
+          { site: 'https://acme.dev' },
+        )
+      ).llms,
+    ).toBe(`${line} https://mcp.acme.dev/`);
+    // None when it serves none, or without `site` to make the URL absolute.
+    for (const [options, site] of [
+      [{ route: { ...mock, mcp: false } }, { site: 'https://acme.dev' }],
+      [{ route: false }, { site: 'https://acme.dev' }],
+      [{ route: mock }, {}],
+    ] as const) {
+      expect(await advertised(options, site)).toEqual({
+        module: 'export default null;',
+        llms: null,
+      });
+    }
   });
 
   it('ships McpInstall.astro next to the integration, importing what exists', async () => {
