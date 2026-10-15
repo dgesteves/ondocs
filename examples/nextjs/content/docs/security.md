@@ -59,7 +59,7 @@ export const POST = createAskHandler({
 });
 ```
 
-`requestsPerDay` counts the questions that go on to retrieval and the model, and `tokensPerDay` the model's input and output tokens, from each answer's `usage`. Before the model is called, the answer's worst case (its prompt plus `maxOutputTokens`) is reserved, and the answer goes ahead only if that fits; once it ends, the reservation is corrected to what it really used. So concurrent answers cannot overshoot the cap. Once the day's budget is spent, questions get a 429 with code `budget_exceeded` until midnight UTC, and the dialog says the assistant has reached its daily limit.
+`requestsPerDay` counts the questions that go on to retrieval and the model, and `tokensPerDay` the model's input and output tokens, from each answer's `usage`. Before the model is called, the answer's worst case (its prompt plus `maxOutputTokens`) is reserved, and the answer goes ahead only if that fits; once it ends, the reservation is corrected to what it really used. So concurrent answers cannot overshoot the cap. An answer the model fails before it writes a word, from a bad key, a quota, an outage or a timeout, gives its reservation back, so an outage does not use up the day's budget; one the visitor abandons keeps it. Once the day's budget is spent, questions get a 429 with code `budget_exceeded` until midnight UTC, and the dialog says the assistant has reached its daily limit.
 
 The counts are kept in memory by default, so on a serverless platform each instance has its own budget. For one budget shared by every instance, pass `store: upstashBudgetStore(Redis.fromEnv())` with `@upstash/redis`. Either way, also set a monthly spend limit with your model provider: it is the only hard cap.
 

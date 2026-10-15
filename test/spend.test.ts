@@ -21,6 +21,12 @@ const { index } = await buildIndex({ documents: corpus, embeddingModel });
 
 type Part = Record<string, unknown> & { type: string };
 
+/** What a model's stream carries, as a provider sends it. */
+type LanguageModelV4StreamPart =
+  Awaited<ReturnType<MockLanguageModelV4['doStream']>>['stream'] extends ReadableStream<infer P>
+    ? P
+    : never;
+
 async function readParts(response: Response): Promise<Part[]> {
   return (await response.text())
     .split('\n\n')
@@ -112,6 +118,51 @@ function countingStore(): BudgetStore & { counters: Map<string, number> } {
   };
 }
 
+/** The day's token count in a {@link countingStore} on the `EVENING` clock. */
+const tokensCounted = (store: { counters: Map<string, number> }): number | undefined =>
+  store.counters.get('ask-my-site:budget:tokens:2026-10-10');
+
+/** What one answer to `question` reserves: its prompt, pessimistically, plus 800 output tokens. */
+async function reservationOf(question: string): Promise<number> {
+  const amounts: number[] = [];
+  const probe = setup({
+    budget: {
+      tokensPerDay: 1_000_000,
+      store: { increment: (_, amount) => (amounts.push(amount), amount) },
+    },
+  });
+  await ask(probe.handler, question);
+  return amounts[0] ?? 0;
+}
+
+/** A model that streams `chunks`, as its provider sent them. */
+const streamingModel = (chunks: LanguageModelV4StreamPart[]) =>
+  new MockLanguageModelV4({
+    doStream: () => Promise.resolve({ stream: simulateReadableStream({ chunks }) }),
+  });
+
+/**
+ * A model that fails until `recover()`, then answers as {@link scriptedModel} does: its `call`
+ * fails, as with a bad key, a quota or an outage, or its `stream` breaks off before a word.
+ */
+function failingModel(failure: 'call' | 'stream') {
+  const healthy = scriptedModel();
+  let down = true;
+  const model = new MockLanguageModelV4({
+    doStream: (options) => {
+      if (!down) return healthy.doStream(options);
+      if (failure === 'call') return Promise.reject(new Error('401: Incorrect API key provided'));
+      return streamingModel([{ type: 'error', error: new Error('Overloaded') }]).doStream(options);
+    },
+  });
+  return {
+    model,
+    recover: () => {
+      down = false;
+    },
+  };
+}
+
 describe('budget', () => {
   it('turns questions away for the rest of the UTC day once requestsPerDay is spent', async () => {
     let now = EVENING;
@@ -149,16 +200,7 @@ describe('budget', () => {
   });
 
   it('lets an answer through only if its worst case fits, so concurrent answers cannot overshoot', async () => {
-    // What one answer reserves: its prompt, pessimistically, plus 800 output tokens.
-    const amounts: number[] = [];
-    const probe = setup({
-      budget: {
-        tokensPerDay: 1_000_000,
-        store: { increment: (_, amount) => (amounts.push(amount), amount) },
-      },
-    });
-    await ask(probe.handler, QUESTION);
-    const estimate = amounts[0] ?? 0;
+    const estimate = await reservationOf(QUESTION);
     expect(estimate).toBeGreaterThan(800);
 
     // Room for one reservation, not two, though both answers would really fit.
@@ -229,6 +271,101 @@ describe('budget', () => {
 
     // No usage arrived, so the worst case stays counted.
     expect([...store.counters.values()][0]).toBeGreaterThan(800);
+  });
+
+  it.each(['call', 'stream'] as const)(
+    'gives the reservation back when the model’s %s fails before it writes a word',
+    async (failure) => {
+      // Room for one answer's worst case. A bad key or an outage must not use it up: once the
+      // provider is back, the next question is answered, and only its real usage is counted.
+      const estimate = await reservationOf(QUESTION);
+      const store = countingStore();
+      const { model, recover } = failingModel(failure);
+      const { handler, onError } = setup({
+        model,
+        generation: { maxRetries: 0 },
+        budget: { tokensPerDay: Math.floor(estimate * 1.5), store, now: () => EVENING },
+      });
+      for (let i = 0; i < 3; i += 1) {
+        const response = await handler(post(QUESTION));
+        expect(response.status).toBe(200);
+        expect((await readParts(response)).some((p) => p.type === 'error')).toBe(true);
+        expect(tokensCounted(store)).toBe(0);
+      }
+      expect(onError).toHaveBeenCalledTimes(3);
+
+      recover();
+      const answered = await readParts(await handler(post(QUESTION)));
+      expect(answerOf(answered)).toBe('Vectors are stored as int8 [1].');
+      expect(tokensCounted(store)).toBe(129);
+    },
+  );
+
+  it('counts the usage a failed answer reports, or its worst case once it has begun', async () => {
+    const estimate = await reservationOf(QUESTION);
+    const begun: LanguageModelV4StreamPart[] = [
+      { type: 'text-start', id: 't' },
+      { type: 'text-delta', id: 't', delta: 'Vectors are ' },
+    ];
+    const usage = {
+      inputTokens: { total: 120, noCache: 120, cacheRead: 0, cacheWrite: 0 },
+      outputTokens: { total: 3, text: 3, reasoning: 0 },
+    };
+    const cases: [LanguageModelV4StreamPart[], number][] = [
+      // Some of the answer was written, and what it cost is unknown: the worst case stays.
+      [[...begun, { type: 'error', error: new Error('Connection reset') }], estimate],
+      // An error, then the usage: that is what it cost, before a word or after.
+      [
+        [
+          { type: 'error', error: new Error('Overloaded') },
+          { type: 'finish', finishReason: { unified: 'error', raw: 'error' }, usage },
+        ],
+        123,
+      ],
+      [
+        [
+          ...begun,
+          { type: 'error', error: new Error('Connection reset') },
+          { type: 'finish', finishReason: { unified: 'error', raw: 'error' }, usage },
+        ],
+        123,
+      ],
+    ];
+    for (const [chunks, counted] of cases) {
+      const store = countingStore();
+      const { handler } = setup({
+        model: streamingModel(chunks),
+        budget: { tokensPerDay: 100_000, store, now: () => EVENING },
+      });
+      await ask(handler, QUESTION);
+      expect(tokensCounted(store)).toBe(counted);
+    }
+  });
+
+  it('gives the reservation back when the model times out before it writes a word', async () => {
+    const silent = new MockLanguageModelV4({
+      doStream: ({ abortSignal }) =>
+        Promise.resolve({
+          stream: new ReadableStream<LanguageModelV4StreamPart>({
+            start(controller) {
+              abortSignal?.addEventListener('abort', () => {
+                controller.error(abortSignal.reason);
+              });
+            },
+          }),
+        }),
+    });
+    const store = countingStore();
+    const { handler, onError } = setup({
+      model: silent,
+      generation: { timeout: { firstChunkMs: 50 } },
+      budget: { tokensPerDay: 100_000, store, now: () => EVENING },
+    });
+    const parts = await readParts(await handler(post(QUESTION)));
+
+    expect(parts.some((p) => p.type === 'abort')).toBe(true);
+    expect(String(onError.mock.calls[0]?.[0])).toMatch(/aborted/);
+    expect(tokensCounted(store)).toBe(0);
   });
 
   it('fails closed when its store fails, or open when told to', async () => {

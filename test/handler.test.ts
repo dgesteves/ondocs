@@ -535,6 +535,65 @@ describe('createAskHandler', () => {
     expect(hungUp.onError).not.toHaveBeenCalled();
   });
 
+  it('stops a stalled model by default: 30 seconds without a word, or 90 in all', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    // The AI SDK times the whole call with `AbortSignal.timeout`, which fake timers do not reach.
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+      const controller = new AbortController();
+      setTimeout(() => {
+        controller.abort(new DOMException('The operation timed out.', 'TimeoutError'));
+      }, ms);
+      return controller.signal;
+    });
+    try {
+      // The provider answers, then sends nothing: the first word's limit stops it.
+      const silent = new MockLanguageModelV4({
+        doStream: ({ abortSignal }) =>
+          Promise.resolve({
+            stream: new ReadableStream({
+              start(controller) {
+                abortSignal?.addEventListener('abort', () => {
+                  controller.error(abortSignal.reason);
+                });
+              },
+            }),
+          }),
+      });
+      // The provider never answers at all: the total limit stops it.
+      const unanswered = new MockLanguageModelV4({
+        doStream: ({ abortSignal }) =>
+          new Promise((_, reject) => {
+            abortSignal?.addEventListener('abort', () => {
+              reject(abortSignal.reason as Error);
+            });
+          }),
+      });
+      for (const [model, limit] of [
+        [silent, 30_000],
+        [unanswered, 90_000],
+      ] as const) {
+        const { handler, onError } = setup({ model, generation: { temperature: 0 } });
+        let ended = false;
+        const response = handler(post({ question: 'How are int8 vectors stored?' }))
+          .then((r) => readParts(r))
+          .finally(() => (ended = true));
+
+        await vi.advanceTimersByTimeAsync(limit - 1);
+        expect(ended).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        await vi.waitFor(() => {
+          expect(ended).toBe(true);
+        });
+        const { parts } = await response;
+        expect(parts.some((p) => p.type === 'abort')).toBe(true);
+        expect(onError).toHaveBeenCalledOnce();
+        expect(String(onError.mock.calls[0]![0])).toMatch(/aborted/);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('refuses to serve an index embedded with a different model', async () => {
     const other = mockEmbeddingModel({ dimensions: 64 });
     const { handler, onError } = setup({ embeddingModel: other });
