@@ -11,6 +11,9 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'ondocs',
+      // Heads llms.txt, and is the meta description of a page without its own.
+      description:
+        'Open-source Ask AI for your docs: cited answers on your own model key, and an MCP server for agents, from one index built with your site. No vector database.',
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/dgesteves/ondocs' }],
       // The pages are generated from the website's docs (scripts/sync-example-docs.mjs), one
       // folder per section; the changelog and ai-tools pages are this site's own.
