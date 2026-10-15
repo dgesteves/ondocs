@@ -10,7 +10,7 @@
     "api": "ondocs dev"
   },
   "dependencies": {
-    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-dialog": "^1.2.0",
     "cmdk": "^1.1.1",
     "ondocs": "workspace:*",
     "react": "19.3.0",
