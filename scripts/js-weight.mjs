@@ -23,32 +23,37 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 /**
  * Per site: where its build is, the page to load, the key that opens the dialog, and the budget
  * for the JavaScript the page loads before any interaction, in gzipped KB. The budgets are the
- * framework's own JavaScript plus ondocs's launcher, with a little room; the dialog itself
- * loads on first use and is not counted. A framework update that grows its own JavaScript can
- * need a budget raised: measure the site without ondocs (`docusaurus=<another build>`).
+ * framework's own JavaScript, with the demo's theme and pages, plus ondocs's launcher, with a
+ * little room; the dialog itself loads on first use and is not counted. A framework update, or
+ * the demo's own growth, such as its banner or more pages, can need a budget raised: measure
+ * the site built without ondocs, keeping its theme and pages (`docusaurus=<another build>`).
  */
 const SITES = {
   docusaurus: {
     dir: 'examples/docusaurus/build',
     page: '/getting-started',
     key: 'i',
-    // Docusaurus's own 173.7 KB and ondocs's 4 KB (the navbar button, its shortcut and the
-    // dialog's options): 177.7 KB, up from 175.2 KB with the live demo's banner and source URLs
-    // and more pages. The budget leaves about 4 KB of room, as Starlight's does.
+    // Docusaurus's own 174.8 KB, with the demo's banner and pages, and ondocs's 2.9 KB (the
+    // navbar button, its shortcut and the dialog's options): 177.7 KB, up from 175.2 KB with the
+    // live demo's banner and source URLs and more pages. Built without src/pages as well, the
+    // site loads its shared code in one chunk, not two, and 173.8 KB, the benchmarks page's
+    // figure. The budget leaves about 4 KB of room, as Starlight's does.
     budget: 182,
   },
   starlight: {
     dir: 'examples/starlight/dist',
     page: '/get-started/getting-started/',
     key: 'i',
-    // Starlight's own 33.7 KB and ondocs's 2.4 KB: 36.1 KB.
+    // Starlight's own 33.7 KB, with the demo's banner and question box, and ondocs's 2.4 KB:
+    // 36.1 KB.
     budget: 40,
   },
   vitepress: {
     dir: 'examples/vitepress/.vitepress/dist',
     page: '/getting-started',
     key: 'i',
-    // VitePress's own 58 KB and ondocs's 3.6 KB: 61.6 KB.
+    // VitePress's own 58.7 KB, with the demo's notice and question box, and ondocs's 2.9 KB:
+    // 61.6 KB.
     budget: 64,
   },
   next: {
