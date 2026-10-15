@@ -10,14 +10,19 @@ on:
 permissions:
   contents: read
 
+# A newer run replaces an older one on a pull request's branch, and on the release pull request's,
+# whose runs release.yml starts with workflow_dispatch. Pushes to main are never cancelled, so each
+# merge commit gets a full result. They also get a group each: in a shared group, a run still
+# waiting its turn gives way to the next one, even without cancel-in-progress.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
   verify:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -110,6 +115,7 @@ jobs:
   consumers:
     name: Fresh ${{ matrix.site }} site, from the packed package
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -153,6 +159,7 @@ jobs:
   recipes:
     name: Deploy recipe, ${{ matrix.recipe }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -190,6 +197,7 @@ jobs:
   node-compat:
     name: Test on Node ${{ matrix.node }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       matrix:
         node: [22]
@@ -213,6 +221,7 @@ jobs:
   ai-floor:
     name: Typecheck and test on the oldest ai the peer range allows
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -229,3 +238,29 @@ jobs:
       - run: pnpm typecheck
       - run: node scripts/corpus.mjs
       - run: pnpm test
+
+  # The check main's ruleset requires, by this name. It needs every other job, so a merge waits for
+  # all of them (test/ci-workflow.test.ts fails when a job is missing from the list). A required
+  # check that is skipped counts as passed, and a job is skipped when one it needs fails, so this
+  # one runs always() and fails unless every job it needs succeeded.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [verify, consumers, recipes, node-compat, ai-floor]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # One line per job, then an error that names each job that did not succeed.
+      - name: Every job it needs succeeded
+        shell: bash
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          failed=$(jq -r 'to_entries | map(select(.value.result != "success") | "\(.key) (\(.value.result))") | join(", ")' <<< "$NEEDS")
+          if [ -n "$failed" ]; then
+            echo "::error::Did not succeed: $failed. Open each one's log, then fix it or re-run it."
+            exit 1
+          fi
+          # An empty list of results fails too.
+          jq -e 'length > 0' <<< "$NEEDS" > /dev/null
