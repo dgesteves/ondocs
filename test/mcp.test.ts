@@ -251,6 +251,36 @@ describe('tools/call', () => {
     }
   });
 
+  it('fetch: reads the section of a search result URL whose anchor is not ASCII', async () => {
+    const { index: i18n } = await buildIndex({
+      documents: [
+        {
+          id: 'i18n.md',
+          url: '/docs/i18n',
+          title: 'Início',
+          content:
+            '## Configuração rápida\n\nRode o comando init.\n\n## 日本語の見出し\n\nインデックスの本文です。',
+        },
+      ],
+    });
+    const { call } = setup({ index: i18n });
+    for (const [query, anchor, text] of [
+      ['configuração rápida', 'configuração-rápida', 'Rode o comando init.'],
+      ['日本語の見出し', '日本語の見出し', 'インデックスの本文です。'],
+    ] as const) {
+      const { results } = (await call('search', { query })).structuredContent as {
+        results: { id: string; url: string }[];
+      };
+      expect(results[0]?.url).toBe(
+        `https://docs.example.com/docs/i18n#${encodeURIComponent(anchor)}`,
+      );
+      const section = await call('fetch', { id: results[0]?.url ?? '' });
+      expect(section.structuredContent).toMatchObject({ id: `/docs/i18n#${anchor}` });
+      expect(section.structuredContent?.text).toContain(text);
+      expect(section.structuredContent?.text).not.toContain('has no section');
+    }
+  });
+
   it('fetch: an unknown page is an error the agent can act on', async () => {
     const result = await setup().call('fetch', { id: '/docs/nope' });
     expect(result.isError).toBe(true);

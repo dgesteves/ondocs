@@ -296,6 +296,13 @@ describe('ondocs dev on the command line', () => {
     expect(result.stdout).toContain(`endpoint: '${endpoint}'`);
     expect(result.stdout).toContain(`<AskDialog endpoint="${endpoint}" />`);
     expect(result.stdout).toContain(`data-endpoint="${endpoint}"`);
+    const mcp = endpoint.replace(/\/api\/ask$/, '/api/mcp');
+    expect(result.stdout).toContain(`  MCP       ${mcp}\n`);
+    expect(result.stdout).toContain(`Claude Code  claude mcp add --transport http docs ${mcp}\n`);
+    expect(result.stdout).toContain(`Codex        codex mcp add docs --url ${mcp}\n`);
+    expect(result.stdout).toContain(
+      `Gemini CLI   gemini mcp add --transport http --scope user docs ${mcp}\n`,
+    );
     expect(result.stdout).toMatch(/answered from \d sources: int8/);
     // It is stopped: the port no longer answers.
     await expect(ask(endpoint, 'int8')).rejects.toThrow();

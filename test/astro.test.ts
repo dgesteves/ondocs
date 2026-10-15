@@ -475,6 +475,10 @@ describe('ondocs/starlight', () => {
     expect(source).toContain("from 'virtual:ondocs/mcp'");
     // Resolved from dist/astro/, where the build copies it: dist/index.js is the root entry.
     expect(source).toContain("import { mcpInstallLinks } from '../index.js';");
+    // The commands and config McpInstall from ondocs/react shows, for the same clients.
+    for (const field of ['claudeCode', 'codex', 'gemini', 'json', 'codexToml']) {
+      expect(source).toContain(`<code>{links.${field}}</code>`);
+    }
     const manifest = JSON.parse(
       await readFile(join(import.meta.dirname, '..', 'package.json'), 'utf8'),
     ) as {

@@ -47,9 +47,26 @@ describe('mcpInstallLinks', () => {
     });
   });
 
+  it('makes the Codex and Gemini CLI commands, and the table for Codex’s config.toml', () => {
+    expect(links.codex).toBe('codex mcp add acme-docs --url https://docs.acme.dev/api/mcp');
+    expect(links.codexToml).toBe('[mcp_servers.acme-docs]\nurl = "https://docs.acme.dev/api/mcp"');
+    // Without --transport http, Gemini CLI takes the URL for a command to run, over stdio.
+    expect(links.gemini).toBe(
+      'gemini mcp add --transport http --scope user acme-docs https://docs.acme.dev/api/mcp',
+    );
+  });
+
   it('quotes a URL the shell would split, and refuses a relative one', () => {
-    expect(mcpInstallLinks({ url: "https://x.dev/mcp?a=1&b='2'", name: 'x' }).claudeCode).toBe(
+    const quoted = mcpInstallLinks({ url: "https://x.dev/mcp?a=1&b='2'", name: 'x' });
+    expect(quoted.claudeCode).toBe(
       "claude mcp add --transport http x 'https://x.dev/mcp?a=1&b='\\''2'\\'''",
+    );
+    expect(quoted.codex).toBe("codex mcp add x --url 'https://x.dev/mcp?a=1&b='\\''2'\\'''");
+    expect(quoted.gemini).toBe(
+      "gemini mcp add --transport http --scope user x 'https://x.dev/mcp?a=1&b='\\''2'\\'''",
+    );
+    expect(mcpInstallLinks({ url: 'https://x.dev/mcp?q="a\\b"', name: 'x' }).codexToml).toBe(
+      '[mcp_servers.x]\nurl = "https://x.dev/mcp?q=\\"a\\\\b\\""',
     );
     expect(() => mcpInstallLinks({ url: '/api/mcp', name: 'x' })).toThrow(/absolute/);
   });
