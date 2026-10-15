@@ -32,21 +32,23 @@ const SITES = {
     dir: 'examples/docusaurus/build',
     page: '/getting-started',
     key: 'i',
-    // Docusaurus's own 170 KB, and ondocs's launcher (3 KB).
-    budget: 178,
+    // Docusaurus's own 173.7 KB and ondocs's 4 KB (the navbar button, its shortcut and the
+    // dialog's options): 177.7 KB, up from 175.2 KB with the live demo's banner and source URLs
+    // and more pages. The budget leaves about 4 KB of room, as Starlight's does.
+    budget: 182,
   },
   starlight: {
     dir: 'examples/starlight/dist',
     page: '/get-started/getting-started/',
     key: 'i',
-    // Starlight's own 34 KB, and the launcher (1.5 KB).
+    // Starlight's own 33.7 KB and ondocs's 2.4 KB: 36.1 KB.
     budget: 40,
   },
   vitepress: {
     dir: 'examples/vitepress/.vitepress/dist',
     page: '/getting-started',
     key: 'i',
-    // VitePress's own 58 KB, and the launcher (2 KB).
+    // VitePress's own 58 KB and ondocs's 3.6 KB: 61.6 KB.
     budget: 64,
   },
   next: {
