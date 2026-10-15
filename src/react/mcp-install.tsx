@@ -13,9 +13,9 @@ export interface McpInstallProps {
 
 /**
  * How to connect an AI tool to the docs' MCP server: "Add to Cursor", "Add to VS Code" and "Add to
- * Claude" links, the Claude Code command, where to add it in ChatGPT, and the JSON for any other
- * client. Plain markup with `ask-mcp-*` classes, so a docs theme styles it as its own
- * content; it needs no JavaScript.
+ * Claude" links, the Claude Code, Codex and Gemini CLI commands, where to add it in ChatGPT, and
+ * the JSON and Codex's TOML for any other client. Plain markup with `ask-mcp-*` classes, so a docs
+ * theme styles it as its own content; it needs no JavaScript.
  */
 export function McpInstall({ url, name, buttonClassName }: McpInstallProps): ReactNode {
   const links = mcpInstallLinks({ url, name });
@@ -41,11 +41,23 @@ export function McpInstall({ url, name, buttonClassName }: McpInstallProps): Rea
       <pre>
         <code>{links.claudeCode}</code>
       </pre>
+      <p>Codex:</p>
+      <pre>
+        <code>{links.codex}</code>
+      </pre>
+      <p>Gemini CLI:</p>
+      <pre>
+        <code>{links.gemini}</code>
+      </pre>
       <p>ChatGPT: add a custom MCP server with this URL at chatgpt.com/plugins.</p>
       <details>
         <summary>Other clients</summary>
         <pre>
           <code>{links.json}</code>
+        </pre>
+        <p>Codex, in ~/.codex/config.toml:</p>
+        <pre>
+          <code>{links.codexToml}</code>
         </pre>
       </details>
     </div>

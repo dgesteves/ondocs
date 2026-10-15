@@ -177,6 +177,15 @@ function comparablePath(path: string): string {
   return value || '/';
 }
 
+/** An anchor without its percent-encoding, or as it is when it is not valid encoding. */
+function decodeAnchor(anchor: string): string {
+  try {
+    return decodeURIComponent(anchor);
+  } catch {
+    return anchor;
+  }
+}
+
 /**
  * The page (and, after `#`, the section) a reference names: a URL from the index, with or
  * without an origin, a trailing slash or a `.md` ending; a page's document id; or a chunk id. An
@@ -212,7 +221,15 @@ export function findPage(
         (ABSOLUTE.test(candidate.url) === absolute && comparablePath(candidate.url) === wanted),
     );
     if (!page) return null;
-    return { page, section: anchor ? `${page.url}#${anchor}` : null };
+    if (!anchor) return { page, section: null };
+    // A URL from search is absolute, and `new URL` percent-encodes an anchor that is not ASCII
+    // (`#configura%C3%A7%C3%A3o`), so anchors are compared decoded.
+    const decoded = decodeAnchor(anchor);
+    const match = page.chunks.find((chunk) => {
+      const at = chunk.url.indexOf('#');
+      return at !== -1 && decodeAnchor(chunk.url.slice(at + 1)) === decoded;
+    });
+    return { page, section: match ? match.url : `${page.url}#${anchor}` };
   };
   const found = lookup(value);
   if (found || !ABSOLUTE.test(value)) return found;

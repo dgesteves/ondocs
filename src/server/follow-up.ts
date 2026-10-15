@@ -36,6 +36,9 @@ const MAX_TURN_CHARS = 1200;
 /** Output tokens for the rewrite: a question. */
 export const FOLLOW_UP_MAX_TOKENS = 200;
 
+/** How long the rewrite may take before the question is answered as it was asked. */
+export const FOLLOW_UP_TIMEOUT_MS = 20_000;
+
 export const FOLLOW_UP_INSTRUCTIONS = `You rewrite the last question of a conversation about a documentation site into one standalone question that can be searched without the conversation.
 
 Rules:

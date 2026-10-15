@@ -3,16 +3,19 @@ import { mcpInstallLinks } from 'ondocs';
 import { codeBlock } from '../lib/highlight';
 
 /**
- * How to add an MCP server to Cursor, VS Code, Claude, Claude Code and ChatGPT: the markup and
- * words of `McpInstall` from ondocs/react, made from the same `mcpInstallLinks`, with the site's
- * code blocks. It is a server component because ondocs/react is a client module: importing it
- * into a docs page adds the dialog's code to every page's first load.
+ * How to add an MCP server to Cursor, VS Code, Claude, Claude Code, Codex, Gemini CLI and ChatGPT:
+ * the markup and words of `McpInstall` from ondocs/react, made from the same `mcpInstallLinks`,
+ * with the site's code blocks. It is a server component because ondocs/react is a client module:
+ * importing it into a docs page adds the dialog's code to every page's first load.
  */
 export async function McpInstall({ url, name }: { url: string; name: string }) {
   const links = mcpInstallLinks({ url, name });
-  const [claudeCode, json] = await Promise.all([
+  const [claudeCode, codex, gemini, json, codexToml] = await Promise.all([
     codeBlock(links.claudeCode, 'sh'),
+    codeBlock(links.codex, 'sh'),
+    codeBlock(links.gemini, 'sh'),
     codeBlock(links.json, 'json'),
+    codeBlock(links.codexToml, 'toml'),
   ]);
   return (
     <div className="ask-mcp">
@@ -33,10 +36,16 @@ export async function McpInstall({ url, name }: { url: string; name: string }) {
       </p>
       <p>Claude Code:</p>
       <div dangerouslySetInnerHTML={{ __html: claudeCode }} />
+      <p>Codex:</p>
+      <div dangerouslySetInnerHTML={{ __html: codex }} />
+      <p>Gemini CLI:</p>
+      <div dangerouslySetInnerHTML={{ __html: gemini }} />
       <p>ChatGPT: add a custom MCP server with this URL at chatgpt.com/plugins.</p>
       <details>
         <summary>Other clients</summary>
         <div dangerouslySetInnerHTML={{ __html: json }} />
+        <p>Codex, in ~/.codex/config.toml:</p>
+        <div dangerouslySetInnerHTML={{ __html: codexToml }} />
       </details>
     </div>
   );

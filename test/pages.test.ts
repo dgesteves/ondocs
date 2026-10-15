@@ -117,6 +117,30 @@ describe('pages read back from an index', () => {
     expect(url('')).toBeNull();
     expect(url('https://')).toBeNull();
   });
+
+  it('finds a section whose anchor is not ASCII, as written or percent-encoded', async () => {
+    const page = fromMarkdown(
+      '# Início\n\nIntro.\n\n## Configuração rápida\n\nRode o init.\n\n## 日本語の見出し\n\n本文です。',
+      { id: 'i18n.md', url: '/docs/i18n' },
+    );
+    if (!page) throw new Error('fromMarkdown skipped the page');
+    const index = await loaded([page]);
+    const [i18n] = indexPages(index);
+    if (!i18n) throw new Error('missing page');
+    const sections = pageSections(i18n).map(({ url }) => url);
+    expect(sections).toEqual(['/docs/i18n#configuração-rápida', '/docs/i18n#日本語の見出し']);
+    for (const section of sections) {
+      // What search returns: the section made absolute, which percent-encodes the anchor.
+      const absolute = new URL(section, 'https://docs.example.com').href;
+      const relative = absolute.slice('https://docs.example.com'.length);
+      expect(absolute).not.toContain(section);
+      for (const reference of [section, absolute, relative]) {
+        expect([reference, findPage(index, reference)?.section]).toEqual([reference, section]);
+      }
+    }
+    // An anchor that is not valid percent-encoding is kept as it is.
+    expect(findPage(index, '/docs/i18n#100%')?.section).toBe('/docs/i18n#100%');
+  });
 });
 
 describe('snippet', () => {
