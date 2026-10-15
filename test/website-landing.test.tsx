@@ -156,6 +156,8 @@ describe('the home page’s first screen', () => {
       // The line and its import: three lines at most.
       expect(code.trimEnd().split('\n').length).toBeLessThanOrEqual(3);
     });
+    // VitePress's line calls defineConfig, so it imports it too, as the VitePress guide does.
+    expect(panels[2]?.code).toContain("import { defineConfig } from 'vitepress';");
     expect(panels.map(({ demos }) => demos)).toEqual([...DEMOS.map(({ href }) => [href]), [], []]);
     expect(panels.map(({ hidden }) => hidden)).toEqual([false, true, true, true, true]);
   });
@@ -205,25 +207,60 @@ describe('the home page’s proof row', () => {
     });
   });
 
-  it('says what every endpoint ondocs init writes has: a rate limit, a daily budget and the answer cache', async () => {
-    const { cloudflarePagesFiles, cloudflareWorkerFiles, netlifyFiles, vercelFiles } =
-      await import('../src/cli/init-templates');
+  it('says what every ask endpoint ondocs init writes has: a rate limit, a daily budget and the answer cache', async () => {
+    const templates = await import('../src/cli/init-templates');
     const acme = {
       name: 'Acme Docs',
       indexFile: 'build/ask-index.json',
       indexPath: '/ask-index.json',
+      url: 'https://acme.dev/docs',
     };
-    const endpoints = [vercelFiles, netlifyFiles, cloudflarePagesFiles, cloudflareWorkerFiles]
-      .flatMap((files) => files(acme, false))
-      .filter((file) => file.content.includes('createAskHandler('));
-    expect(endpoints).toHaveLength(4);
-    for (const { path, content } of endpoints) {
-      expect(content, path).toMatch(/rateLimit: \w/);
-      expect(content, path).toMatch(/budget: \{ requestsPerDay: [\d_]+, tokensPerDay: [\d_]+ \}/);
-      expect(content, path).toContain('answerCache: true');
+    const versions = {
+      ondocs: '^1.0.0',
+      ai: '^1.0.0',
+      openai: '^1.0.0',
+      workersAi: '^1.0.0',
+      wrangler: '^1.0.0',
+      typescript: '^1.0.0',
+      workersTypes: '^1.0.0',
+    };
+    // Every template init writes from, with the MCP endpoint, which it writes unless --no-mcp.
+    const written = [
+      ...templates.vercelFiles(acme, true),
+      ...templates.netlifyFiles(acme, true),
+      ...templates.cloudflarePagesFiles(acme, true),
+      ...templates.cloudflareWorkerFiles(acme, true),
+      ...(['vercel', 'netlify', 'cloudflare'] as const).flatMap((host) =>
+        templates.nextFiles(acme, host, 'app', true),
+      ),
+      ...(['workers-ai', 'openai'] as const).flatMap((provider) =>
+        templates.standaloneWorkerFiles(acme, true, versions, provider),
+      ),
+    ];
+    // Each handler's options: from its call to the next handler's, or to the end of the file.
+    const handlers = written.flatMap(({ path, content }) =>
+      content
+        .split(/(?=create(?:Ask|Mcp)Handler\()/)
+        .slice(1)
+        .map((options) => ({ path, ask: options.startsWith('createAsk'), options })),
+    );
+    const ask = handlers.filter((handler) => handler.ask);
+    const mcp = handlers.filter((handler) => !handler.ask);
+    expect(ask).toHaveLength(9);
+    expect(mcp).toHaveLength(9);
+    for (const { path, options } of ask) {
+      expect(options, path).toMatch(/rateLimit: \w/);
+      expect(options, path).toMatch(/budget: \{ requestsPerDay: [\d_]+, tokensPerDay: [\d_]+ \}/);
+      expect(options, path).toContain('answerCache: true');
+    }
+    // The MCP endpoint calls no model, so it has a rate limit and nothing to budget or cache: the
+    // item names the ask endpoint.
+    for (const { path, options } of mcp) {
+      expect(options, path).toMatch(/rateLimit: \w/);
+      expect(options, path).not.toMatch(/budget|answerCache/);
     }
     expect((await items())[1]).toEqual({
-      text: 'Rate limit, daily budget and answer cache in every endpoint ondocs init writes.',
+      text: 'Rate limit, daily budget and answer cache in every ask endpoint ondocs init writes.',
       links: ['/docs/deployment#write-the-endpoint-with-init'],
     });
   });

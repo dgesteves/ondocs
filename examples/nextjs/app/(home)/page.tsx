@@ -69,7 +69,7 @@ async function frameworks(): Promise<Framework[]> {
       id: 'vitepress',
       label: 'VitePress',
       code: await codeBlock(
-        "import { withOndocs } from 'ondocs/vitepress';\nexport default withOndocs(defineConfig({ title: 'Acme Docs' }));",
+        "import { defineConfig } from 'vitepress';\nimport { withOndocs } from 'ondocs/vitepress';\nexport default withOndocs(defineConfig({ title: 'Acme Docs' }));",
         'ts',
         '.vitepress/config.mts',
       ),
@@ -419,7 +419,7 @@ export default async function Home() {
               </li>
               <li>
                 <Link href="/docs/deployment#write-the-endpoint-with-init">
-                  Rate limit, daily budget and answer cache in every endpoint{' '}
+                  Rate limit, daily budget and answer cache in every ask endpoint{' '}
                   <code>ondocs init</code> writes.
                 </Link>
               </li>

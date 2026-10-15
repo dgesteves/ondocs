@@ -18,7 +18,7 @@ export function gzippedSize(file: string): string {
 /**
  * The most JavaScript ondocs adds to a page before the dialog opens, gzipped, from the bundle
  * size table on the benchmarks page, which scripts/js-weight.mjs measures in headless Chrome:
- * each row's "With ondocs" less "The site on its own", and the largest of those, "3.9 KB".
+ * each row's "With ondocs" less "The site on its own", and the largest of those, as "N.N KB".
  * Throws when the table is gone, so the claim can't outlive its source.
  */
 export function largestPageAddition(): string {
@@ -36,7 +36,9 @@ export function largestPageAddition(): string {
       return withOndocs - own;
     });
   if (added.length === 0 || added.some((kb) => Number.isNaN(kb))) {
-    throw new Error('The benchmarks page has no bundle size table to quote.');
+    throw new Error(
+      'The benchmarks page has no bundle size table to quote: restore its "## Bundle size" table in content/docs/benchmarks.md, or change the landing’s proof row.',
+    );
   }
   return `${Math.max(...added).toFixed(1)} KB`;
 }

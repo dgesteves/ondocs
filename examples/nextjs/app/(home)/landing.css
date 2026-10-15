@@ -1466,14 +1466,14 @@
     display: none;
   }
 
-  /* On a phone the demo is a still of the same answer, with no box to type in and no questions
-     to pick. */
-  .hero .demo-input,
-  .hero .demo-chips {
+  /* On a phone the demo is a still of the answer asked at build time, with no box to type in and
+     no questions to pick. Without that answer, it stays a demo to type in. */
+  .hero .demo[data-still] .demo-input,
+  .hero .demo[data-still] .demo-chips {
     display: none;
   }
 
-  .hero .demo-body {
+  .hero .demo[data-still] .demo-body {
     min-height: 0;
   }
 

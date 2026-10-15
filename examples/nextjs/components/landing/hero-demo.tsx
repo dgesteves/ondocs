@@ -52,7 +52,13 @@ export function HeroDemo({ suggestions, initial, mode }: HeroDemoProps) {
   };
 
   return (
-    <section className="demo" aria-labelledby={`${inputId}-title`}>
+    <section
+      className="demo"
+      aria-labelledby={`${inputId}-title`}
+      // On a phone the demo is a still of the answer asked at build time (landing.css). Without
+      // one, it stays a demo to type in.
+      data-still={initial ? '' : undefined}
+    >
       <h2 id={`${inputId}-title`} className="sr-only">
         Ask these docs
       </h2>

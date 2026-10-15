@@ -95,12 +95,30 @@ describe('the home page’s demo', () => {
 });
 
 describe('the home page’s demo on a phone', () => {
+  const landing = (file: string) =>
+    readFileSync(join(import.meta.dirname, '../examples/nextjs', file), 'utf8');
+  const phone = (landing('app/(home)/landing.css').split('@media (max-width: 800px) {')[1] ?? '')
+    // Without its comments.
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
   it('is a still of the same answer: no box to type in, and no questions to pick', () => {
-    const css = readFileSync(
-      join(import.meta.dirname, '../examples/nextjs/app/(home)/landing.css'),
-      'utf8',
+    expect(phone).toMatch(
+      /\.hero \.demo\[data-still\] \.demo-input,\s*\.hero \.demo\[data-still\] \.demo-chips \{\s*display: none;\s*\}/,
     );
-    const phone = css.split('@media (max-width: 800px) {')[1] ?? '';
-    expect(phone).toMatch(/\.hero \.demo-input,\s*\.hero \.demo-chips \{\s*display: none;\s*\}/);
+  });
+
+  it('stays a demo to type in when the build got no answer', () => {
+    // Only a demo marked as a still loses its input and chips…
+    for (const part of ['.demo-input', '.demo-chips']) {
+      const selectors = [...phone.matchAll(/([^{}]+)\{[^}]*display: none;[^}]*\}/g)]
+        .flatMap(([, list]) => (list ?? '').split(','))
+        .map((selector) => selector.trim())
+        .filter((selector) => selector.endsWith(part));
+      expect(selectors, part).toEqual([`.hero .demo[data-still] ${part}`]);
+    }
+    // …and the demo is marked so only when it opens on the answer asked at build time.
+    expect(landing('components/landing/hero-demo.tsx')).toContain(
+      "data-still={initial ? '' : undefined}",
+    );
   });
 });
