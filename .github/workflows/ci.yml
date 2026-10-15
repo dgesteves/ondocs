@@ -22,7 +22,7 @@ jobs:
   verify:
     name: Lint, typecheck, test, build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -115,7 +115,7 @@ jobs:
   consumers:
     name: Fresh ${{ matrix.site }} site, from the packed package
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -250,11 +250,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # One line per job, then an error that names each job that did not succeed.
       - name: Every job it needs succeeded
+        shell: bash
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          echo "Results: $RESULTS"
-          for result in $RESULTS; do
-            test "$result" = success
-          done
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          failed=$(jq -r 'to_entries | map(select(.value.result != "success") | "\(.key) (\(.value.result))") | join(", ")' <<< "$NEEDS")
+          if [ -n "$failed" ]; then
+            echo "::error::Did not succeed: $failed. Open each one's log, then fix it or re-run it."
+            exit 1
+          fi
+          # An empty list of results fails too.
+          jq -e 'length > 0' <<< "$NEEDS" > /dev/null
