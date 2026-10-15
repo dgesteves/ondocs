@@ -24,7 +24,8 @@ export interface BudgetOptions {
    * called, the answer's worst case (its prompt plus `maxOutputTokens`) is reserved, and the
    * answer goes ahead only if that fits in what is left; the reservation is corrected to the real
    * usage once the answer ends. So concurrent answers cannot overshoot the cap, and an answer the
-   * visitor abandons keeps its reservation.
+   * visitor abandons keeps its reservation. An answer the model fails before writing a word (a bad
+   * key, a quota, an outage, a timeout) gives its reservation back.
    */
   tokensPerDay?: number;
   /**
@@ -47,7 +48,10 @@ export interface BudgetOptions {
 /** Whether a request fits in the budget, and if not, when the budget resets. */
 export type BudgetDecision = { allowed: true } | { allowed: false; resetAt: number };
 
-/** A token reservation, corrected to the real usage with `settle` once the answer ends. */
+/**
+ * A token reservation, corrected to the real usage with `settle` once the answer ends: to
+ * `actual`, or back to the worst case when it is `undefined`. A later call corrects an earlier one.
+ */
 export type TokenReservation =
   | { allowed: true; settle: (actual: number | undefined) => Promise<void> }
   | { allowed: false; resetAt: number };
@@ -107,11 +111,14 @@ export function createBudget(options: BudgetOptions): Budget {
         await store.increment(key, -estimate, COUNTER_TTL_SECONDS);
         return { allowed: false, resetAt };
       }
+      let counted = estimate;
       return {
         allowed: true,
         settle: async (actual) => {
-          if (actual === undefined || actual === estimate) return;
-          await store.increment(key, actual - estimate, COUNTER_TTL_SECONDS);
+          const change = (actual ?? estimate) - counted;
+          if (change === 0) return;
+          counted += change;
+          await store.increment(key, change, COUNTER_TTL_SECONDS);
         },
       };
     },
