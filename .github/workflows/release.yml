@@ -16,6 +16,8 @@ jobs:
   release:
     name: Version or publish
     runs-on: ubuntu-latest
+    # pnpm validate builds the four examples; recent runs took 2 to 8 minutes.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
