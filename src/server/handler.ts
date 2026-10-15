@@ -34,6 +34,7 @@ import {
 import {
   FOLLOW_UP_INSTRUCTIONS,
   FOLLOW_UP_MAX_TOKENS,
+  FOLLOW_UP_TIMEOUT_MS,
   followUpPrompt,
   looksStandalone,
   standaloneQuestion,
@@ -149,6 +150,11 @@ export interface AskHandlerOptions {
    * a 503 by default. Feedback posts are not checked. Off by default.
    */
   challenge?: ChallengeVerifier;
+  /**
+   * Passed to `streamText`. `maxOutputTokens` defaults to 800, and `timeout` to 30 seconds for
+   * the model's first word and 90 for the whole answer, so a provider that stalls ends the answer
+   * instead of holding it open; your own `timeout` replaces both.
+   */
   generation?: GenerationOptions;
   /**
    * A daily cap on spend: `{ requestsPerDay, tokensPerDay }`, counted in `store` (memory, per
@@ -654,6 +660,7 @@ export function createAskHandler(
           temperature: 0,
           reasoning: 'minimal',
           maxRetries: 1,
+          timeout: FOLLOW_UP_TIMEOUT_MS,
           abortSignal: request.signal,
         });
         await settle?.(totalTokens(result.usage)).catch(reportError);
@@ -661,8 +668,10 @@ export function createAskHandler(
         followUp = { question: searched, usage: result.usage };
       } catch (error) {
         if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
-        // Answer the question as it was asked rather than fail it.
+        // Answer the question as it was asked rather than fail it. The rewrite reported no usage,
+        // so its reservation goes back: a bad key or an outage must not use up the day's budget.
         reportError(error);
+        await settle?.(0).catch(reportError);
       }
     }
 
@@ -758,19 +767,37 @@ export function createAskHandler(
 
     return respond(answer, id, () => {
       let failed = false;
+      // Whether the model has begun to answer. One that fails before it does (a bad key, a quota,
+      // an outage, a timeout) gives its reservation back, or an outage would use up the day's
+      // budget with nothing spent; one that fails after keeps its worst case, unless its usage
+      // says otherwise.
+      let begun = false;
+      const release = async (): Promise<void> => {
+        if (settle && !begun) await settle(0).catch(reportError);
+      };
       return streamText({
         maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
         ...options.generation,
+        timeout: options.generation?.timeout ?? DEFAULT_GENERATION_TIMEOUT,
         model: options.model,
         instructions,
         prompt,
         abortSignal: request.signal,
-        onError: ({ error }) => {
+        onChunk: ({ chunk }) => {
+          if (chunk.type === 'text-delta' || chunk.type === 'reasoning-delta') begun = true;
+        },
+        onError: async ({ error }) => {
           failed = true;
           reportError(error);
+          // A call that fails before it streams has no `onEnd` to settle it.
+          await release();
         },
         onEnd: async (event) => {
-          if (settle) await settle(totalTokens(event.usage)).catch(reportError);
+          begun ||= event.text !== '';
+          if (settle) {
+            const spent = totalTokens(event.usage) ?? (failed && !begun ? 0 : undefined);
+            await settle(spent).catch(reportError);
+          }
           if (!failed && event.finishReason === 'stop') remember(event.text);
           await finish({
             id,
@@ -785,10 +812,12 @@ export function createAskHandler(
             ...(followUp ? { followUp } : {}),
           });
         },
-        // A client that hung up is not an error; `generation.timeout` firing is.
-        onAbort: ({ reason }) => {
+        // A client that hung up is not an error, and keeps its reservation; `generation.timeout`
+        // firing is one.
+        onAbort: async ({ reason }) => {
           if (request.signal.aborted) return;
           reportError(new Error('The answer was aborted before it finished.', { cause: reason }));
+          await release();
         },
       });
     });
@@ -866,6 +895,13 @@ export function createAskHandler(
 }
 
 const DEFAULT_MAX_OUTPUT_TOKENS = 800;
+
+/**
+ * What `generation.timeout` defaults to: 30 seconds for the first word, as a reasoning model
+ * thinks before it writes, and 90 for the whole answer, which covers a provider that never
+ * answers the request at all.
+ */
+const DEFAULT_GENERATION_TIMEOUT = { firstChunkMs: 30_000, totalMs: 90_000 };
 
 /** What `retrieval.maxContextChars` defaults to: characters of source text sent to the model. */
 const DEFAULT_MAX_CONTEXT_CHARS = 8000;

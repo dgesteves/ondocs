@@ -194,6 +194,69 @@ describe('follow-up questions', () => {
     expect(onError).toHaveBeenCalled();
   });
 
+  it('give the rewrite’s reservation back when it fails, counting only the answer', async () => {
+    const failing = new MockLanguageModelV4({
+      doGenerate: () => Promise.reject(new Error('401: Incorrect API key provided')),
+    });
+    const store = memoryBudgetStore();
+    const increment = vi.spyOn(store, 'increment');
+    const { handler, onFinish } = setup({
+      followUps: { model: failing },
+      budget: { tokensPerDay: 100_000, store },
+    });
+    await (
+      await handler(conversation('What does it cost?', 'It is free [1].', 'And the rate limits?'))
+    ).text();
+    await vi.waitFor(() => {
+      expect(onFinish).toHaveBeenCalled();
+    });
+
+    const { usage } = onFinish.mock.calls[0]?.[0] as { usage: { totalTokens: number } };
+    const counted = increment.mock.calls
+      .filter(([key]) => key.includes(':tokens:'))
+      .reduce((sum, [, amount]) => sum + amount, 0);
+    expect(counted).toBe(usage.totalTokens);
+  });
+
+  it('are answered as asked when the rewrite takes longer than 20 seconds', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    // The AI SDK times a call out with `AbortSignal.timeout`, which fake timers do not reach.
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+      const controller = new AbortController();
+      setTimeout(() => {
+        controller.abort(new DOMException('The operation timed out.', 'TimeoutError'));
+      }, ms);
+      return controller.signal;
+    });
+    try {
+      const stalled = new MockLanguageModelV4({
+        doGenerate: ({ abortSignal }) =>
+          new Promise((_, reject) => {
+            abortSignal?.addEventListener('abort', () => {
+              reject(abortSignal.reason as Error);
+            });
+          }),
+      });
+      const { handler, onError } = setup({ followUps: { model: stalled } });
+      let status = 0;
+      const response = handler(
+        conversation('What does it cost?', 'It is free [1].', 'And the rate limits?'),
+      ).then((r) => ((status = r.status), r.text()));
+
+      await vi.advanceTimersByTimeAsync(19_999);
+      expect(status).toBe(0);
+      await vi.advanceTimersByTimeAsync(1);
+      await vi.waitFor(() => {
+        expect(status).toBe(200);
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(sourcesOf(await response)).toContain('/docs/rate-limits');
+      expect(String(onError.mock.calls[0]?.[0])).toMatch(/timed out/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('are cached by the rewritten question', async () => {
     const { handler, model, onFinish } = setup({ answerCache: true });
     const ask = () =>
