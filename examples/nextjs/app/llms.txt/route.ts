@@ -13,7 +13,7 @@ export async function GET() {
   const lines = [
     '# ondocs',
     '',
-    '> Make your docs answerable by people and by agents, from one static index: a cited Ask box, an MCP server and llms.txt, on your own function and key, with no vector database and no vendor. Agent traffic costs you no model tokens. Plugins for Docusaurus, Astro, Starlight and VitePress, React components for Next.js, and a script tag for any other site.',
+    '> Open-source Ask AI for your docs. Cited answers on your own model key, and an MCP server for coding agents, from one index built with your Starlight, Docusaurus or VitePress site. No vendor, no vector database. Agents bring their own model, and keyword search, the default, calls no model at all. Plugins for Starlight, Docusaurus, VitePress and Astro, React components for Next.js, and a script tag for any other site.',
     '',
     `Install with \`npm i ondocs\`. Source: ${GITHUB_URL}.`,
     '',

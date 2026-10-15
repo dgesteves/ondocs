@@ -14,7 +14,8 @@ const website = new Map(
 export default withOndocs(
   defineConfig({
     title: 'ondocs',
-    description: 'Make your docs answerable by people and by agents, from one static index.',
+    description:
+      'Open-source Ask AI for your docs: cited answers on your own model key, and an MCP server for agents, from one index built with your site. No vector database.',
     // The pages are generated from the website's docs (scripts/sync-example-docs.mjs).
     srcDir: 'docs',
     cleanUrls: true,

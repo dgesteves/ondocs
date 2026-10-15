@@ -31,7 +31,7 @@ const ondocs: OndocsOptions = {
 
 const config: Config = {
   title: 'ondocs',
-  tagline: 'An ask box for your docs: cited answers, no vector database.',
+  tagline: 'Open-source Ask AI for your docs, with an MCP server for agents.',
   favicon: 'img/favicon.ico',
   url,
   baseUrl: '/',
