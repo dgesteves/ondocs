@@ -56,6 +56,15 @@ describe('the pitch on the website and the example sites', () => {
     expect(about.slice(0, SHORT.length)).toBe(SHORT);
   });
 
+  it('describes the Starlight demo as the website’s home page does', () => {
+    // Starlight's description, as VitePress's, heads its llms.txt and is the meta description of
+    // a page without its own.
+    const starlight = /\bdescription:\s*'([^']*)'/.exec(
+      read('examples/starlight/astro.config.mjs'),
+    );
+    expect(starlight?.[1]).toBe(HOME_DESCRIPTION);
+  });
+
   it('describes the VitePress demo as the website’s home page does, and is Docusaurus’s tagline', () => {
     // VitePress's description heads its llms.txt and is the meta description of a page without
     // its own, where search results show about 160 characters. Docusaurus's tagline heads its
