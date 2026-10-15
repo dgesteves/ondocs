@@ -45,7 +45,7 @@ describe('CI', () => {
   const step = ok?.steps.find((s) => s.env?.NEEDS);
   it('reads every result it needs, in bash with pipefail', () => {
     expect(step?.env?.NEEDS).toBe('${{ toJSON(needs) }}');
-    // With shell: bash, GitHub runs the step as `bash --noprofile --norc -eo pipefail {0}`.
+    // With shell: bash, GitHub runs the step as `bash --noprofile --norc -e -o pipefail {0}`.
     // Without it, it would be `bash -e {0}`, with no pipefail.
     expect(step?.shell).toBe('bash');
   });
@@ -72,7 +72,7 @@ describe('CI', () => {
     try {
       const script = join(dir, 'step.sh');
       writeFileSync(script, step!.run!);
-      const run = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', script], {
+      const run = spawnSync('bash', ['--noprofile', '--norc', '-e', '-o', 'pipefail', script], {
         env: { ...process.env, NEEDS: JSON.stringify(needs, null, 2) },
         encoding: 'utf8',
       });
