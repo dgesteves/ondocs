@@ -4,10 +4,10 @@ name: Release
 # (once it is merged), publish to npm what npm doesn't have yet, then check what npm and jsDelivr
 # serve. Started by hand (Actions, Release, Run workflow, or `gh workflow run release.yml --ref
 # <branch>`), it is a dry run of that branch: in place of the release job, a job with read
-# permissions versions the packages without pushing and packs them without publishing, then the
-# checks read what npm, jsDelivr and GitHub serve now. A dry run publishes nothing, pushes nothing,
-# and opens no pull request, tag or release. RELEASING.md says what each step does, and what to do
-# when one fails.
+# permissions versions the packages without pushing (when changesets are pending) and packs them
+# without publishing, then the checks read what npm, jsDelivr and GitHub serve now. A dry run
+# publishes nothing, pushes nothing, and opens no pull request, tag or release. RELEASING.md says
+# what each step does, and what to do when one fails.
 on:
   push:
     branches: [main]
@@ -176,7 +176,23 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # `changeset version` fails ('No unreleased changesets found.') when there is nothing to
+      # version, as right after a release. The dry run then skips only the version step: it still
+      # packs the three packages and shows their GitHub release, at the versions they have now.
+      # Pending changesets are the .md files in .changeset, less those changesets skips (README.md,
+      # AGENTS.md, CLAUDE.md, GEMINI.md and dotfiles), as @changesets/read lists them.
+      - name: 'Dry run: find the pending changesets'
+        id: pending
+        run: |
+          count=$(find .changeset -maxdepth 1 -type f -name '*.md' ! -name '.*' ! -iname README.md ! -name AGENTS.md ! -name CLAUDE.md ! -name GEMINI.md | wc -l | tr -d ' ')
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" -eq 0 ]; then
+            echo "No pending changesets: nothing to version. The next steps pack the packages and show their release at $(node -p "require('./package.json').version"), the version they have now."
+          else
+            echo "$count pending changesets: the next step versions the packages."
+          fi
       - name: 'Dry run: version the packages as the release pull request would, without pushing'
+        if: steps.pending.outputs.count != '0'
         env:
           # @changesets/changelog-github reads each changeset's pull request with it.
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}

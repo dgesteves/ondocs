@@ -3,9 +3,9 @@
 // started by hand, runs a read-only job in its place. The `if` conditions here are evaluated as
 // GitHub would, for each kind of run.
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
@@ -386,7 +386,10 @@ describe('a dry run', () => {
       };
       expect(runs(release?.if, values)).toBe(false);
       expect(runs(dryRun?.if, values)).toBe(true);
-      const ran = simulate(dryRun, values, { 'app-token': { token: 'app token' } });
+      const ran = simulate(dryRun, values, {
+        'app-token': { token: 'app token' },
+        pending: { count: '3' },
+      });
       expect(ran.filter(writes).map(label)).toEqual([]);
       expect(ran.some((step) => step.uses?.startsWith('changesets/action@'))).toBe(false);
       expect(ran.map(label)).toEqual(
@@ -455,5 +458,84 @@ describe('a dry run', () => {
     const version = dryRun?.steps.find((s) => s.name?.startsWith('Dry run: version'));
     expect(version?.run).toContain('pnpm version-packages');
     expect(version?.run).not.toMatch(/git (commit|push)/);
+  });
+
+  // The step that counts the pending changesets, run in bash in a checkout whose .changeset holds
+  // `files`, with the real node; returns what it printed and the outputs it wrote.
+  function findPending(files: string[]) {
+    const step = dryRun?.steps.find((s) => s.id === 'pending');
+    const dir = mkdtempSync(join(tmpdir(), 'release-pending-'));
+    try {
+      mkdirSync(join(dir, '.changeset'));
+      for (const file of files) writeFileSync(join(dir, '.changeset', file), '---\n---\n');
+      writeFileSync(join(dir, 'package.json'), '{ "name": "ondocs", "version": "0.11.0" }\n');
+      writeFileSync(join(dir, 'step.sh'), step!.run!);
+      const output = join(dir, 'github-output');
+      writeFileSync(output, '');
+      const result = spawnSync('bash', ['--noprofile', '--norc', '-e', join(dir, 'step.sh')], {
+        cwd: dir,
+        env: {
+          ...process.env,
+          PATH: `${dirname(process.execPath)}:/usr/bin:/bin`,
+          GITHUB_OUTPUT: output,
+        },
+        encoding: 'utf8',
+      });
+      const outputs = Object.fromEntries(
+        readFileSync(output, 'utf8')
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]),
+      ) as Record<string, string>;
+      return { status: result.status, stdout: result.stdout, stderr: result.stderr, outputs };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  const dryRunSteps = (outputs: Record<string, string>) =>
+    simulate(dryRun, { ...dispatch, 'github.repository': 'dgesteves/ondocs' }, { pending: outputs })
+      .map(label)
+      .filter((name) => name.startsWith('Dry run: '));
+
+  // Right after a release .changeset holds only its README and config, and `changeset version`
+  // exits 1 ('No unreleased changesets found.'): the dry run failed there, before it packed.
+  it('skips only the version step when no changeset is pending, as right after a release', () => {
+    const found = findPending([
+      'README.md',
+      'config.json',
+      'AGENTS.md',
+      'CLAUDE.md',
+      'GEMINI.md',
+      '.draft.md',
+    ]);
+    expect(found.stderr).toBe('');
+    expect(found.status).toBe(0);
+    expect(found.outputs).toEqual({ count: '0' });
+    expect(found.stdout).toContain('No pending changesets: nothing to version');
+    expect(found.stdout).toContain('0.11.0');
+    expect(dryRunSteps(found.outputs)).toEqual([
+      'Dry run: find the pending changesets',
+      'Dry run: pack the three packages as changeset publish would, without publishing',
+      'Dry run: the GitHub release this version would get',
+    ]);
+  });
+
+  it('versions the packages before it packs them when changesets are pending', () => {
+    const found = findPending([
+      'README.md',
+      'config.json',
+      'brave-cats-sing.md',
+      'quiet-owls-run.md',
+    ]);
+    expect(found.status).toBe(0);
+    expect(found.outputs).toEqual({ count: '2' });
+    expect(found.stdout).not.toContain('No pending changesets');
+    expect(dryRunSteps(found.outputs)).toEqual([
+      'Dry run: find the pending changesets',
+      'Dry run: version the packages as the release pull request would, without pushing',
+      'Dry run: pack the three packages as changeset publish would, without publishing',
+      'Dry run: the GitHub release this version would get',
+    ]);
   });
 });

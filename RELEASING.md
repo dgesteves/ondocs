@@ -43,7 +43,7 @@ gh workflow run release.yml --ref <branch>
 It runs on that branch, and publishes, pushes and creates nothing:
 
 - Validate runs as usual.
-- Version or publish does not run. In its place, **Dry run**, with read permissions only, gets a read-only token from the App when the secrets are set (so a failure there shows the App isn't set up), builds, then runs `pnpm version-packages` and shows the diff the release pull request would have, packs the three packages into the runner and prints their versions and dependencies, and prints the GitHub release the version would get (`check-published.mjs release --dry-run`).
+- Version or publish does not run. In its place, **Dry run**, with read permissions only, gets a read-only token from the App when the secrets are set (so a failure there shows the App isn't set up), builds, then runs `pnpm version-packages` and shows the diff the release pull request would have, packs the three packages into the runner and prints their versions and dependencies, and prints the GitHub release the version would get (`check-published.mjs release --dry-run`), or that it exists. With no pending changesets, as right after a release, `changeset version` has nothing to do and exits 1, so the dry run says `No pending changesets: nothing to version`, skips only that step, and packs and checks the versions in `package.json`.
 - The checks read what npm and jsDelivr serve for the version on the branch, without purging, and report the docs' imports that npm's latest lacks as warnings.
 
 Do one after any change to the workflow, before the next release.
