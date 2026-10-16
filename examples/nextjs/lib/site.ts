@@ -22,6 +22,11 @@ export const DEMOS = [
   { label: 'Docusaurus', href: 'https://ondocs-docusaurus.vercel.app' },
   { label: 'VitePress', href: 'https://ondocs-vitepress.vercel.app' },
 ] as const;
+/**
+ * The live demos' origins. Their dialogs send questions to this site's /api/ask, which gives these
+ * origins, and only these, the CORS headers they need (`allowedOrigins` in lib/ask-handler.ts).
+ */
+export const DEMO_ORIGINS: readonly string[] = DEMOS.map((demo) => demo.href);
 /** A framework's live demo, by its name in `DEMOS`. */
 export const demoUrl = (label: (typeof DEMOS)[number]['label']): string =>
   DEMOS.find((demo) => demo.label === label)?.href ?? '';

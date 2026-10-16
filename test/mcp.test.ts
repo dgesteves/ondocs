@@ -1,7 +1,7 @@
 import { MockEmbeddingModelV4 } from 'ai/test';
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildIndex } from '../src';
+import { buildIndex, loadIndex, serializeIndexFile, type SourceDocument } from '../src';
 import { mockEmbeddingModel } from '../src/mock';
 import {
   createMcpHandler,
@@ -16,6 +16,19 @@ const embeddingModel = mockEmbeddingModel();
 const { index: embedded } = await buildIndex({ documents: corpus, embeddingModel });
 
 const ENDPOINT = 'https://docs.example.com/api/mcp';
+
+/** One page of a site in English and in French, for `indexes`. */
+const page = (lang: 'en' | 'fr'): SourceDocument => ({
+  id: 'install.md',
+  url: lang === 'en' ? '/install' : '/fr/install',
+  title: lang === 'en' ? 'Install' : 'Installation',
+  content:
+    lang === 'en'
+      ? 'Install the package with npm and configure the plugin.'
+      : 'Installez le paquet avec npm et configurez le plugin.',
+});
+const english = (await buildIndex({ documents: [page('en')] })).index;
+const french = (await buildIndex({ documents: [page('fr')] })).index;
 
 interface RpcResponse {
   jsonrpc: '2.0';
@@ -373,6 +386,119 @@ describe('search with an embedding model', () => {
   });
 });
 
+describe('search with retrieval hooks, as the ask endpoint runs them', () => {
+  const ids = (result: ToolResult): string[] =>
+    (result.structuredContent as { results: { id: string }[] }).results.map((entry) => entry.id);
+  const QUERY = 'rate limit token bucket upstash';
+
+  it('runs rerank on the candidates, with the index and the request’s signal', async () => {
+    const plain = ids(await setup().call('search', { query: QUERY }));
+    expect(plain.length).toBeGreaterThan(1);
+    const seen: { question: string; signal: boolean; index: boolean }[] = [];
+    const reranked = await setup({
+      retrieval: {
+        rerank: (question, hits, context) => {
+          seen.push({
+            question,
+            signal: context.signal instanceof AbortSignal,
+            index: context.index.chunks.length > 0,
+          });
+          return [...hits].reverse();
+        },
+      },
+    }).call('search', { query: QUERY });
+    expect(seen).toEqual([{ question: QUERY, signal: true, index: true }]);
+    expect(ids(reranked)).toEqual([...plain].reverse());
+  });
+
+  it('runs retrieve instead of the built-in search, behind the relevance gate', async () => {
+    const offTopic = loadIndex(index).chunks.find((chunk) => chunk.documentId === 'pricing.md');
+    const { call } = setup({
+      retrieval: {
+        retrieve: (_query, search) => [
+          // A hit on a chunk that does not match the query: the gate drops it.
+          {
+            chunk: offTopic!,
+            score: 1,
+            similarity: 1,
+            keywordScore: 99,
+            keywordCoverage: 1,
+          },
+          ...search().filter((hit) => hit.chunk.url.startsWith('/docs/rate-limits#upstash')),
+        ],
+      },
+    });
+    expect(ids(await call('search', { query: QUERY }))).toEqual(['/docs/rate-limits#upstash']);
+  });
+
+  it('reports a hook that throws, and searches as if it were not there', async () => {
+    const failure = new Error('reranker down');
+    const plain = ids(await setup().call('search', { query: QUERY }));
+    const { call, onError } = setup({
+      retrieval: {
+        rerank: () => {
+          throw failure;
+        },
+      },
+    });
+    expect(ids(await call('search', { query: QUERY }))).toEqual(plain);
+    expect(onError).toHaveBeenCalledWith(failure);
+  });
+});
+
+describe('indexes: the docs in other locales', () => {
+  const localized = () =>
+    setup({ index: english, indexes: { fr: () => serializeIndexFile(french) } });
+  const first = (result: ToolResult): string | undefined =>
+    (result.structuredContent as { results: { id: string }[] }).results[0]?.id;
+
+  it('offers the locales on search and list_pages', async () => {
+    const { body } = await localized().rpc('tools/list');
+    const tools = body.result?.tools as {
+      name: string;
+      inputSchema: { properties: Record<string, { enum?: string[] }> };
+    }[];
+    const locale = (name: string) =>
+      tools.find((tool) => tool.name === name)?.inputSchema.properties.locale;
+    expect(locale('search')?.enum).toEqual(['fr']);
+    expect(locale('list_pages')?.enum).toEqual(['fr']);
+    expect(locale('fetch')).toBeUndefined();
+    // Without other locales, no tool takes one.
+    const { body: plain } = await setup().rpc('tools/list');
+    for (const tool of plain.result?.tools as { inputSchema: { properties: object } }[]) {
+      expect(tool.inputSchema.properties).not.toHaveProperty('locale');
+    }
+  });
+
+  it('searches and lists the locale the agent names, and the default index otherwise', async () => {
+    const { call } = localized();
+    expect(first(await call('search', { query: 'Installez le paquet', locale: 'fr' }))).toBe(
+      '/fr/install',
+    );
+    expect(first(await call('search', { query: 'Install the package' }))).toBe('/install');
+    // A locale with no index of its own is searched in `index`, as the ask endpoint answers it.
+    expect(first(await call('search', { query: 'Install the package', locale: 'de' }))).toBe(
+      '/install',
+    );
+    const pages = async (args: Record<string, unknown>) =>
+      ((await call('list_pages', args)).structuredContent?.pages as { id: string }[]).map(
+        (entry) => entry.id,
+      );
+    expect(await pages({ locale: 'fr' })).toEqual(['/fr/install']);
+    expect(await pages({})).toEqual(['/install']);
+    expect((await call('search', { query: 'paquet', locale: 7 })).isError).toBe(true);
+  });
+
+  it('fetches a page from whichever index has it', async () => {
+    const { call } = localized();
+    expect((await call('fetch', { id: '/fr/install' })).structuredContent?.title).toBe(
+      'Installation',
+    );
+    expect((await call('fetch', { id: '/install' })).structuredContent?.title).toBe('Install');
+    expect((await call('fetch', { id: '/de/install' })).isError).toBe(true);
+  });
+});
+
 describe('protocol errors', () => {
   it('answers unknown methods with -32601', async () => {
     const { response, body } = await setup().rpc('resources/list');
@@ -531,6 +657,10 @@ describe('origins', () => {
     const { response } = await rpc('ping', undefined, { origin: 'https://app.example' });
     expect(response.headers.get('access-control-allow-origin')).toBe('https://app.example');
     expect(response.headers.get('vary')).toBe('origin');
+    // A browser client reads the version, and how long to wait after a 429.
+    expect(response.headers.get('access-control-expose-headers')).toBe(
+      'mcp-protocol-version, retry-after',
+    );
     const preflight = await handler(
       new Request(ENDPOINT, {
         method: 'OPTIONS',

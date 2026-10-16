@@ -36,11 +36,12 @@ let handlers: Promise<{ ask: Handler; mcp: Handler }> | undefined;
 /** The site's URL, with a trailing slash, as a base for its files' URLs. */
 const siteOf = (env: Env): URL => new URL(`${env.SITE_URL.replace(/\/+$/, '')}/`);
 
-/** CORS for the site's origin, and only for it. */
+/** CORS for the site's origin, and only for it. The dialog reads Retry-After on a 429. */
 const corsFor = (env: Env): Record<string, string> => ({
   'access-control-allow-origin': siteOf(env).origin,
   'access-control-allow-methods': 'POST, OPTIONS',
   'access-control-allow-headers': 'content-type',
+  'access-control-expose-headers': 'retry-after',
   'access-control-max-age': '86400',
   vary: 'origin',
 });

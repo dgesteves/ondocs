@@ -8,6 +8,7 @@ import { MOCK_MIN_SIMILARITY, mockEmbeddingModel, mockLanguageModel } from '../s
 import {
   createAskHandler,
   formatPrompt,
+  memoryRateLimit,
   upstashRateLimit,
   type AskHandlerOptions,
 } from '../src/server';
@@ -386,6 +387,99 @@ describe('createAskHandler', () => {
     expect(response.status).toBe(204);
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
     expect(response.headers.get('allow')).toBe('POST, OPTIONS');
+  });
+
+  describe('allowedOrigins', () => {
+    const ORIGINS = ['https://blog.example', 'https://preview.example'];
+    const preflight = (handler: (request: Request) => Promise<Response>, origin: string) =>
+      handler(
+        new Request('https://docs.example/api/ask', {
+          method: 'OPTIONS',
+          headers: {
+            origin,
+            'access-control-request-method': 'POST',
+            'access-control-request-headers': 'content-type',
+          },
+        }),
+      );
+    const ask = (
+      handler: (request: Request) => Promise<Response>,
+      origin: string | null,
+    ): Promise<Response> =>
+      handler(
+        new Request('https://docs.example/api/ask', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-forwarded-for': '203.0.113.7',
+            ...(origin ? { origin } : {}),
+          },
+          body: JSON.stringify({ question: 'How are int8 vectors stored?' }),
+        }),
+      );
+
+    it('answers each listed origin’s preflight with CORS headers for that origin', async () => {
+      const { handler } = setup({ allowedOrigins: ORIGINS });
+      for (const origin of ORIGINS) {
+        const response = await preflight(handler, origin);
+        expect(response.status).toBe(204);
+        expect(response.headers.get('access-control-allow-origin')).toBe(origin);
+        expect(response.headers.get('access-control-allow-methods')).toBe('POST, OPTIONS');
+        expect(response.headers.get('access-control-allow-headers')).toBe('content-type');
+        expect(response.headers.get('access-control-max-age')).toBe('86400');
+        expect(response.headers.get('vary')).toBe('origin');
+      }
+    });
+
+    it('lets a listed origin read the answer, and Retry-After on a 429', async () => {
+      const { handler } = setup({
+        allowedOrigins: ORIGINS,
+        rateLimit: memoryRateLimit({ limit: 1, windowMs: 60_000 }),
+      });
+      const answered = await ask(handler, 'https://blog.example');
+      expect(answered.status).toBe(200);
+      expect(answered.headers.get('access-control-allow-origin')).toBe('https://blog.example');
+      expect(answered.headers.get('access-control-expose-headers')).toBe('retry-after');
+      expect(answerOf((await readParts(answered)).parts)).toBe('Vectors are stored as int8 [1].');
+      const limited = await ask(handler, 'https://blog.example');
+      expect(limited.status).toBe(429);
+      expect(limited.headers.get('retry-after')).toMatch(/^\d+$/);
+      expect(limited.headers.get('access-control-allow-origin')).toBe('https://blog.example');
+      expect(limited.headers.get('access-control-expose-headers')).toBe('retry-after');
+    });
+
+    it('gives any other origin no CORS headers, and its own pages none, as they need none', async () => {
+      const { handler } = setup({ allowedOrigins: ORIGINS });
+      for (const origin of [
+        'https://evil.example',
+        'https://blog.example.evil.example',
+        'http://blog.example',
+        'null',
+      ]) {
+        const response = await preflight(handler, origin);
+        expect(response.status).toBe(204);
+        expect(response.headers.get('access-control-allow-origin')).toBeNull();
+        expect(response.headers.get('access-control-allow-methods')).toBeNull();
+        const answer = await ask(handler, origin);
+        expect(answer.headers.get('access-control-allow-origin')).toBeNull();
+        await answer.body?.cancel();
+      }
+      // The site's own pages, and a client outside a browser, are answered as before.
+      for (const origin of ['https://docs.example', null]) {
+        const answer = await ask(handler, origin);
+        expect(answer.status).toBe(200);
+        expect(answer.headers.get('access-control-allow-origin')).toBeNull();
+        await answer.body?.cancel();
+      }
+    });
+
+    it("takes '*' for any origin, without vary", async () => {
+      const { handler } = setup({ allowedOrigins: '*' });
+      const response = await preflight(handler, 'https://anywhere.example');
+      expect(response.headers.get('access-control-allow-origin')).toBe('*');
+      expect(response.headers.get('access-control-allow-headers')).toBe('content-type');
+      expect(response.headers.get('vary')).toBeNull();
+    });
   });
 
   it('treats a client hanging up during embedding as an abort, not an error', async () => {

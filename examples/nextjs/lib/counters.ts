@@ -1,5 +1,4 @@
-import { DEMO_ORIGINS } from '../app/api/ask/cors';
-import { SITE_URL } from './site';
+import { DEMO_ORIGINS, SITE_URL } from './site';
 
 /*
  * Counters for the deployment's logs: one JSON line per question, answer, MCP connection and MCP
@@ -32,13 +31,13 @@ async function errorCode(response: Response): Promise<string | null> {
 }
 
 /**
- * Where a question came from: this site or one of the live demos (app/api/ask/cors.ts), by their
+ * Where a question came from: this site or one of the live demos (lib/site.ts), by their
  * origin; "other" for any other origin; null for a request with none, such as curl's.
  */
 function askedFrom(request: Request): string | null {
   const origin = request.headers.get('origin');
   if (origin === null) return null;
-  return origin === SITE_URL || DEMO_ORIGINS.has(origin) ? origin : 'other';
+  return origin === SITE_URL || DEMO_ORIGINS.includes(origin) ? origin : 'other';
 }
 
 /**
