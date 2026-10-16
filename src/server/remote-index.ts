@@ -5,17 +5,22 @@ import { loadIndex, type LoadedIndex } from '../search/retrieve';
 /** Marks a source the handlers ask for the index on every request, as it can change. */
 export const LIVE_INDEX = Symbol.for('ondocs.liveIndex');
 
+/** The longest `timeoutSeconds`: `setTimeout` waits at most 2 ** 31 - 1 ms. */
+const MAX_TIMEOUT_SECONDS = 2_147_483;
+
 export interface RemoteIndexOptions {
   /**
-   * How long a fetched index is used before it is checked again, in seconds. The check runs in
-   * the background: the request that finds the index due, and any during the check, are answered
-   * from the index in memory. It is a conditional request (`If-None-Match`, `If-Modified-Since`):
-   * a `304` keeps the index, and only a changed file is downloaded and loaded again. Default 300.
+   * How long a fetched index is used before it is checked again, in seconds. The request that
+   * finds the index due waits for the check, at most `timeoutSeconds`, and requests that arrive
+   * during it are answered from the index in memory. The check is a conditional request
+   * (`If-None-Match`, `If-Modified-Since`): a `304` keeps the index, and only a changed file is
+   * downloaded and loaded again. Default 300.
    */
   revalidateSeconds?: number;
   /**
    * How long one fetch of the index may take, response and file, in seconds, before it is given
-   * up. Raise it for a very large index on a slow link. Default 10.
+   * up. Raise it for a very large index on a slow link. Default 10, at most 2147483 (the longest a
+   * timer can wait, about 24 days).
    */
   timeoutSeconds?: number;
   /**
@@ -54,10 +59,12 @@ interface Fetched {
  * export default { fetch: createAskHandler({ index, model }) };
  * ```
  *
- * Only the first fetch holds up a request, and only its failure fails one; the next request tries
- * again. A check that fails (the site is down, answers with an error, sends a file that does not
- * load, or takes more than `timeoutSeconds`) keeps the index it has for another
- * `revalidateSeconds`. Both handlers given the same `remoteIndex` share one copy.
+ * Only the first fetch's failure fails a request; the next request tries again. The request that
+ * finds the index due for a check waits for it, at most `timeoutSeconds`, and requests that arrive
+ * during the check are answered from the index in hand. A check that fails (the site is down,
+ * answers with an error, sends a file that does not load, or takes more than `timeoutSeconds`)
+ * keeps the index it has for another `revalidateSeconds`. Both handlers given the same
+ * `remoteIndex` share one copy.
  */
 export function remoteIndex(url: string | URL, options: RemoteIndexOptions = {}): RemoteIndex {
   const href = String(url);
@@ -68,12 +75,13 @@ export function remoteIndex(url: string | URL, options: RemoteIndexOptions = {})
     );
   }
   const timeoutSeconds = options.timeoutSeconds ?? 10;
-  const timeoutMs = timeoutSeconds * 1000;
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+  // A longer delay overflows `setTimeout`, which then fires at once and fails every fetch.
+  if (!(timeoutSeconds > 0 && timeoutSeconds <= MAX_TIMEOUT_SECONDS)) {
     throw new RangeError(
-      `remoteIndex: timeoutSeconds must be more than 0 (got ${String(options.timeoutSeconds)}).`,
+      `remoteIndex: timeoutSeconds must be more than 0 and at most ${String(MAX_TIMEOUT_SECONDS)}, the longest a timer can wait (got ${String(options.timeoutSeconds)}).`,
     );
   }
+  const timeoutMs = timeoutSeconds * 1000;
   const now = options.now ?? Date.now;
   const fetcher = options.fetch ?? ((request: Request) => fetch(request));
   let current: Fetched | null = null;
@@ -137,7 +145,7 @@ export function remoteIndex(url: string | URL, options: RemoteIndexOptions = {})
     const timedOut = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
         const error = new DOMException(
-          `The index took more than ${String(timeoutSeconds)} s to download.`,
+          `The index took more than ${String(timeoutSeconds)} s to download. Raise timeoutSeconds for a large index on a slow link.`,
           'TimeoutError',
         );
         abort.abort(error);
@@ -166,7 +174,7 @@ export function remoteIndex(url: string | URL, options: RemoteIndexOptions = {})
   /**
    * Downloads the index, or joins the download under way. One that has not settled in twice
    * `timeoutSeconds` is left behind for a new one: on a Worker, a fetch and its timer end with
-   * the request that started them.
+   * the request that started them, which is cancelled if its client goes away.
    */
   const refresh = (): Promise<LoadedIndex> => {
     if (pending && now() - pendingSince < 2 * timeoutMs) return pending;
@@ -180,10 +188,15 @@ export function remoteIndex(url: string | URL, options: RemoteIndexOptions = {})
 
   const get = (): Promise<LoadedIndex> => {
     if (!current) return refresh();
-    // A check never holds up a question: it runs while this one is answered from the index in
-    // hand, and a failed one keeps that index.
-    if (now() - current.checkedAt >= revalidateMs) void refresh().catch(() => undefined);
-    return Promise.resolve(current.index);
+    const held = current;
+    if (now() - held.checkedAt < revalidateMs) return Promise.resolve(held.index);
+    // A check under way does not hold up anyone else: they are answered from the index in hand.
+    if (pending && now() - pendingSince < 2 * timeoutMs) return Promise.resolve(held.index);
+    // The request that finds the index due waits for the check rather than leave it running after
+    // the answer: a Worker cancels what a request started once it has answered, and a serverless
+    // function can be frozen. The wait is at most timeoutSeconds, and a failed check keeps the
+    // index in hand.
+    return refresh().catch(() => held.index);
   };
 
   return Object.assign(get, { [LIVE_INDEX]: true as const, url: href });

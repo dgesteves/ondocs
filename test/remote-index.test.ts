@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildIndex, serializeIndexFile } from '../src';
 import { mockEmbeddingModel, mockLanguageModel } from '../src/mock';
@@ -63,9 +63,13 @@ function within<T>(promise: Promise<T>, ms: number): Promise<T | 'no answer'> {
   ]);
 }
 
-const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 describe('remoteIndex', () => {
+  // Here, not in a finally: a test that times out never reaches its finally, and the fake timers
+  // would stall every test after it.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('fetches the index once, then keeps it until it is time to check again', async () => {
     const text = await indexText();
     const host = site(() => text);
@@ -92,12 +96,9 @@ describe('remoteIndex', () => {
     const before = await index();
     text = await indexText(corpus.slice(0, 2));
     now = 301_000;
-    // The request that finds it due is answered from the copy in hand, and the next from the new one.
-    expect(await index()).toBe(before);
-    await vi.waitFor(async () => {
-      expect((await index()).documents.length).toBe(2);
-    });
-    expect(host.requests).toHaveLength(2);
+    const after = await index();
+    expect(after).not.toBe(before);
+    expect(after.documents.length).toBe(2);
   });
 
   it('keeps the index it has while the site is down, and fails only the first fetch', async () => {
@@ -125,7 +126,7 @@ describe('remoteIndex', () => {
     expect(await index()).toBe(loaded);
   });
 
-  it('answers from the index it has while the site is checked again, even when the site hangs', async () => {
+  it('keeps answering from the index it has when the site hangs during a check', async () => {
     const text = await indexText();
     const requests: Request[] = [];
     const fetch = (request: Request) => {
@@ -136,20 +137,22 @@ describe('remoteIndex', () => {
     const index = remoteIndex(URL_, { fetch, now: () => now, timeoutSeconds: 0.05 });
     const loaded = await index();
 
-    // Five minutes later the site stops answering. The visitor who finds the index due, and one
-    // during the check, are answered at once, and share the one check.
+    // Five minutes later the site stops answering. The visitor who finds the index due waits for
+    // the check; one who arrives during it is answered at once from the index in hand.
     now = 301_000;
+    const first = index();
     expect(await within(index(), 20)).toBe(loaded);
-    expect(await within(index(), 20)).toBe(loaded);
+    expect(await within(first, 20)).toBe('no answer');
     expect(requests).toHaveLength(2);
 
-    // The check is given up after timeoutSeconds, and the index kept for another five minutes.
-    await pause(100);
+    // The check is given up after timeoutSeconds: the first visitor gets the index in hand, which
+    // is kept for another five minutes.
+    expect(await within(first, 1000)).toBe(loaded);
     expect(requests[1]?.signal.aborted).toBe(true);
     expect(await index()).toBe(loaded);
     expect(requests).toHaveLength(2);
     now = 602_000;
-    expect(await index()).toBe(loaded);
+    expect(await within(index(), 1000)).toBe(loaded);
     expect(requests).toHaveLength(3);
   });
 
@@ -159,7 +162,7 @@ describe('remoteIndex', () => {
     const fetch = () => (++calls === 1 ? hang() : Promise.resolve(new Response(text)));
     const index = remoteIndex(URL_, { fetch, timeoutSeconds: 0.05 });
     await expect(within(index(), 1000)).rejects.toThrow(
-      `Could not fetch the index at ${URL_}: TimeoutError: The index took more than 0.05 s to download.`,
+      `Could not fetch the index at ${URL_}: TimeoutError: The index took more than 0.05 s to download. Raise timeoutSeconds for a large index on a slow link.`,
     );
     expect((await index()).documents.length).toBe(corpus.length);
     expect(calls).toBe(2);
@@ -176,16 +179,15 @@ describe('remoteIndex', () => {
     let now = 0;
     const index = remoteIndex(URL_, { fetch, now: () => now, timeoutSeconds: 0.05 });
     await expect(within(index(), 1000)).rejects.toThrow(
-      `Could not fetch the index at ${URL_}: TimeoutError:`,
+      `Could not fetch the index at ${URL_}: TimeoutError: The index took more than 0.05 s to download. Raise timeoutSeconds for a large index on a slow link.`,
     );
     stalled = false;
     const loaded = await index();
 
-    // A check whose file stalls keeps the index in hand.
+    // A check whose file stalls is given up after timeoutSeconds, and keeps the index in hand.
     stalled = true;
     now = 301_000;
-    expect(await within(index(), 20)).toBe(loaded);
-    await pause(100);
+    expect(await within(index(), 1000)).toBe(loaded);
     expect(await index()).toBe(loaded);
     expect(calls).toBe(3);
   });
@@ -202,7 +204,6 @@ describe('remoteIndex', () => {
     const loaded = await index();
     now = 5_000;
     expect(await index()).toBe(loaded);
-    await pause(20);
     // The failed check counts as one: the next is revalidateSeconds later.
     expect(await index()).toBe(loaded);
     expect(calls).toBe(2);
@@ -225,32 +226,27 @@ describe('remoteIndex', () => {
     expect((await index()).documents.length).toBe(corpus.length);
   });
 
-  it('starts another check when one never settles, as on a Worker whose request ended', async () => {
+  it('starts another check when one never settles, as on a Worker whose request was cancelled', async () => {
     let text = await indexText();
     let calls = 0;
     // The second fetch dies with the request that started it: neither it nor its timer settles.
     const fetch = () => (++calls === 2 ? hang() : Promise.resolve(new Response(text)));
     let now = 0;
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    try {
-      const index = remoteIndex(URL_, { fetch, now: () => now, timeoutSeconds: 1 });
-      const loaded = await index();
-      text = await indexText(corpus.slice(0, 2));
-      now = 301_000;
-      expect(await index()).toBe(loaded);
-      // Within twice timeoutSeconds, the check under way is left to finish.
-      now = 302_000;
-      expect(await index()).toBe(loaded);
-      expect(calls).toBe(2);
-      now = 303_001;
-      await index();
-      expect(calls).toBe(3);
-      await vi.waitFor(async () => {
-        expect((await index()).documents.length).toBe(2);
-      });
-    } finally {
-      vi.useRealTimers();
-    }
+    const index = remoteIndex(URL_, { fetch, now: () => now, timeoutSeconds: 1 });
+    const loaded = await index();
+    text = await indexText(corpus.slice(0, 2));
+    now = 301_000;
+    void index();
+    // Within twice timeoutSeconds, the check under way is left to finish, and requests are
+    // answered from the index in hand.
+    now = 302_000;
+    expect(await index()).toBe(loaded);
+    expect(calls).toBe(2);
+    // After that, the next request checks again, and waits for the new index.
+    now = 303_001;
+    expect((await index()).documents.length).toBe(2);
+    expect(calls).toBe(3);
   });
 
   it('shares one fetch between concurrent requests', async () => {
@@ -273,9 +269,19 @@ describe('remoteIndex', () => {
     expect(() => remoteIndex(URL_, { revalidateSeconds: -1 })).toThrow(RangeError);
   });
 
-  it('rejects a timeoutSeconds that is not more than 0, or not finite', () => {
+  it('rejects a timeoutSeconds that is not more than 0, or longer than a timer can wait', async () => {
     expect(() => remoteIndex(URL_, { timeoutSeconds: 0 })).toThrow(RangeError);
+    expect(() => remoteIndex(URL_, { timeoutSeconds: Number.NaN })).toThrow(RangeError);
     expect(() => remoteIndex(URL_, { timeoutSeconds: Infinity })).toThrow(RangeError);
+    // Past 2 ** 31 - 1 ms, setTimeout fires at once, and every fetch would time out.
+    expect(() => remoteIndex(URL_, { timeoutSeconds: 2_147_484 })).toThrow(
+      'remoteIndex: timeoutSeconds must be more than 0 and at most 2147483, the longest a timer can wait (got 2147484).',
+    );
+    expect(() => remoteIndex(URL_, { timeoutSeconds: 1e7 })).toThrow(RangeError);
+    const text = await indexText();
+    const host = site(() => text);
+    const longest = remoteIndex(URL_, { fetch: host.fetch, timeoutSeconds: 2_147_483 });
+    expect((await longest()).documents.length).toBe(corpus.length);
   });
 
   it('feeds both handlers, which follow the site as it changes', async () => {
@@ -300,14 +306,10 @@ describe('remoteIndex', () => {
       ).then((response) => response.text());
     expect(await question('How do I rate limit with Upstash?')).toContain("I don't know");
 
-    // The site adds the rate limiting page and redeploys. The question that finds the index due
-    // is answered from the copy in hand while it is checked; the next, from the new one.
+    // The site adds the rate limiting page and redeploys.
     text = await indexText();
     now = 301_000;
-    expect(await question('How do I rate limit with Upstash?')).toContain("I don't know");
-    await vi.waitFor(async () => {
-      expect(await question('How do I rate limit with Upstash?')).toContain('/docs/rate-limits');
-    });
+    expect(await question('How do I rate limit with Upstash?')).toContain('/docs/rate-limits');
     const listed = await mcp(
       new Request('https://ask.example.com/api/mcp', {
         method: 'POST',
