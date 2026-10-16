@@ -10,6 +10,7 @@ import { renderToString } from 'react-dom/server';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { openAskDialog } from '../src/embed';
+import { OPEN_EVENT } from '../src/embed/open';
 import * as react from '../src/react';
 import { AskButton, type AskButtonProps } from '../src/react';
 
@@ -62,6 +63,13 @@ function answering(): string[] {
     }),
   );
   return asked;
+}
+
+/** Lets what is in flight finish: a question the dialog would ask, and its answer. */
+async function settle(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
 }
 
 describe('AskButton', () => {
@@ -175,12 +183,58 @@ describe('AskButton', () => {
   });
 
   it('stops listening for openAskDialog() once it is unmounted', () => {
-    const { unmount } = render(<AskButton />);
+    const onOpenChange = vi.fn();
+    const { unmount } = render(<AskButton onOpenChange={onOpenChange} />);
     unmount();
     act(() => {
       openAskDialog();
     });
-    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('listens once, though the parent passes a new onOpenChange on each render', () => {
+    const listen = vi.spyOn(window, 'addEventListener');
+    const first = vi.fn();
+    const second = vi.fn();
+    /** A new function on each render, as an inline `onOpenChange` is. */
+    const calling = (spy: (open: boolean) => void) => (open: boolean) => {
+      spy(open);
+    };
+    const { rerender } = render(<AskButton onOpenChange={calling(first)} />);
+    rerender(<AskButton onOpenChange={calling(second)} />);
+    rerender(<AskButton onOpenChange={calling(second)} />);
+    expect(listen.mock.calls.filter(([type]) => type === OPEN_EVENT)).toHaveLength(1);
+    act(() => {
+      openAskDialog();
+    });
+    // The latest one hears of it.
+    expect(first).not.toHaveBeenCalled();
+    expect(second.mock.calls).toEqual([[true]]);
+  });
+
+  it('tells the parent once when Escape closes it, also opened from elsewhere on the page', async () => {
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(<AskButton onOpenChange={onOpenChange} title="Ask Acme" />);
+    act(() => {
+      openAskDialog();
+    });
+    expect(await screen.findByRole('dialog', { name: 'Ask Acme' })).toBeTruthy();
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(onOpenChange.mock.calls).toEqual([[true], [false]]);
+    cleanup();
+
+    const opened = vi.fn();
+    render(<AskButton defaultOpen onOpenChange={opened} title="Ask Acme" />);
+    expect(await screen.findByRole('dialog', { name: 'Ask Acme' })).toBeTruthy();
+    await user.keyboard('{Escape}');
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(opened.mock.calls).toEqual([[false]]);
   });
 
   it('keeps a controlled open state with the parent, and tells it when something opens it', async () => {
@@ -194,6 +248,34 @@ describe('AskButton', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     rerender(<AskButton open onOpenChange={onOpenChange} title="Ask Acme" />);
     expect(await screen.findByRole('dialog', { name: 'Ask Acme' })).toBeTruthy();
+  });
+
+  it('asks a question from elsewhere once, though a controlled parent closes and reopens it itself', async () => {
+    const asked = answering();
+    const onOpenChange = vi.fn();
+    const button = (open: boolean) => (
+      <AskButton open={open} onOpenChange={onOpenChange} title="Ask Acme" />
+    );
+    const { rerender } = render(button(false));
+    act(() => {
+      openAskDialog('First?');
+    });
+    expect(onOpenChange).toHaveBeenLastCalledWith(true);
+    // The parent opens it in a render of its own, and the question waits for that.
+    rerender(button(true));
+    expect(await screen.findByText('You asked: First?')).toBeTruthy();
+
+    // It closes the dialog itself, as on a route change, with no onOpenChange, then opens it again.
+    rerender(button(false));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    rerender(button(true));
+    expect(await screen.findByRole('dialog', { name: 'Ask Acme' })).toBeTruthy();
+    await settle();
+    // The question is not asked again, and the thread is still there.
+    expect(asked).toEqual(['First?']);
+    expect(screen.getByText('You asked: First?')).toBeTruthy();
   });
 
   it('renders on the server, and hydrates without a mismatch', () => {
@@ -262,6 +344,34 @@ describe('poweredBy', () => {
     expect(
       within(whole).getByRole('link', { name: 'Réponses par ondocs' }).getAttribute('href'),
     ).toBe('https://ondocs.vercel.app');
+  });
+
+  it('takes its words from labels.poweredBy, so a translated dialog needs no string of its own', async () => {
+    const element = await footer({
+      poweredBy: true,
+      labels: { footer: 'Les réponses peuvent être fausses.', poweredBy: 'Réponses par {ondocs}.' },
+    });
+    const credit = element.querySelector('.ask-powered-by');
+    expect(credit?.textContent).toBe('Réponses par ondocs.');
+    expect(element.textContent).toContain(
+      'Les réponses peuvent être fausses. Réponses par ondocs.',
+    );
+    expect(within(element).getByRole('link', { name: 'ondocs' }).getAttribute('href')).toBe(
+      'https://ondocs.vercel.app',
+    );
+    // Its own class, not an answer's: site CSS for answers doesn't reach it.
+    expect(credit?.className).toBe('ask-powered-by');
+    expect(element.querySelector('.ask-markdown')).toBeNull();
+    cleanup();
+
+    // A string wins over the label, as `launcher` does.
+    const own = await footer({
+      poweredBy: 'Answers and docs MCP by {ondocs}.',
+      labels: { poweredBy: 'Réponses par {ondocs}.' },
+    });
+    expect(own.querySelector('.ask-powered-by')?.textContent).toBe(
+      'Answers and docs MCP by ondocs.',
+    );
   });
 
   it('stays out of a footer of the site’s own, which replaces the line too', async () => {

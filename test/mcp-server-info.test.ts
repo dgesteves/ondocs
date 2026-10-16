@@ -75,4 +75,11 @@ describe('the MCP server’s name and version', () => {
     const { initialize } = await serverInfo({ name: 'signoff-ui-docs' });
     expect(initialize).toMatchObject({ name: 'signoff-ui-docs', version: packageJson.version });
   });
+
+  it('fall back to the defaults when given empty, as clients show no empty name or version', async () => {
+    const { initialize, discover } = await serverInfo({ name: '', version: '' });
+    const expected = { name: 'ondocs', version: packageJson.version };
+    expect(initialize).toMatchObject(expected);
+    expect(discover).toMatchObject(expected);
+  });
 });

@@ -39,6 +39,8 @@ export interface AskDialogLabels {
   footerAsk: string;
   /** The footer's hint for Escape, after the esc key. */
   footerClose: string;
+  /** The footer's credit line, with `poweredBy` set: `{ondocs}` is the link to ondocs's site. */
+  poweredBy: string;
   /** While the site is searched. */
   searching: string;
   /** Announced while the answer streams. */
@@ -125,6 +127,7 @@ export const DEFAULT_LABELS: Readonly<DefaultLabels> = {
   footerNoSources: 'Answers come from this site and can be wrong.',
   footerAsk: 'ask',
   footerClose: 'close',
+  poweredBy: 'Answers by {ondocs}.',
   searching: 'Searching the site…',
   writing: 'Writing an answer…',
   noAnswerFound: 'No answer found on this site.',

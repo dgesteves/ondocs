@@ -1,7 +1,14 @@
 // The buttons that open the dialog. `AskButton` is part of the public `ondocs/react` API. The
 // dialog with its floating "Ask AI" button, and the site's color scheme, are what the Docusaurus
 // theme and ondocs/embed render, and not part of it.
-import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 
 import { listenForOpen } from '../embed/open';
 import type { OndocsDialogOptions, OndocsTheme } from '../embed/options';
@@ -39,9 +46,10 @@ export interface AskButtonProps extends Omit<AskDialogProps, 'trigger' | 'launch
   /** Class names for the button, after `ondocs-button`. */
   className?: string;
   /**
-   * A credit line at the end of the dialog's footer, "Answers by ondocs.", whose link opens
-   * ondocs.vercel.app in a new tab. Off by default. `true`, or the line in your own words, with
-   * `{ondocs}` where the link goes. A `footer` of your own replaces it with the rest.
+   * A credit line at the end of the dialog's footer, whose link opens ondocs.vercel.app in a new
+   * tab. Off by default. `true` shows `labels.poweredBy`, "Answers by {ondocs}."; a string is the
+   * line in your own words. `{ondocs}` is where the link goes. A `footer` of your own replaces it
+   * with the rest.
    */
   poweredBy?: boolean | string;
 }
@@ -75,13 +83,32 @@ export function AskButton({
   const [opened, setOpened] = useState<{ open: boolean; question?: string }>({
     open: defaultOpen,
   });
-  const setOpen = useCallback(
-    (open: boolean, asking?: string) => {
-      setOpened(asking ? { open, question: asking } : { open });
-      onOpenChange?.(open);
-    },
-    [onOpenChange],
-  );
+  const open = openProp ?? opened.open;
+  // That question is asked when the dialog opens, and dropped when it closes, however it closes:
+  // a controlled parent can close it without `onOpenChange`, as on a route change, and opening it
+  // again must not ask it again in a new thread. A parent that opens it a render later still gets
+  // the question.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (!open && opened.question !== undefined) setOpened({ open: opened.open });
+  }
+
+  // The latest `open` and `onOpenChange`, so the listeners below subscribe once, and the parent
+  // hears of each change once: one Escape can reach both the dialog and its fallback for before
+  // its code has loaded.
+  const openRef = useRef(open);
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => {
+    openRef.current = open;
+    onOpenChangeRef.current = onOpenChange;
+  });
+  const setOpen = useCallback((next: boolean, asking?: string) => {
+    setOpened(asking ? { open: next, question: asking } : { open: next });
+    if (next === openRef.current) return;
+    openRef.current = next;
+    onOpenChangeRef.current?.(next);
+  }, []);
 
   useEffect(
     () =>
@@ -105,7 +132,7 @@ export function AskButton({
     <AskDialog
       {...props}
       shortcut={shortcut}
-      open={openProp ?? opened.open}
+      open={open}
       onOpenChange={setOpen}
       {...(asking ? { question: asking } : {})}
       trigger={

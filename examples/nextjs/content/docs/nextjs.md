@@ -105,7 +105,7 @@ Then render `<Ask />` in `app/layout.tsx`. `launcher` shows a floating "Ask AI" 
 
 ## Open it from your own button
 
-Leave `launcher` out and pass `trigger` to open the dialog from an element of your own, such as a search box in your header: `<AskDialog trigger={<button type="button">Ask the docs</button>} />`. Change the shortcut with `shortcut="k"`, for ⌘K on a site whose only search is this dialog, or turn it off with `shortcut={false}`.
+For an "Ask AI" button in your header, with the shortcut on it, render [`AskButton`](/docs/ask-dialog#the-ask-button) in place of `<AskDialog />`: it is the dialog and its button, and takes the same props. Or leave `launcher` out and pass `trigger` to open the dialog from an element of your own, such as a search box: `<AskDialog trigger={<button type="button">Ask the docs</button>} />`. Change the shortcut with `shortcut="k"`, for ⌘K on a site whose only search is this dialog, or turn it off with `shortcut={false}`.
 
 ## Other React frameworks and runtimes
 

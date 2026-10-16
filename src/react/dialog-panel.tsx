@@ -37,7 +37,7 @@ export type DialogPanelProps = Omit<
   open: boolean;
   onOpenChange: (open: boolean) => void;
   theme?: OndocsTheme;
-  /** The footer's credit line, as `AskButton` takes it. */
+  /** The footer's credit line, as `AskButton` takes it: `true` for `labels.poweredBy`, or a line. */
   poweredBy?: boolean | string;
 };
 
@@ -186,15 +186,13 @@ function Feedback({
   );
 }
 
-/** The footer's credit line with `poweredBy` set to `true`, and where its link goes. */
-const POWERED_BY = 'Answers by {ondocs}.';
+/** Where the footer's credit line links, and where in the line the link goes. */
 const ONDOCS_SLOT = '{ondocs}';
 const ONDOCS_URL = 'https://ondocs.vercel.app';
 
 /**
  * The footer's credit line: `line`, with the link to ondocs's site where it says `{ondocs}`, or
  * all of it the link when it doesn't. A new tab, so the answer stays open; the referrer is kept.
- * The link takes the style of an answer's links.
  */
 function PoweredBy({ line }: { line: string }): ReactNode {
   const at = line.indexOf(ONDOCS_SLOT);
@@ -204,7 +202,7 @@ function PoweredBy({ line }: { line: string }): ReactNode {
     </a>
   );
   return (
-    <span className="ask-powered-by ask-markdown">
+    <span className="ask-powered-by">
       {at === -1 ? (
         link(line)
       ) : (
@@ -527,7 +525,7 @@ export function DialogPanel({
                 {poweredBy ? (
                   <>
                     {' '}
-                    <PoweredBy line={poweredBy === true ? POWERED_BY : poweredBy} />
+                    <PoweredBy line={poweredBy === true ? labels.poweredBy : poweredBy} />
                   </>
                 ) : null}
               </span>

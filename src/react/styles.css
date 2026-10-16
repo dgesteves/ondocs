@@ -666,6 +666,12 @@
   border-top: 1px solid var(--ask-border);
 }
 
+/* The credit line's link (`poweredBy`), in the accent as an answer's links are. */
+.ask-powered-by a {
+  color: var(--ask-accent);
+  text-underline-offset: 2px;
+}
+
 .ask-footer-keys {
   display: inline-flex;
   flex: none;

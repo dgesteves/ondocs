@@ -215,9 +215,10 @@ export function createMcpHandler(
   const getIndex = indexLoader(options.index, options.embeddingModel);
   const tools = mcpTools(siteName, maxQueryLength);
   const serverInfo = {
-    name: options.name ?? 'ondocs',
+    // An empty name or version is no name for a client to show.
+    name: options.name || 'ondocs',
     title: siteName === 'this site' ? 'Docs search' : `Search ${siteName}`,
-    version: options.version ?? version,
+    version: options.version || version,
   };
   const instructions =
     options.instructions ??
