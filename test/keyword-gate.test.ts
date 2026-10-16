@@ -3,8 +3,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildIndex, DEFAULT_RETRIEVAL, loadIndex, retrieve } from '../src';
-import { mockEmbeddingModel } from '../src/mock';
+import { MOCK_MIN_SIMILARITY, hashEmbedding, mockEmbeddingModel } from '../src/mock';
 import { createMcpHandler } from '../src/server';
+import { searchSections } from '../src/server/mcp-tools';
+import { OFF_TOPIC, SITES } from './cjk-sites';
 import { corpus } from './helpers';
 
 const { index: keywordOnly } = await buildIndex({ documents: corpus });
@@ -79,5 +81,54 @@ describe('MCP search with nothing past its gate', () => {
     const retry = await search('rate limit');
     expect(retry.structuredContent.results).not.toEqual([]);
     expect(retry.structuredContent.note).toBeUndefined();
+  });
+});
+
+describe('the keyword gate in Chinese, Japanese and Korean', () => {
+  const keywordOnly = async (language: keyof typeof SITES) =>
+    loadIndex((await buildIndex({ documents: SITES[language] })).index);
+
+  it('answers a question that shares words, not a whole run, with the page', async () => {
+    // Each was one term that no page had, so the gate refused it and MCP search found nothing.
+    const zh = await keywordOnly('zh');
+    const install = retrieve(zh, { text: '怎么安装插件？' });
+    expect(install.answerable).toBe(true);
+    expect(install.hits[0]?.chunk.url).toBe('/zh/docs/install#安装插件');
+    expect(searchSections(zh, '怎么部署到 Vercel？', null, {})[0]?.id).toBe(
+      '/zh/docs/deploy#部署到-vercel',
+    );
+    // The deploy page says 部署时需要设置环境变量, inside a longer run.
+    expect(searchSections(zh, '环境变量', null, {}).map((result) => result.id)).toEqual([
+      '/zh/docs/config#环境变量',
+      '/zh/docs/deploy#部署到-vercel',
+    ]);
+    const ja = await keywordOnly('ja');
+    expect(retrieve(ja, { text: 'Vercel にデプロイするには？' }).hits[0]?.chunk.url).toBe(
+      '/ja/docs/deploy#vercel-にデプロイする',
+    );
+    expect(searchSections(ja, 'ダイアログを開くには？', null, {})[0]?.id).toBe(
+      '/ja/docs/dialog#ダイアログを開く',
+    );
+  });
+
+  it('still refuses what the pages do not cover, on every keyword path', async () => {
+    for (const language of ['zh', 'ja', 'ko'] as const) {
+      const documents = SITES[language];
+      const plain = await keywordOnly(language);
+      const mock = loadIndex(
+        (await buildIndex({ documents, embeddingModel: mockEmbeddingModel() })).index,
+      );
+      for (const question of OFF_TOPIC[language]) {
+        expect(retrieve(plain, { text: question }).answerable, question).toBe(false);
+        const vector = hashEmbedding(question, 512);
+        const answer = retrieve(
+          mock,
+          { text: question, vector },
+          { minSimilarity: MOCK_MIN_SIMILARITY },
+        );
+        expect(answer.answerable, question).toBe(false);
+        expect(searchSections(plain, question, null, {}), question).toEqual([]);
+      }
+    }
   });
 });

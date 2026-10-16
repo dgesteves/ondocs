@@ -53,6 +53,13 @@ describe('linear-time parsing of hostile input', () => {
     expect(timed(() => dropHeadingFootnotes(many))).toBeLessThan(250);
   });
 
+  it('splits long lines of CJK sentence ends and closing quotes quickly', () => {
+    for (const unit of ['。', '」', '。」', '！？ ', '。」」」」a', '😀']) {
+      const line = unit.repeat(Math.ceil(100_000 / unit.length));
+      expect(timed(() => chunkDocument(doc(line)))).toBeLessThan(250);
+    }
+  });
+
   it('handles long backtick runs and unclosed tags quickly', () => {
     const backticks = 'a'.concat('`'.repeat(20_000), ' b');
     expect(timed(() => fromMarkdown(backticks, { id: 'x', url: '/x' }))).toBeLessThan(250);

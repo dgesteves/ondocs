@@ -44,6 +44,72 @@ describe('tokenize', () => {
       'document',
     ]);
   });
+
+  it('splits Chinese, Japanese and Korean into pairs of characters', () => {
+    // A run with no space in it was one term, which only the same run matched.
+    expect(tokenize('安装插件：请运行 npm install')).toEqual([
+      '安装',
+      '装插',
+      '插件',
+      '请运',
+      '运行',
+      'npm',
+      'install',
+    ]);
+    expect(tokenize('플러그인을 설치합니다')).toEqual([
+      '플러',
+      '러그',
+      '그인',
+      '인을',
+      '설치',
+      '치합',
+      '합니',
+      '니다',
+    ]);
+    // A run of one character is that character.
+    expect(tokenize('按 ⌘I 打开')).toEqual(['按', '打开']);
+    // The text around a run tokenizes as it did.
+    expect(tokenize('配置 createAskHandler 和 Café')).toEqual([
+      '配置',
+      'createaskhandler',
+      'create',
+      'ask',
+      'handler',
+      '和',
+      'cafe',
+    ]);
+  });
+
+  it('keeps kana voicing marks, folds half-width kana and never splits a surrogate pair', () => {
+    // NFKD with its marks dropped made `デプロイ` into `テフロイ`.
+    expect(tokenize('Netlifyにデプロイする')).toEqual([
+      'netlify',
+      'にデ',
+      'デプ',
+      'プロ',
+      'ロイ',
+      'イす',
+      'する',
+    ]);
+    expect(tokenize('ﾃﾞﾌﾟﾛｲ')).toEqual(tokenize('デプロイ'));
+    expect(tokenize('サーバー')).toEqual(['サー', 'ーバ', 'バー']);
+    expect(tokenize('𠮷野家')).toEqual(['𠮷野', '野家']);
+  });
+
+  it('drops question words in Chinese, Japanese and Korean, as the English stopwords', () => {
+    expect(tokenize('怎么安装插件？')).toEqual(tokenize('安装插件'));
+    expect(tokenize('如何配置模型？')).toEqual(['配置', '置模', '模型']);
+    expect(tokenize('為什麼要設定環境變數？')).toEqual(tokenize('要設定環境變數'));
+    expect(tokenize('APIキーはどこに設定しますか？')).toEqual([
+      'api',
+      'キー',
+      'ーは',
+      'に設',
+      '設定',
+      '定し',
+    ]);
+    expect(tokenize('모델은 어떻게 설정하나요?')).toEqual(tokenize('모델은 설정하나요?'));
+  });
 });
 
 describe('Bm25Index', () => {
