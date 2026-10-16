@@ -62,4 +62,4 @@ Re-running the failed jobs is safe. `changeset publish` publishes only the versi
 
 Each minor release moves the docs' script tags from `ondocs@0.X` to `ondocs@0.Y` (`scripts/sync-cdn-range.mjs`, in the release pull request). From 1.0 the docs can pin `ondocs@1`, and minors stop moving them.
 
-The plugin packages' GitHub releases for 0.9.0 and 0.10.0 came from before this workflow. They can be deleted, keeping their tags (`gh release delete docusaurus-plugin-ondocs@0.10.0`, without `--cleanup-tag`), so the releases page shows only `ondocs`.
+The plugin packages' GitHub releases for 0.9.0, 0.10.0 and 0.11.0 came from before this workflow. They can be deleted, keeping their tags (`gh release delete docusaurus-plugin-ondocs@0.11.0`, without `--cleanup-tag`), so the releases page shows only `ondocs`.

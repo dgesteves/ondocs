@@ -388,7 +388,7 @@ describe('a dry run', () => {
       expect(runs(dryRun?.if, values)).toBe(true);
       const ran = simulate(dryRun, values, {
         'app-token': { token: 'app token' },
-        pending: { count: '3' },
+        pending: { count: '3', version: 'true' },
       });
       expect(ran.filter(writes).map(label)).toEqual([]);
       expect(ran.some((step) => step.uses?.startsWith('changesets/action@'))).toBe(false);
@@ -461,13 +461,17 @@ describe('a dry run', () => {
   });
 
   // The step that counts the pending changesets, run in bash in a checkout whose .changeset holds
-  // `files`, with the real node; returns what it printed and the outputs it wrote.
-  function findPending(files: string[]) {
+  // `files` (paths in .changeset, each an empty changeset unless `contents` gives it other text),
+  // with the real node; returns what it printed and the outputs it wrote.
+  function findPending(files: string[], contents: Record<string, string> = {}) {
     const step = dryRun?.steps.find((s) => s.id === 'pending');
     const dir = mkdtempSync(join(tmpdir(), 'release-pending-'));
     try {
       mkdirSync(join(dir, '.changeset'));
-      for (const file of files) writeFileSync(join(dir, '.changeset', file), '---\n---\n');
+      for (const file of files) {
+        mkdirSync(dirname(join(dir, '.changeset', file)), { recursive: true });
+        writeFileSync(join(dir, '.changeset', file), contents[file] ?? '---\n---\n');
+      }
       writeFileSync(join(dir, 'package.json'), '{ "name": "ondocs", "version": "0.11.0" }\n');
       writeFileSync(join(dir, 'step.sh'), step!.run!);
       const output = join(dir, 'github-output');
@@ -511,7 +515,7 @@ describe('a dry run', () => {
     ]);
     expect(found.stderr).toBe('');
     expect(found.status).toBe(0);
-    expect(found.outputs).toEqual({ count: '0' });
+    expect(found.outputs).toEqual({ count: '0', version: 'false' });
     expect(found.stdout).toContain('No pending changesets: nothing to version');
     expect(found.stdout).toContain('0.11.0');
     expect(dryRunSteps(found.outputs)).toEqual([
@@ -529,13 +533,47 @@ describe('a dry run', () => {
       'quiet-owls-run.md',
     ]);
     expect(found.status).toBe(0);
-    expect(found.outputs).toEqual({ count: '2' });
-    expect(found.stdout).not.toContain('No pending changesets');
+    expect(found.outputs).toEqual({ count: '2', version: 'true' });
+    expect(found.stdout).toContain('Pending changesets: 2. The next step versions the packages.');
     expect(dryRunSteps(found.outputs)).toEqual([
       'Dry run: find the pending changesets',
       'Dry run: version the packages as the release pull request would, without pushing',
       'Dry run: pack the three packages as changeset publish would, without publishing',
       'Dry run: the GitHub release this version would get',
     ]);
+  });
+
+  // `changeset version` reads them as @changesets/read does: .changeset/pre holds the changesets
+  // pre mode has used, and it versions them again; other folders in .changeset it never reads.
+  it('counts the changesets in .changeset/pre and none in other folders', () => {
+    const preState = '{ "mode": "pre", "tag": "next", "initialVersions": {}, "changesets": [] }\n';
+    const found = findPending(['config.json', 'pre.json', 'pre/old-one.md', 'pre/README.md'], {
+      'pre.json': preState,
+    });
+    expect(found.stderr).toBe('');
+    expect(found.outputs).toEqual({ count: '1', version: 'true' });
+    expect(found.stdout).toContain('Pending changesets: 1, pre mode: pre.');
+    expect(dryRunSteps(found.outputs)).toContain(
+      'Dry run: version the packages as the release pull request would, without pushing',
+    );
+
+    const none = findPending(['config.json', 'pre.json', 'drafts/later.md'], {
+      'pre.json': preState,
+    });
+    expect(none.outputs).toEqual({ count: '0', version: 'false' });
+    expect(none.stdout).toContain('No pending changesets (pre mode: pre): nothing to version');
+  });
+
+  it('versions with no changesets when pre mode is being exited', () => {
+    const found = findPending(['config.json', 'pre.json'], {
+      'pre.json': '{ "mode": "exit", "tag": "next", "initialVersions": {}, "changesets": [] }\n',
+    });
+    expect(found.stderr).toBe('');
+    expect(found.status).toBe(0);
+    expect(found.outputs).toEqual({ count: '0', version: 'true' });
+    expect(found.stdout).toContain('Pending changesets: 0, pre mode: exit.');
+    expect(dryRunSteps(found.outputs)).toContain(
+      'Dry run: version the packages as the release pull request would, without pushing',
+    );
   });
 });

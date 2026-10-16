@@ -179,20 +179,26 @@ jobs:
       # `changeset version` fails ('No unreleased changesets found.') when there is nothing to
       # version, as right after a release. The dry run then skips only the version step: it still
       # packs the three packages and shows their GitHub release, at the versions they have now.
-      # Pending changesets are the .md files in .changeset, less those changesets skips (README.md,
-      # AGENTS.md, CLAUDE.md, GEMINI.md and dotfiles), as @changesets/read lists them.
+      # This step makes the same check as `changeset version` (@changesets/cli 3). The changesets
+      # are the .md files @changesets/read lists in .changeset and in .changeset/pre (where pre
+      # mode moves the ones it has used), less README.md, AGENTS.md, CLAUDE.md, GEMINI.md and
+      # dotfiles. With .changeset/pre.json in mode 'exit', it versions even with none.
       - name: 'Dry run: find the pending changesets'
         id: pending
         run: |
-          count=$(find .changeset -maxdepth 1 -type f -name '*.md' ! -name '.*' ! -iname README.md ! -name AGENTS.md ! -name CLAUDE.md ! -name GEMINI.md | wc -l | tr -d ' ')
+          count=$(find .changeset -maxdepth 2 -type f -name '*.md' \( -path '.changeset/pre/*' -o ! -path '.changeset/*/*' \) ! -name '.*' ! -iname README.md ! -name AGENTS.md ! -name CLAUDE.md ! -name GEMINI.md | wc -l | tr -d ' ')
+          pre_mode=
+          if [ -f .changeset/pre.json ]; then pre_mode=$(node -p "require('./.changeset/pre.json').mode"); fi
           echo "count=$count" >> "$GITHUB_OUTPUT"
-          if [ "$count" -eq 0 ]; then
-            echo "No pending changesets: nothing to version. The next steps pack the packages and show their release at $(node -p "require('./package.json').version"), the version they have now."
+          if [ "$count" -gt 0 ] || [ "$pre_mode" = exit ]; then
+            echo "version=true" >> "$GITHUB_OUTPUT"
+            echo "Pending changesets: $count${pre_mode:+, pre mode: $pre_mode}. The next step versions the packages."
           else
-            echo "$count pending changesets: the next step versions the packages."
+            echo "version=false" >> "$GITHUB_OUTPUT"
+            echo "No pending changesets${pre_mode:+ (pre mode: $pre_mode)}: nothing to version. The next steps pack the packages and show their release at $(node -p "require('./package.json').version"), the version they have now."
           fi
       - name: 'Dry run: version the packages as the release pull request would, without pushing'
-        if: steps.pending.outputs.count != '0'
+        if: steps.pending.outputs.version == 'true'
         env:
           # @changesets/changelog-github reads each changeset's pull request with it.
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
