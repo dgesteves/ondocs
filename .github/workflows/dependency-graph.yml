@@ -1,0 +1,103 @@
+name: Dependency graph
+
+# GitHub's dependency graph reads only the first YAML document in pnpm-lock.yaml. pnpm 12 writes the
+# pnpm it pins there (packageManagerDependencies), and every other package in a second document, so
+# the graph listed pnpm and the package.json ranges, and Dependabot raised no alert for a locked
+# package. On each push to main, this job lists the lockfile's packages with pnpm's own reader
+# (`pnpm sbom --lockfile-only`, which installs nothing and runs no dependency code) and submits
+# them to the dependency submission API as the pnpm-lock.yaml manifest. A submitted manifest takes
+# priority over the one GitHub reads, so the graph and Dependabot alerts see every locked package.
+# test/dependency-graph.test.ts runs these steps on the real lockfile.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# The newest commit's snapshot is the one that counts, so a newer run replaces an older one.
+concurrency:
+  group: dependency-graph-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  submit:
+    name: Submit the lockfile's packages to the dependency graph
+    if: github.repository == 'dgesteves/ondocs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # the dependency submission API
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - name: List the lockfile's packages
+        run: pnpm sbom --lockfile-only --sbom-format cyclonedx > "$RUNNER_TEMP/sbom.json"
+      # Each package once, by its package URL, with the packages it depends on. direct: a
+      # workspace package.json names it. development: only devDependencies reach it. pnpm itself,
+      # from packageManager, stays in the graph as it was.
+      - name: Write the dependency snapshot
+        env:
+          SBOM: ${{ runner.temp }}/sbom.json
+          SNAPSHOT: ${{ runner.temp }}/snapshot.json
+        run: |
+          node --input-type=module <<'EOF'
+          import { readFileSync, writeFileSync } from 'node:fs';
+
+          const env = process.env;
+          const sbom = JSON.parse(readFileSync(env.SBOM, 'utf8'));
+          // The workspace root, which the examples depend on: a package of this repository.
+          const root = sbom.metadata.component['bom-ref'];
+          const purls = new Map(sbom.components.map((c) => [c['bom-ref'], c.purl]));
+          const edges = new Map(sbom.dependencies.map((d) => [d.ref, d.dependsOn ?? []]));
+          const direct = new Set(edges.get(root));
+          const resolved = {};
+          for (const c of sbom.components) {
+            if (c['bom-ref'] === root) continue;
+            resolved[c.purl] = {
+              package_url: c.purl,
+              relationship: direct.has(c['bom-ref']) ? 'direct' : 'indirect',
+              scope: c.scope === 'excluded' ? 'development' : 'runtime',
+              dependencies: (edges.get(c['bom-ref']) ?? [])
+                .filter((ref) => ref !== root)
+                .map((ref) => purls.get(ref)),
+            };
+          }
+          const manager = JSON.parse(readFileSync('package.json', 'utf8')).packageManager;
+          const pnpm = `pkg:npm/${manager.replace(/\+.*/, '')}`;
+          resolved[pnpm] = { package_url: pnpm, relationship: 'direct', scope: 'development', dependencies: [] };
+          const run = `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`;
+          const snapshot = {
+            version: 0,
+            sha: env.GITHUB_SHA,
+            ref: env.GITHUB_REF,
+            job: { correlator: `${env.GITHUB_WORKFLOW} ${env.GITHUB_JOB}`, id: env.GITHUB_RUN_ID, html_url: run },
+            detector: {
+              name: 'pnpm sbom',
+              version: sbom.metadata.tools.components.find((t) => t.name === 'pnpm').version,
+              url: 'https://pnpm.io/cli/sbom',
+            },
+            scanned: sbom.metadata.timestamp,
+            manifests: {
+              'pnpm-lock.yaml': { name: 'pnpm-lock.yaml', file: { source_location: 'pnpm-lock.yaml' }, resolved },
+            },
+          };
+          writeFileSync(env.SNAPSHOT, JSON.stringify(snapshot));
+          const all = Object.values(resolved);
+          const count = (key, value) => all.filter((p) => p[key] === value).length;
+          console.log(
+            `${all.length} packages: ${count('relationship', 'direct')} direct, ` +
+              `${count('scope', 'runtime')} runtime, ${count('scope', 'development')} development`,
+          );
+          EOF
+      - name: Submit it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SNAPSHOT: ${{ runner.temp }}/snapshot.json
+        run: |
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dependency-graph/snapshots" --input "$SNAPSHOT" --jq '"\(.result): \(.message)"'

@@ -2,7 +2,7 @@
 // so a red fresh-site or deploy-recipe job blocks a merge as a red verify job does. Each push to
 // main gets a full run of its own, and no job can hold a runner for the 360-minute default.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -105,5 +105,36 @@ describe('CI', () => {
     const minutes = workflow.jobs[id]?.['timeout-minutes'];
     expect(minutes).toBeGreaterThan(0);
     expect(minutes).toBeLessThanOrEqual(20);
+  });
+});
+
+describe('the supply chain', () => {
+  // Dependabot's alerts missed every locked package (test/dependency-graph.test.ts), so CI audits the
+  // lockfile itself. pnpm counts the examples' dependencies and the peers it installs as production;
+  // pnpm-workspace.yaml holds the overrides and the advisories it skips.
+  it('fails CI on a high or critical advisory in a production dependency, and reports the rest', () => {
+    const audit = workflow.jobs.audit;
+    expect([ok?.needs].flat()).toContain('audit');
+    const gate = audit?.steps.find(
+      (step) => step.run?.trim() === 'pnpm audit --prod --audit-level=high',
+    );
+    expect(gate).toBeDefined();
+    expect(gate).not.toHaveProperty('continue-on-error');
+    // The full report, dev dependencies included, goes to the run's summary and fails nothing.
+    const report = audit?.steps.find((step) => step.run?.includes('GITHUB_STEP_SUMMARY'));
+    expect(report?.run).toContain('pnpm audit || true');
+  });
+
+  // A tag can be moved to other code; a commit can't. Dependabot's github-actions updates move the
+  // SHA and the comment together.
+  const workflows = readdirSync(join(root, '.github/workflows')).filter((file) =>
+    file.endsWith('.yml'),
+  );
+  it.each(workflows)('pins every action in %s to a full commit SHA, with its version', (file) => {
+    const source = readFileSync(join(root, '.github/workflows', file), 'utf8');
+    const uses = [...source.matchAll(/^\s*(?:- )?uses: (.+)$/gm)].map((match) => match[1] ?? '');
+    expect(uses.length).toBeGreaterThan(0);
+    for (const line of uses)
+      expect(line).toMatch(/^[\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/);
   });
 });
