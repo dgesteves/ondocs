@@ -30,7 +30,7 @@ export default withOndocs(
       // ondocs's modules from their source, as the tests run before a build.
       resolve: {
         alias: [
-          { find: /^ondocs\/embed$/, replacement: src('embed/index.ts') },
+          { find: /^ondocs\/embed(\/standalone)?$/, replacement: src('embed/index.ts') },
           { find: /^ondocs\/react\/styles\.css$/, replacement: src('react/styles.css') },
           { find: /^ondocs\/embed\/launcher\.css$/, replacement: src('embed/launcher.css') },
           {
