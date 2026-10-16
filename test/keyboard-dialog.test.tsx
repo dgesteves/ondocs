@@ -215,3 +215,88 @@ describe('other keys in the answer', () => {
     await closed();
   });
 });
+
+// A control that unmounts when pressed took focus with it, and Radix dropped it on the dialog's
+// container: a screen reader read the dialog out again, and the keyboard lost its place.
+describe('focus after a control goes away', () => {
+  it('goes from a thumb to "Add a comment"', async () => {
+    const { user, dialog } = await answered(vi.fn());
+    within(dialog).getByRole('button', { name: 'Yes, it helped' }).focus();
+    await user.keyboard('{Enter}');
+    const more = await within(dialog).findByRole('button', { name: 'Add a comment' });
+    expect(document.activeElement).toBe(more);
+  });
+
+  it('goes from a sent comment to "New question"', async () => {
+    const { user, dialog } = await answered(vi.fn());
+    within(dialog).getByRole('button', { name: 'No, it did not help' }).focus();
+    await user.keyboard('{Enter}');
+    (await within(dialog).findByRole('button', { name: 'Add a comment' })).focus();
+    await user.keyboard('{Enter}');
+    await user.keyboard('Too short{Enter}');
+    await within(dialog).findByText('Thanks for the comment.');
+    expect(document.activeElement).toBe(
+      within(dialog).getByRole('button', { name: 'New question' }),
+    );
+  });
+
+  it('goes from Stop to the input', async () => {
+    const user = userEvent.setup();
+    const slow = mockLanguageModel({ initialDelayMs: 0, wordDelayMs: 5_000 });
+    render(<AskDialog fetch={handlerFetch({ model: slow })} defaultOpen />);
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByRole('combobox');
+    await user.type(input, 'How is an int8 vector scaled?{Enter}');
+    (await within(dialog).findByRole('button', { name: 'Stop' })).focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(within(dialog).queryByRole('button', { name: 'Stop' })).toBeNull();
+    });
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('goes from Retry to the input', async () => {
+    const user = userEvent.setup();
+    const fetch = vi.fn(() => Promise.reject(new TypeError('Failed to fetch')));
+    render(<AskDialog fetch={fetch} defaultOpen />);
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByRole('combobox');
+    await user.type(input, 'How is an int8 vector scaled?{Enter}');
+    within(dialog).getByRole('button', { name: 'Retry' }).focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('stays off the input after a tap on Stop, so a phone keeps its keyboard down', async () => {
+    const user = userEvent.setup();
+    const slow = mockLanguageModel({ initialDelayMs: 0, wordDelayMs: 5_000 });
+    render(<AskDialog fetch={handlerFetch({ model: slow })} defaultOpen />);
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByRole('combobox');
+    await user.type(input, 'How is an int8 vector scaled?{Enter}');
+    await user.click(await within(dialog).findByRole('button', { name: 'Stop' }));
+    await waitFor(() => {
+      expect(within(dialog).queryByRole('button', { name: 'Stop' })).toBeNull();
+    });
+    expect(document.activeElement).not.toBe(input);
+  });
+});
+
+// A phone has no Escape key, and with an answer on screen the dialog leaves only an 8 px strip of
+// the page to tap: the dialog needs a control that closes it.
+describe('the Close button', () => {
+  it('closes the dialog, with an answer on screen', async () => {
+    const { user, dialog } = await answered();
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await closed();
+  });
+
+  it('takes its name from labels.close', async () => {
+    render(<AskDialog fetch={handlerFetch()} defaultOpen labels={{ close: 'Fermer' }} />);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Fermer' })).toBeTruthy();
+  });
+});

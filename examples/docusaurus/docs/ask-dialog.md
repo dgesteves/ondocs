@@ -186,6 +186,7 @@ The endpoint's own words, its "I don't know" answer, its rate limit and budget m
 | `list`               | Suggestions                                                                                  |
 | `stop`               | Stop                                                                                         |
 | `escapeKey`          | esc                                                                                          |
+| `close`              | Close                                                                                        |
 | `footer`             | Answers come from this site and can be wrong. Check the sources.                             |
 | `footerNoSources`    | Answers come from this site and can be wrong.                                                |
 | `footerAsk`          | ask                                                                                          |
@@ -201,6 +202,9 @@ The endpoint's own words, its "I don't know" answer, its rate limit and budget m
 | `retry`              | Retry                                                                                        |
 | `sources`            | Sources                                                                                      |
 | `citation`           | Source {n}: {title}                                                                          |
+| `source`             | Source {n}:                                                                                  |
+| `sourceCited`        | Source {n}, cited:                                                                           |
+| `sourceNotCited`     | Source {n}, not cited:                                                                       |
 | `newQuestion`        | New question                                                                                 |
 | `helpfulQuestion`    | Was this helpful?                                                                            |
 | `helpful`            | Yes, it helped                                                                               |
@@ -233,11 +237,11 @@ Import `ondocs/react/styles.css` for the default theme. With `theme="auto"`, the
 
 ## Accessibility
 
-Focus moves into the dialog when it opens and returns to where it was when it closes. The answer region is `aria-live="polite"` and `aria-busy` while text streams, and a separate status region announces when the answer is ready. All animation is turned off under `prefers-reduced-motion`. The test suite runs axe on the dialog before and after it answers, and checks that every text color in the light and dark themes keeps a contrast of at least 4.5:1.
+Focus moves into the dialog when it opens and returns to where it was when it closes. A touch screen has no Escape key, so there a Close button takes the place of the esc hint in the input row. When a control goes away as it is pressed, focus moves on rather than falling to the dialog: from a thumb to "Add a comment", from a sent comment to "New question", and from Stop or Retry pressed with the keyboard to the input. The answer region is `aria-live="polite"` and `aria-busy` while text streams, and a separate status region announces when the answer is ready; an error is announced once, by its alert. Each source's name starts with its number, which its citations name, and whether the answer cites it (the `source`, `sourceCited` and `sourceNotCited` labels), and questions in a thread are headings. On a touch screen, buttons are 44 px tall and citations have a larger area to tap. In forced colors (Windows High Contrast), the selected suggestion is outlined and the cited sources keep their filled number. All animation is turned off under `prefers-reduced-motion`. The test suite runs axe on the dialog before and after it answers, and checks that every text color in the light and dark themes keeps a contrast of at least 4.5:1.
 
 ## While an answer streams
 
-Sources arrive before the first word, and the answer renders as it streams, batched to one update per animation frame. Closing the dialog, by Escape, a click outside or its parent, stops the answer in flight, so the model is not left generating for nobody. When an answer stops at the model's output limit, the dialog says it may be incomplete. Once an answer is complete, the sources it does not cite are dimmed, and an answer that cites none shows no sources.
+Sources arrive before the first word, and the answer renders as it streams, batched to one update per animation frame. Closing the dialog, by Escape, its Close button, a click outside or its parent, stops the answer in flight, so the model is not left generating for nobody. When an answer stops at the model's output limit, the dialog says it may be incomplete. Once an answer is complete, the sources it cites have their number filled and the others are dimmed, and an answer that cites none shows no sources.
 
 ## The useAsk hook
 

@@ -109,7 +109,11 @@
   -webkit-mask: var(--ask-button-icon) center / contain no-repeat;
   mask: var(--ask-button-icon) center / contain no-repeat;
 }
+/* Forced colors drop the fill: a border keeps it a button rather than bare text. */
 @media (forced-colors: active) {
+  .ondocs-button {
+    border: 1px solid ButtonText;
+  }
   .ondocs-button::before {
     background: ButtonText;
     forced-color-adjust: none;

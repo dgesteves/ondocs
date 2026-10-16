@@ -209,6 +209,35 @@
   border-color: var(--ask-accent-line);
 }
 
+/* Closes the dialog. Shown on touch screens only, in the esc hint's place: they have no Escape
+   key, and an answer leaves little of the page around the dialog to tap. Its icon lines up with
+   the search icon across the row. */
+.ask-close {
+  display: none;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-right: -13px;
+  padding: 0;
+  color: var(--ask-muted);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: var(--ask-radius-sm);
+}
+
+@media (hover: none) {
+  .ask-input-row > .ask-kbd {
+    display: none;
+  }
+
+  .ask-close {
+    display: inline-flex;
+  }
+}
+
 .ask-list {
   max-height: 360px;
   padding: 8px;
@@ -448,8 +477,10 @@
   border-bottom: 1px solid var(--ask-border);
 }
 
+/* A heading, so a screen reader can move between the questions, in the answer's own type. */
 .ask-turn-question {
   margin: 0 0 8px;
+  font: inherit;
   font-weight: 600;
   color: var(--ask-fg);
 }
@@ -606,6 +637,13 @@
   background: var(--ask-raised);
 }
 
+/* The sources it cites have their number filled, so they stand apart by more than a shade. Screen
+   readers hear which they are in each source's name. */
+.ask-source[data-cited='true'] .ask-source-id {
+  color: var(--ask-accent-fg);
+  background: var(--ask-accent);
+}
+
 .ask-source-id {
   display: grid;
   place-items: center;
@@ -695,6 +733,50 @@
   .ask-source-url,
   .ask-footer-keys {
     display: none;
+  }
+}
+
+/* Fingers: buttons and the comment field 44 px tall, and citations with a larger area to tap,
+   spaced so that two side by side do not share it. */
+@media (pointer: coarse) {
+  .ask-stop,
+  .ask-retry,
+  .ask-new,
+  .ask-feedback-button,
+  .ask-feedback-more,
+  .ask-feedback-input {
+    height: 44px;
+  }
+
+  .ask-feedback-button {
+    justify-content: center;
+    min-width: 44px;
+  }
+
+  .ask-citation {
+    position: relative;
+    margin: 0 0.5em;
+  }
+
+  .ask-citation::after {
+    position: absolute;
+    inset: -6px;
+    content: '';
+  }
+}
+
+/* Forced colors (Windows High Contrast) drop backgrounds and shadows. The selected suggestion,
+   which keyboard focus is on, takes an outline, and the cited sources keep their filled number. */
+@media (forced-colors: active) {
+  .ask-item[data-selected='true'] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .ask-source[data-cited='true'] .ask-source-id {
+    forced-color-adjust: none;
+    color: HighlightText;
+    background: Highlight;
   }
 }
 
