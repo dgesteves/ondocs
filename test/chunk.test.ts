@@ -131,6 +131,46 @@ Set the options.`),
     expect(listChunk?.text.split('\n').every((line) => line.startsWith('- item'))).toBe(true);
   });
 
+  it('splits an oversized Chinese or Japanese paragraph at its sentence ends, with overlap', () => {
+    const zh = Array.from(
+      { length: 60 },
+      (_, i) => `第${String(i)}步：使用包管理器安装插件，然后重新启动开发服务器以加载新的配置。`,
+    ).join('');
+    const ja = Array.from(
+      { length: 40 },
+      (_, i) => `手順${String(i)}では設定ファイルを開きます！次に、サーバーを再起動しますか？`,
+    ).join('');
+    for (const paragraph of [zh, ja]) {
+      const chunks = chunkDocument(doc(paragraph));
+      expect(chunks.length).toBe(2);
+      // Cut at a sentence end, not hard at maxChars.
+      expect(chunks[0]!.text.length).toBeLessThan(1200);
+      expect(chunks[0]!.text).toMatch(/[。！？：]$/);
+      // The second chunk opens with the end of the first, from the start of a sentence.
+      const lead = chunks[1]!.text.split('\n\n')[0]!;
+      expect(lead.length).toBeGreaterThan(50);
+      expect(chunks[0]!.text.endsWith(lead)).toBe(true);
+      expect(chunks[0]!.text.slice(0, -lead.length)).toMatch(/[。！？]$/);
+      // Sentences are joined as they were written, with no space between them.
+      for (const chunk of chunks) expect(chunk.text).not.toContain(' ');
+      expect(chunks[1]!.text.split('\n\n')[1]).toBe(paragraph.slice(chunks[0]!.text.length));
+    }
+  });
+
+  it('never cuts a surrogate pair in two', () => {
+    const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    const emoji = 'a'.repeat(199) + '😀'.repeat(400);
+    const chunks = chunkDocument(doc(emoji), { maxChars: 200, overlap: 0 });
+    expect(chunks.filter((chunk) => lone.test(chunk.text))).toEqual([]);
+    for (const chunk of chunks) expect(chunk.text.length).toBeLessThanOrEqual(200);
+    expect(chunks.map((chunk) => chunk.text).join('')).toBe(emoji);
+    // A long run of CJK with no punctuation, and an emoji where the hard cut falls.
+    const run = `${'安'.repeat(1199)}😀${'装'.repeat(1300)}`;
+    const cut = chunkDocument(doc(run));
+    expect(cut.filter((chunk) => lone.test(chunk.text))).toEqual([]);
+    expect(cut[0]!.text).toBe('安'.repeat(1199));
+  });
+
   it('does not overlap across sections', () => {
     const body = Array.from({ length: 10 }, (_, i) => sentence(i)).join('\n\n');
     const chunks = chunkDocument(doc(`## A\n\n${body}\n\n## B\n\nFresh start.`), {
