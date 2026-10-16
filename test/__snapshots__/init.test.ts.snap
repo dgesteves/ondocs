@@ -81,7 +81,7 @@ Its other locales, fr, pt-BR, are answered from their own indexes, as the dialog
   updated    netlify.toml               bundles the index of each locale with the functions
 
 Set (init reads none of these):
-  OPENAI_API_KEY, for the functions and the site’s build: in the site's Environment variables, or netlify env:set OPENAI_API_KEY; without it there, the index is keyword-only, which works too
+  OPENAI_API_KEY, for the functions and the site’s build: in the site's Environment variables, or netlify env:set OPENAI_API_KEY; without it, the MCP endpoint works and off-topic questions are refused, but the Ask box cannot answer; for no key at all, init --host github-pages writes a Worker that answers with Workers AI
 
 Next:
   1. npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
@@ -476,7 +476,7 @@ exports[`ondocs init: what it writes per host > Docusaurus on Netlify 2`] = `
   updated    netlify.toml               bundles build/ask-index.json with the functions
 
 Set (init reads none of these):
-  OPENAI_API_KEY, for the functions and the site’s build: in the site's Environment variables, or netlify env:set OPENAI_API_KEY; without it there, the index is keyword-only, which works too
+  OPENAI_API_KEY, for the functions and the site’s build: in the site's Environment variables, or netlify env:set OPENAI_API_KEY; without it, the MCP endpoint works and off-topic questions are refused, but the Ask box cannot answer; for no key at all, init --host github-pages writes a Worker that answers with Workers AI
 
 Next:
   1. npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
@@ -570,7 +570,7 @@ exports[`ondocs init: what it writes per host > Docusaurus on Vercel 2`] = `
   updated    vercel.json  bundles build/ask-index.json with the functions
 
 Set (init reads none of these):
-  OPENAI_API_KEY, for the functions and the site’s build: in the project's Settings, Environment Variables; without it there, the index is keyword-only, which works too
+  OPENAI_API_KEY, for the functions and the site’s build: in the project's Settings, Environment Variables; without it, the MCP endpoint works and off-topic questions are refused, but the Ask box cannot answer; for no key at all, init --host github-pages writes a Worker that answers with Workers AI
 
 Next:
   1. npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
@@ -960,7 +960,7 @@ exports[`ondocs init: what it writes per host > Next.js on Netlify 2`] = `
   created    src/app/api/mcp/route.ts  /api/mcp: the same index as an MCP server for agents, keyword-only
 
 Set (init reads none of these):
-  OPENAI_API_KEY, for the app and the index build: in Netlify's environment variables; without it there, add -e none to the index command for a keyword-only index, which works too
+  OPENAI_API_KEY, for the app and the index build: in Netlify's environment variables; without it, the MCP endpoint works and off-topic questions are refused, but the Ask box cannot answer; for no key at all, init --host github-pages writes a Worker that answers with Workers AI
 
 Next:
   1. npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
@@ -1171,7 +1171,7 @@ exports[`ondocs init: what it writes per host > Starlight on Vercel 2`] = `
   created    vercel.json  bundles dist/ask-index.json with the functions
 
 Set (init reads none of these):
-  OPENAI_API_KEY, for the functions and the site’s build: in the project's Settings, Environment Variables; without it there, the index is keyword-only, which works too
+  OPENAI_API_KEY, for the functions and the site’s build: in the project's Settings, Environment Variables; without it, the MCP endpoint works and off-topic questions are refused, but the Ask box cannot answer; for no key at all, init --host github-pages writes a Worker that answers with Workers AI
 
 Next:
   1. npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
@@ -1269,7 +1269,7 @@ Its other locales, fr, are answered from their own indexes, as the dialog asks.
   updated    vercel.json  bundles the index of each locale with the functions
 
 Set (init reads none of these):
-  OPENAI_API_KEY, for the functions and the site’s build: in the project's Settings, Environment Variables; without it there, the index is keyword-only, which works too
+  OPENAI_API_KEY, for the functions and the site’s build: in the project's Settings, Environment Variables; without it, the MCP endpoint works and off-topic questions are refused, but the Ask box cannot answer; for no key at all, init --host github-pages writes a Worker that answers with Workers AI
 
 Next:
   1. npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk

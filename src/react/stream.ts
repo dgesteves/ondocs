@@ -24,6 +24,7 @@ function toMetadata(value: unknown, id: unknown): (AskMetadata & { id?: string }
     refused: value.refused,
     retrieval: value.retrieval === 'keyword' ? 'keyword' : 'hybrid',
     ...(value.feedback === true ? { feedback: true } : {}),
+    ...(value.misconfigured === true ? { misconfigured: true } : {}),
     ...(typeof id === 'string' && id ? { id } : {}),
   };
 }

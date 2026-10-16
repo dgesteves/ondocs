@@ -53,7 +53,7 @@ export const POST = createAskHandler({
 });
 ```
 
-Importing the JSON bundles the index with the function, and it is loaded into memory once per server instance. Set `OPENAI_API_KEY` in your deployment's environment.
+Importing the JSON bundles the index with the function, and it is loaded into memory once per server instance. Set `OPENAI_API_KEY` in your deployment's environment: without it, the dialog shows `Answers aren’t set up on this site yet.` for every question it does not refuse. See [Troubleshooting](/docs/troubleshooting#answers-arent-set-up-on-this-site-yet).
 
 ## Serve agents over MCP
 
