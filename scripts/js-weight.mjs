@@ -44,7 +44,7 @@ const SITES = {
     // site loads its shared code in one chunk, not two, and 173.8 KB, the benchmarks page's
     // figure. The budget leaves about 4 KB of room, as Starlight's does.
     budget: 182,
-    // The dialog, Radix and cmdk, on the site's React: 27.2 KB.
+    // The dialog, Radix and cmdk, on the site's React: 27.7 KB.
     open: 31,
   },
   starlight: {
@@ -54,7 +54,7 @@ const SITES = {
     // Starlight's own 33.7 KB, with the demo's banner and question box, and ondocs's 2.4 KB:
     // 36.1 KB.
     budget: 40,
-    // ondocs/embed/standalone's dialog, with its own React: 92.6 KB.
+    // ondocs/embed/standalone's dialog, with its own React: 93.1 KB.
     open: 97,
   },
   vitepress: {
@@ -64,7 +64,7 @@ const SITES = {
     // VitePress's own 58.7 KB, with the demo's notice and question box, and ondocs's 2.9 KB:
     // 61.6 KB.
     budget: 64,
-    // ondocs/embed/standalone's dialog, with its own React: 95.6 KB.
+    // ondocs/embed/standalone's dialog, with its own React: 96.1 KB.
     open: 100,
   },
   next: {
@@ -75,9 +75,11 @@ const SITES = {
     // before the shared header's theme switch and phone menu, 171.4 KB with them, 178 KB with the
     // docs shell (On this page, the docs bar, page actions, tabs), and 174.5 KB once ondocs's
     // package.json, which client code reached through the site's constants, left the bundle.
+    // 180.5 KB with the dialog's styles for touch screens, forced colors and cited sources: the
+    // site inlines ondocs/react/styles.css in its page payload, so every rule counts here.
     launcher: false,
-    budget: 180,
-    // The dialog, Radix and cmdk, on the site's React: 27.3 KB.
+    budget: 182,
+    // The dialog, Radix and cmdk, on the site's React: 27.8 KB.
     open: 31,
   },
   embed: {
@@ -86,7 +88,7 @@ const SITES = {
     key: 'i',
     // dist/embed.global.js alone: the button, the shortcut and their styles.
     budget: 4,
-    // dist/embed-dialog.global.js: the dialog, React and the dialog's styles, 97.8 KB.
+    // dist/embed-dialog.global.js: the dialog, React and the dialog's styles, 98.5 KB.
     open: 102,
   },
 };

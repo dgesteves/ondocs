@@ -188,14 +188,16 @@ export function AskAnswer({
 }
 
 const BULLET = /^[-*+]\s+/;
-const NUMBERED = /^\d+[.)]\s+/;
+const NUMBERED = /^(\d+)[.)]\s+/;
 type LineKind = 'ul' | 'ol' | 'p';
 const kindOf = (line: string): LineKind =>
   BULLET.test(line) ? 'ul' : NUMBERED.test(line) ? 'ol' : 'p';
 
 /**
  * Paragraphs and lists. Within a paragraph block, consecutive lines of one kind are grouped, so
- * "To install:" directly followed by "1. …" lines renders as a paragraph and then a list.
+ * "To install:" directly followed by "1. …" lines renders as a paragraph and then a list. A
+ * numbered list starts at its first item's number: steps with code or a blank line between them
+ * come as lists of their own, and read 1, 2, 3 rather than 1, 1, 1.
  */
 function prose(
   text: string,
@@ -228,7 +230,16 @@ function prose(
       }
       const marker = run.kind === 'ul' ? BULLET : NUMBERED;
       const items = run.lines.map((line, i) => <li key={i}>{inline(line.replace(marker, ''))}</li>);
-      out.push(run.kind === 'ul' ? <ul key={key}>{items}</ul> : <ol key={key}>{items}</ol>);
+      const start = Number(NUMBERED.exec(run.lines[0] ?? '')?.[1] ?? 1);
+      out.push(
+        run.kind === 'ul' ? (
+          <ul key={key}>{items}</ul>
+        ) : (
+          <ol key={key} start={start === 1 ? undefined : start}>
+            {items}
+          </ol>
+        ),
+      );
     }
   }
   return out;
@@ -245,6 +256,9 @@ function renderInline(
   const out: ReactNode[] = [];
   let last = 0;
   let key = 0;
+  // Where the last citation link ended, when it was the last thing shown: a citation right after
+  // it, as in [1][2] or [1, 2], is marked, so that on a touch screen the two keep their distance.
+  let citationEnd = -1;
   for (const match of text.matchAll(INLINE)) {
     if (match.index > last) out.push(text.slice(last, match.index));
     last = match.index + match[0].length;
@@ -274,17 +288,20 @@ function renderInline(
     } else if (citations !== undefined) {
       const ids = citations.split(',').map((id) => Number(id.trim()));
       if (ids.every((id) => sources.has(id))) {
+        let afterCitation = citationEnd !== -1 && !text.slice(citationEnd, match.index).trim();
         for (const id of ids) {
           const source = sources.get(id);
           const href = source ? mappedHref(source.url, sourceUrls) : null;
           if (!source || !href) {
             out.push(`[${String(id)}]`);
+            afterCitation = false;
             continue;
           }
           out.push(
             <a
               key={key++}
               className="ask-citation"
+              data-after-citation={afterCitation || undefined}
               href={href}
               title={source.heading ? `${source.title} › ${source.heading}` : source.title}
               aria-label={citationLabel
@@ -295,7 +312,9 @@ function renderInline(
               {id}
             </a>,
           );
+          afterCitation = true;
         }
+        citationEnd = afterCitation ? last : -1;
       } else {
         out.push(raw);
       }

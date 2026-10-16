@@ -4,6 +4,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { Command } from 'cmdk';
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -44,12 +45,21 @@ export type DialogPanelProps = Omit<
 const cx = (...names: (string | undefined | false)[]): string => names.filter(Boolean).join(' ');
 
 // The command palette takes these keys for its list, and cancels them anywhere inside it. On the
-// answer and the Stop button they stop short of it: Enter follows the focused link or presses the
-// focused button, and the others scroll the answer. Escape, Tab and the shortcut still go on.
+// answer and the Stop and Close buttons they stop short of it: Enter follows the focused link or
+// presses the focused button, rather than asking the selected suggestion, and the others scroll the
+// answer. Escape, Tab and the shortcut still go on.
 const ownKeys = new Set(['Enter', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
 const keepOwnKeys = (event: KeyboardEvent): void => {
   if (ownKeys.has(event.key)) event.stopPropagation();
 };
+
+/**
+ * Whether a click came from the keyboard or a screen reader, which give it no click count, rather
+ * than a pointer. Stop and Retry go away when pressed, and focus on them would fall to the dialog:
+ * from the keyboard it moves on to the input, and a tap on a phone leaves it, so that the phone's
+ * keyboard stays down.
+ */
+const fromKeyboard = (event: MouseEvent): boolean => event.detail === 0;
 
 function SearchIcon(): ReactNode {
   return (
@@ -57,6 +67,20 @@ function SearchIcon(): ReactNode {
       <path
         d="M12 2.5c.6 4.9 3.6 7.9 8.5 8.5-4.9.6-7.9 3.6-8.5 8.5-.6-4.9-3.6-7.9-8.5-8.5 4.9-.6 7.9-3.6 8.5-8.5Z"
         fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon(): ReactNode {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+      <path
+        d="M6 6l12 12M18 6 6 18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
       />
     </svg>
   );
@@ -90,18 +114,33 @@ function Thumb({ down = false }: { down?: boolean }): ReactNode {
 function Feedback({
   state,
   labels,
+  onCommentSent,
 }: {
   state: ReturnType<typeof useAsk>;
   labels: ResolvedLabels;
+  /** Moves focus on from the comment field, which the thanks for the comment replaces. */
+  onCommentSent: () => void;
 }): ReactNode {
   const labelId = useId();
   const [comment, setComment] = useState<'closed' | 'open' | 'sent'>('closed');
   const [text, setText] = useState('');
   const [failed, setFailed] = useState(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  // The thumbs give way to the thanks once the rating is in. Focus on the one pressed goes on to
+  // "Add a comment", rather than falling to the dialog, unless the visitor moved it elsewhere while
+  // the rating was sent: it is lost only if it is on the page's body as the thumbs go.
+  const focusMore = useRef(false);
   const send = async (rating: 'up' | 'down', withComment?: string): Promise<void> => {
     const ok = await state.rate(rating, withComment);
     setFailed(!ok);
-    if (ok && withComment !== undefined) setComment('sent');
+    if (ok && withComment !== undefined) {
+      if (formRef.current?.contains(document.activeElement)) onCommentSent();
+      setComment('sent');
+    }
+  };
+  const rate = (rating: 'up' | 'down', event: MouseEvent<HTMLButtonElement>): void => {
+    focusMore.current = event.currentTarget === document.activeElement;
+    void send(rating);
   };
   // Enter sends the comment, rather than reaching the command palette around it; Escape still
   // closes the dialog.
@@ -124,7 +163,9 @@ function Feedback({
               type="button"
               className="ask-feedback-button"
               aria-label={labels.helpful}
-              onClick={() => void send('up')}
+              onClick={(event) => {
+                rate('up', event);
+              }}
             >
               <Thumb />
             </button>
@@ -132,7 +173,9 @@ function Feedback({
               type="button"
               className="ask-feedback-button"
               aria-label={labels.notHelpful}
-              onClick={() => void send('down')}
+              onClick={(event) => {
+                rate('down', event);
+              }}
             >
               <Thumb down />
             </button>
@@ -151,6 +194,12 @@ function Feedback({
             <button
               type="button"
               className="ask-feedback-more"
+              ref={(button) => {
+                if (button && focusMore.current) {
+                  focusMore.current = false;
+                  if (document.activeElement === document.body) button.focus();
+                }
+              }}
               onClick={() => {
                 setComment('open');
               }}
@@ -158,7 +207,12 @@ function Feedback({
               {labels.addComment}
             </button>
           ) : (
-            <form className="ask-feedback-form" onSubmit={submit} onKeyDown={keepKeys}>
+            <form
+              ref={formRef}
+              className="ask-feedback-form"
+              onSubmit={submit}
+              onKeyDown={keepKeys}
+            >
               <input
                 className="ask-feedback-input"
                 aria-label={labels.comment}
@@ -280,8 +334,8 @@ function statusMessage(state: AskState, labels: ResolvedLabels): string {
       const count = citedSources(state).length;
       return count === 1 ? labels.answerReadyOne : fill(labels.answerReadyMany, { count });
     }
+    // An error says itself, in its alert: said here too, a screen reader would read it twice.
     case 'error':
-      return errorText(state.error, labels);
     case 'idle':
       return '';
   }
@@ -311,6 +365,7 @@ export function DialogPanel({
   const placeholder = placeholderProp ?? labels.placeholder;
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const titleRef = useRef<HTMLHeadingElement | null>(null);
   const [query, setQuery] = useState('');
   const themeAttribute = useThemeAttribute(theme);
 
@@ -386,6 +441,10 @@ export function DialogPanel({
     inputRef.current?.focus();
   };
 
+  const focusInput = (): void => {
+    inputRef.current?.focus();
+  };
+
   const busy = state.status === 'loading' || state.status === 'streaming';
   const trimmedQuery = query.trim();
   const answering = state.status !== 'idle';
@@ -398,6 +457,21 @@ export function DialogPanel({
     : normalized
       ? suggestions.filter((s) => s.toLowerCase().includes(normalized) && s.trim() !== trimmedQuery)
       : suggestions;
+  // cmdk names its input by a label of its own, which would be the title read out a second time,
+  // and marks it expanded whatever it shows. Both are set here, after cmdk, as the input mounts and
+  // whenever they change: named by the dialog's title, and expanded only while the list shows
+  // something to pick.
+  const expanded = showList && (trimmedQuery !== '' || matchingSuggestions.length > 0);
+  const setInput = useCallback(
+    (input: HTMLInputElement | null) => {
+      inputRef.current = input;
+      // The title comes before the input, so it has mounted by now.
+      const titleId = titleRef.current?.id;
+      if (titleId) input?.setAttribute('aria-labelledby', titleId);
+      input?.setAttribute('aria-expanded', String(expanded));
+    },
+    [expanded],
+  );
 
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
@@ -427,14 +501,16 @@ export function DialogPanel({
             }
           }}
         >
-          <Dialog.Title className="ask-sr-only">{title}</Dialog.Title>
+          <Dialog.Title ref={titleRef} className="ask-sr-only">
+            {title}
+          </Dialog.Title>
           <Dialog.Description className="ask-sr-only">{labels.description}</Dialog.Description>
 
-          <Command label={title} shouldFilter={false} loop className="ask-command">
+          <Command shouldFilter={false} loop className="ask-command">
             <div className="ask-input-row">
               <SearchIcon />
               <Command.Input
-                ref={inputRef}
+                ref={setInput}
                 value={query}
                 onValueChange={setQuery}
                 placeholder={placeholder}
@@ -445,14 +521,24 @@ export function DialogPanel({
                 <button
                   type="button"
                   className="ask-stop"
-                  onClick={state.stop}
+                  onClick={(event) => {
+                    if (fromKeyboard(event)) focusInput();
+                    state.stop();
+                  }}
                   onKeyDown={keepOwnKeys}
                 >
                   {labels.stop}
                 </button>
               ) : (
-                <kbd className="ask-kbd">{labels.escapeKey}</kbd>
+                <kbd className="ask-kbd" aria-hidden="true">
+                  {labels.escapeKey}
+                </kbd>
               )}
+              {/* A touch screen has no Escape key, and with an answer on screen, little of the page
+                  left to tap: it shows this in the esc hint's place. */}
+              <Dialog.Close className="ask-close" aria-label={labels.close} onKeyDown={keepOwnKeys}>
+                <CloseIcon />
+              </Dialog.Close>
             </div>
 
             {/* Always mounted, as the input's aria-controls points at it. While the answer shows,
@@ -476,7 +562,9 @@ export function DialogPanel({
                         {followingUp ? labels.followUp : labels.ask}
                       </span>
                       <span className="ask-item-text">{trimmedQuery}</span>
-                      <kbd className="ask-kbd">↵</kbd>
+                      <kbd className="ask-kbd" aria-hidden="true">
+                        ↵
+                      </kbd>
                     </Command.Item>
                   ) : null}
                   {matchingSuggestions.length > 0 ? (
@@ -504,6 +592,7 @@ export function DialogPanel({
                 labels={labels}
                 onNavigate={navigate}
                 onNewQuestion={newQuestion}
+                focusInput={focusInput}
                 classNames={classNames}
                 links={links}
                 sourceUrls={sourceUrls}
@@ -548,6 +637,7 @@ function AnswerPanel({
   labels,
   onNavigate,
   onNewQuestion,
+  focusInput,
   classNames,
   links,
   sourceUrls,
@@ -556,6 +646,7 @@ function AnswerPanel({
   labels: ResolvedLabels;
   onNavigate: (url: string, event: MouseEvent<HTMLAnchorElement>) => void;
   onNewQuestion: () => void;
+  focusInput: () => void;
   classNames: Partial<Record<AskDialogSlot, string>>;
   links: AnswerLinks;
   sourceUrls: SourceUrls | undefined;
@@ -566,12 +657,13 @@ function AnswerPanel({
   const cited = state.status === 'done' ? citedSourceIds(state.answer) : null;
   const showSources = showsSources(state);
   const thread = state.turns.length > 0;
+  const newRef = useRef<HTMLButtonElement | null>(null);
   return (
     <div className="ask-panel" onKeyDown={keepOwnKeys}>
       {/* The thread so far: each answer with its own citations, which link to its own sources. */}
       {state.turns.map((turn, i) => (
         <div key={i} className="ask-turn">
-          <p className="ask-turn-question">{turn.question}</p>
+          <h3 className="ask-turn-question">{turn.question}</h3>
           <div className="ask-answer" data-refused={turn.refused || undefined}>
             <AskAnswer
               text={turn.refused && labels.noAnswer !== undefined ? labels.noAnswer : turn.answer}
@@ -586,7 +678,7 @@ function AnswerPanel({
       ))}
       {/* The question over its answer in a thread, and over an error, so it says what failed. */}
       {(thread || state.status === 'error') && state.question ? (
-        <p className="ask-turn-question">{state.question}</p>
+        <h3 className="ask-turn-question">{state.question}</h3>
       ) : null}
       <div
         className={cx('ask-answer', classNames.answer)}
@@ -629,7 +721,11 @@ function AnswerPanel({
             <button
               type="button"
               className="ask-retry"
-              onClick={() => void state.ask(state.question ?? '')}
+              onClick={(event) => {
+                // The error, its Retry with it, gives way to the answer.
+                if (fromKeyboard(event)) focusInput();
+                void state.ask(state.question ?? '');
+              }}
             >
               {labels.retry}
             </button>
@@ -639,7 +735,7 @@ function AnswerPanel({
 
       {showSources ? (
         <nav aria-label={labels.sources} className={cx('ask-sources', classNames.sources)}>
-          <h2 className="ask-sources-heading">{labels.sources}</h2>
+          <h3 className="ask-sources-heading">{labels.sources}</h3>
           <ol>
             {state.sources.map((source) => {
               const href = mappedHref(source.url, sourceUrls);
@@ -653,16 +749,33 @@ function AnswerPanel({
                       if (href) onNavigate(href, event);
                     }}
                   >
+                    {/* Its number, which citations name it by, and whether the answer cites it:
+                        what the eye gets from the badge. The URL is left out of its name. */}
+                    <span className="ask-sr-only">
+                      {fill(
+                        cited === null
+                          ? labels.source
+                          : cited.has(source.id)
+                            ? labels.sourceCited
+                            : labels.sourceNotCited,
+                        { n: source.id },
+                      )}
+                    </span>{' '}
                     <span className="ask-source-id" aria-hidden="true">
                       {source.id}
                     </span>
                     <span className="ask-source-text">
                       <span className="ask-source-title">{source.title}</span>
                       {source.heading ? (
-                        <span className="ask-source-heading">{source.heading}</span>
+                        <>
+                          {' '}
+                          <span className="ask-source-heading">{source.heading}</span>
+                        </>
                       ) : null}
                     </span>
-                    <span className="ask-source-url">{mapSourceUrl(source.url, sourceUrls)}</span>
+                    <span className="ask-source-url" aria-hidden="true">
+                      {mapSourceUrl(source.url, sourceUrls)}
+                    </span>
                   </a>
                 </li>
               );
@@ -674,9 +787,14 @@ function AnswerPanel({
       {settled ? (
         <div className="ask-actions">
           {state.status === 'done' && state.feedbackEnabled ? (
-            <Feedback key={state.id ?? state.question ?? ''} state={state} labels={labels} />
+            <Feedback
+              key={state.id ?? state.question ?? ''}
+              state={state}
+              labels={labels}
+              onCommentSent={() => newRef.current?.focus()}
+            />
           ) : null}
-          <button type="button" className="ask-new" onClick={onNewQuestion}>
+          <button ref={newRef} type="button" className="ask-new" onClick={onNewQuestion}>
             {labels.newQuestion}
           </button>
         </div>
