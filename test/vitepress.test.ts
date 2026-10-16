@@ -105,6 +105,12 @@ describe('withOndocs', () => {
     expect(() =>
       withOndocs({ sitemap: { hostname: 'https://acme.dev' } }, { mcp: '/api/mcp' }),
     ).not.toThrow();
+    expect(() =>
+      withOndocs(
+        { sitemap: { hostname: 'https://acme.dev' } },
+        { mcp: 'https://<your-site>/api/mcp' },
+      ),
+    ).toThrow(/mcp: 'https:\/\/<your-site>\/api\/mcp' is not a valid URL/);
   });
 
   it('names the packages the dialog needs when the site lacks them', () => {

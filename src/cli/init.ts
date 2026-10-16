@@ -81,6 +81,13 @@ interface Site extends TemplateSite {
   indexCommand?: string;
   /** The config file that adds ondocs's plugin, when it already does: `docusaurus.config.ts`. */
   plugin?: string;
+  /** Whether that config gives the plugin an `mcp` option already. */
+  pluginMcp?: boolean;
+  /**
+   * Whether the config sets the site's URL, which the plugin resolves a path in `mcp` against: as
+   * a literal or as an expression, such as `process.env.SITE_URL ?? 'https://…'`.
+   */
+  urlInConfig?: boolean;
 }
 
 interface PackageJson {
@@ -134,6 +141,17 @@ function configString(source: string | null, key: string): string | undefined {
   if (!source) return undefined;
   return new RegExp(`\\b${key}\\s*:\\s*(['"\`])([^'"\`]+)\\1`).exec(source)?.[2];
 }
+
+/** A JS/TS config's source without its whole-line `//` comments, where a key can be commented out. */
+const uncommented = (source: string | null): string =>
+  (source ?? '').replace(/^[ \t]*\/\/.*$/gm, '');
+
+/**
+ * Whether a JS/TS config's source sets one of `keys`, to a literal or to an expression, such as
+ * `site: process.env.SITE_URL ?? 'https://…'`.
+ */
+const configSets = (source: string | null, keys: string[]): boolean =>
+  new RegExp(`\\b(?:${keys.join('|')})\\s*:`).test(uncommented(source));
 
 /** A key from a YAML or TOML config, such as `site_name: Acme Docs` or `baseURL = "…"`. */
 function flatConfigString(source: string | null, key: string): string | undefined {
@@ -227,6 +245,8 @@ function detectSite(p: Project, flags: { out?: string; name?: string; siteUrl?: 
         name: named(configString(source, 'title')),
         indexFile: 'build/ask-index.json',
         indexPath: '/ask-index.json',
+        // Docusaurus needs `url`.
+        urlInConfig: true,
         ...localesOf(configLocales(source, false)),
         ...pluginIn(
           docusaurus,
@@ -255,6 +275,7 @@ function detectSite(p: Project, flags: { out?: string; name?: string; siteUrl?: 
         indexFile: `${outDir}/ask-index.json`,
         indexPath: '/ask-index.json',
         ...(adapter ? { adapter } : {}),
+        ...(configSets(source, ['site']) ? { urlInConfig: true } : {}),
         ...localesOf(configLocales(source, starlight)),
         ...pluginIn(
           astro,
@@ -301,6 +322,8 @@ function detectSite(p: Project, flags: { out?: string; name?: string; siteUrl?: 
         indexFile: `${vitepress}/dist/ask-index.json`,
         indexPath: '/ask-index.json',
         config: config ?? `${vitepress}/config.mts`,
+        // `sitemap.hostname`, or withOndocs's own `siteUrl`.
+        ...(configSets(source, ['hostname', 'siteUrl']) ? { urlInConfig: true } : {}),
         ...localesOf(configLocales(source, true)),
         ...pluginIn(config, source, /['"`]ondocs\/vitepress['"`]/),
       },
@@ -343,12 +366,22 @@ function detectSite(p: Project, flags: { out?: string; name?: string; siteUrl?: 
 
 const withUrl = (site: Site, url: string | undefined): Site => (url ? { ...site, url } : site);
 
-/** `{ plugin: file }` when the config file's source names ondocs's plugin, as `pattern` finds it. */
+/**
+ * `{ plugin: file }` when the config file's source names ondocs's plugin, as `pattern` finds it,
+ * with `pluginMcp` when the source sets an `mcp` option too. The plugin's `mcp` is never `false`,
+ * so `route: { mcp: false }`, and a commented-out line, are not one.
+ */
 const pluginIn = (
   file: string | undefined,
   source: string | null,
   pattern: RegExp,
-): { plugin?: string } => (file && source && pattern.test(source) ? { plugin: file } : {});
+): { plugin?: string; pluginMcp?: boolean } =>
+  file && source && pattern.test(source)
+    ? {
+        plugin: file,
+        ...(/\bmcp\s*:(?!\s*false\b)/.test(uncommented(source)) ? { pluginMcp: true } : {}),
+      }
+    : {};
 
 /** Where a plain HTML site keeps its pages, in the order init looks. */
 const HTML_FOLDERS = ['public', 'site', '_site', 'dist', 'build', 'out', 'www'];
@@ -586,32 +619,52 @@ function sitePackages(site: Site, openai = true, functions = false): string[] {
 
 /**
  * How to add the dialog, for the site's framework, pointed at `endpoint` when it is not /api/ask,
- * and embedding the pages with `embedding` when given. `null` when the site's config already
- * adds the plugin and there is no option to give it.
+ * embedding the pages with `embedding` when given, and naming the MCP endpoint at `mcp`, when
+ * given, for llms.txt. `null` when the site's config already adds the plugin and there is no
+ * option to give it.
  */
-function dialogStep(site: Site, endpoint: string | null, embedding?: string): string | null {
+function dialogStep(
+  site: Site,
+  endpoint: string | null,
+  embedding?: string,
+  mcp?: string,
+): string | null {
+  // An `mcp` option the config already has stays as it is.
+  const named = site.pluginMcp ? undefined : mcp;
   const fields = [
     ...(endpoint ? [`endpoint: '${endpoint}'`] : []),
+    ...(named ? [`mcp: '${named}'`] : []),
     ...(embedding ? [`embedding: '${embedding}'`] : []),
   ];
   const option = fields.length > 0 ? `{ ${fields.join(', ')} }` : '';
-  const withEmbedding = embedding
-    ? ` (the embedding needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN as the site builds; leave it out for a keyword-only index)`
-    : '';
+  // A path needs the site's URL in the config: without it, the build stops and says so.
+  const urlFirst =
+    named?.startsWith('/') && !site.urlInConfig
+      ? `; set ${site.kind === 'vitepress' ? `sitemap.hostname in ${site.config ?? '.vitepress/config.mts'}` : 'site in astro.config'} to the site's URL first, which the path is resolved against`
+      : '';
+  const notes = [
+    ...(named ? [`mcp points agents that read llms.txt at the MCP endpoint${urlFirst}`] : []),
+    ...(embedding
+      ? [
+          'the embedding needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN as the site builds; leave it out for a keyword-only index',
+        ]
+      : []),
+  ];
+  const why = notes.length > 0 ? ` (${notes.join('; ')})` : '';
   if (site.plugin) {
-    return option ? `Pass ${option} to the ondocs plugin in ${site.plugin}${withEmbedding}` : null;
+    return option ? `Pass ${option} to the ondocs plugin in ${site.plugin}${why}` : null;
   }
   switch (site.kind) {
     case 'docusaurus':
       return option
-        ? `Add the plugin to docusaurus.config: plugins: [['ondocs/docusaurus', ${option}]]${withEmbedding}`
+        ? `Add the plugin to docusaurus.config: plugins: [['ondocs/docusaurus', ${option}]]${why}`
         : "Add the plugin to docusaurus.config: plugins: ['ondocs/docusaurus']";
     case 'starlight':
-      return `Add the plugin to Starlight in astro.config: plugins: [ondocs(${option})], from 'ondocs/starlight'${withEmbedding}`;
+      return `Add the plugin to Starlight in astro.config: plugins: [ondocs(${option})], from 'ondocs/starlight'${why}`;
     case 'astro':
-      return `Add the integration to astro.config: integrations: [ondocs(${option})], from 'ondocs/astro'${withEmbedding}`;
+      return `Add the integration to astro.config: integrations: [ondocs(${option})], from 'ondocs/astro'${why}`;
     case 'vitepress':
-      return `Wrap the config in ${site.config ?? '.vitepress/config.mts'} in withOndocs, from 'ondocs/vitepress': export default withOndocs(defineConfig({ ... })${option ? `, ${option}` : ''})${withEmbedding}`;
+      return `Wrap the config in ${site.config ?? '.vitepress/config.mts'} in withOndocs, from 'ondocs/vitepress': export default withOndocs(defineConfig({ ... })${option ? `, ${option}` : ''})${why}`;
     case 'next':
       return `Render <AskDialog launcher${endpoint ? ` endpoint="${endpoint}"` : ''} /> from 'ondocs/react' in your layout, with 'ondocs/react/styles.css' and 'ondocs/embed/launcher.css'`;
     case 'static':
@@ -726,6 +779,7 @@ function planFor(
         workersAi && site.kind !== 'next' && site.kind !== 'static'
           ? `workers-ai:${WORKERS_AI_EMBEDDING}`
           : undefined,
+        mcp ? `https://${standaloneName(site)}.<your-subdomain>.workers.dev/api/mcp` : undefined,
       ),
     );
   } else if (host === 'vercel') {
@@ -787,7 +841,14 @@ function planFor(
   if (site.kind === 'static' && site.indexCommand && host !== 'github-pages') {
     next.push(`Build the index after the site: ${site.indexCommand}${WITHOUT_KEY}`);
   }
-  if (site.kind !== 'next' && host !== 'github-pages') addStep(next, dialogStep(site, null));
+  if (site.kind !== 'next' && host !== 'github-pages') {
+    // The plugins take `mcp`; the script tag has nothing to name it in. Always the path: a URL
+    // made from package.json's homepage can be the repository's page, as npm init sets it.
+    addStep(
+      next,
+      dialogStep(site, null, undefined, mcp && site.kind !== 'static' ? '/api/mcp' : undefined),
+    );
+  }
   next.push('Deploy as you do now. init has deployed nothing.');
   return { site, host, files, manual, env, next };
 }
@@ -912,6 +973,13 @@ export async function init(args: string[], io: CliIO): Promise<number> {
           `${site.label} with ${site.adapter}: nothing to write. The ondocs integration serves POST /api/ask and /api/mcp itself, through the adapter, from the index it builds.`,
           '',
           'Set OPENAI_API_KEY where the site builds and where it runs. Pass route: { model, rateLimit, budget } to ondocs() to change the model or the limits; route: false turns it off.',
+          // llms.txt names the MCP route only with an absolute URL to give.
+          ...(site.urlInConfig
+            ? []
+            : [
+                '',
+                "Set site in astro.config to the site's URL, so llms.txt names /api/mcp for agents.",
+              ]),
           ...(packages ? ['', `Install: ${packages}`] : []),
         ].join('\n'),
       );
