@@ -36,8 +36,6 @@ npx ondocs index ./docs --base-url /docs \
   -e openai:text-embedding-3-small --dimensions 512
 ```
 
-Embedding the chunks lets the Ask box match a question by meaning as well as by its words, so it is the default: with `OPENAI_API_KEY` set, the CLI and the plugins embed with `text-embedding-3-small` at 512 dimensions, as above, and a site answered by the [Workers AI Worker](/workers-ai) embeds with `-e workers-ai:@cf/baai/bge-small-en-v1.5`. Without a key, `-e none` builds a keyword-only index. It suits agents' MCP search, which `init` writes keyword-only, but the Ask box then answers only questions that use enough of the docs' own words.
-
 With the Docusaurus, Astro, Starlight or VitePress plugin you skip this step: the plugin indexes the built site after every build.
 
 ## Add the endpoint

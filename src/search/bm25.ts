@@ -21,6 +21,8 @@ export interface Bm25Result {
   scores: Float32Array;
   /** Query coverage per document, in [0, 1]. */
   coverage: Float32Array;
+  /** How many of the query's distinct terms each document contains. */
+  matchedTerms: Uint16Array;
   /** Indices of documents with a non-zero score, best first. */
   ranked: number[];
 }
@@ -113,6 +115,7 @@ export class Bm25Index {
   search(queryTerms: readonly string[]): Bm25Result {
     const scores = new Float32Array(this.size);
     const matched = new Float32Array(this.size);
+    const matchedTerms = new Uint16Array(this.size);
     let totalIdf = 0;
 
     for (const term of new Set(queryTerms)) {
@@ -128,6 +131,7 @@ export class Bm25Index {
         const norm = 1 - this.b + (this.b * (this.lengths[doc] ?? 0)) / (this.averageLength || 1);
         scores[doc] = (scores[doc] ?? 0) + (idf * (tf * (this.k1 + 1))) / (tf + this.k1 * norm);
         matched[doc] = (matched[doc] ?? 0) + idf;
+        matchedTerms[doc] = (matchedTerms[doc] ?? 0) + 1;
       }
     }
 
@@ -139,6 +143,6 @@ export class Bm25Index {
     if (totalIdf > 0) {
       for (const doc of ranked) coverage[doc] = (matched[doc] ?? 0) / totalIdf;
     }
-    return { scores, coverage, ranked };
+    return { scores, coverage, matchedTerms, ranked };
   }
 }

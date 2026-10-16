@@ -24,9 +24,11 @@ Wrangler prints the Worker's URL. Point the dialog at it, plus `/api/ask`:
 - **Starlight:** `ondocs({ endpoint: 'https://my-docs-ask.<subdomain>.workers.dev/api/ask', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' })`
 - **Any other site:** `data-endpoint="https://my-docs-ask.<subdomain>.workers.dev/api/ask"` on the script tag
 
+The `embedding` line embeds the pages with Workers AI as the site builds, so it needs `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, a token allowed to run Workers AI, where the site builds; the build fails without them. Leave it out for a keyword-only index, which needs no secret anywhere.
+
 `package.json` allows the install scripts of esbuild and workerd, which Wrangler needs to set up their binaries, and declines fsevents (macOS file watching, with a prebuilt fallback). npm 12 runs no install scripts unless they are allowed this way.
 
-The site must serve its index at `SITE_URL/ask-index.json`. The Docusaurus and Starlight plugins write it with every build; for another generator, run `npx ondocs index <build folder> -o <build folder>/ask-index.json -e workers-ai:@cf/baai/bge-small-en-v1.5` after the build. For a project site, at `https://user.github.io/repo`, add `--base-url /repo` to that command: the pages' URLs in the index, which the dialog's citations and the MCP results link to, then start with `/repo`, as the site serves them. Embedding the pages with Workers AI, as `embedding` does in the plugins, needs `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, a token allowed to run Workers AI, where the site builds. Without them, leave out `embedding`, or pass `-e none`, for a keyword-only index.
+The site must serve its index at `SITE_URL/ask-index.json`. The Docusaurus and Starlight plugins write it with every build; for another generator, run `npx ondocs index <build folder> -o <build folder>/ask-index.json -e workers-ai:@cf/baai/bge-small-en-v1.5` after the build. For a project site, at `https://user.github.io/repo`, add `--base-url /repo` to that command: the pages' URLs in the index, which the dialog's citations and the MCP results link to, then start with `/repo`, as the site serves them. The index command needs the same two variables; without them, pass `-e none` for a keyword-only index.
 
 ## What it does
 

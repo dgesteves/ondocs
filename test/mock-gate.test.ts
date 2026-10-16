@@ -4,7 +4,14 @@
 // shares two of the question's words.
 import { describe, expect, it } from 'vitest';
 
-import { buildIndex, loadIndex, retrieve, type RetrievalOptions } from '../src';
+import {
+  Bm25Index,
+  buildIndex,
+  loadIndex,
+  retrieve,
+  tokenize,
+  type RetrievalOptions,
+} from '../src';
 import { MOCK_MIN_SIMILARITY, hashEmbedding, mockEmbeddingModel } from '../src/mock';
 
 const page = (id: string, title: string, content: string) => ({
@@ -69,6 +76,16 @@ describe('the relevance gate over a mock index', () => {
     expect(ask(index, question, { similarityNeedsKeyword: 1 }).answerable).toBe(true);
     expect(ask(index, question, { similarityNeedsKeyword: false }).answerable).toBe(true);
     expect(ask(index, PRICE, { similarityNeedsKeyword: 3 }).answerable).toBe(false);
+  });
+
+  it('counts the shared words as BM25 matched them, each distinct word once', () => {
+    const bm25 = new Bm25Index([
+      tokenize('Pricing. The plan costs ten dollars a month.'),
+      tokenize('Deploying. Deploy the plan.'),
+      tokenize('Installing. Install the package.'),
+    ]);
+    const { matchedTerms } = bm25.search(tokenize('plan dollars plan month'));
+    expect([...matchedTerms]).toEqual([3, 1, 0]);
   });
 
   it('leaves other indexes alone: real embeddings match meaning without shared words', async () => {

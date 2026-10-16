@@ -260,13 +260,16 @@ function measure(
   const similarities =
     index.vectors && query.vector ? index.vectors.similarities(query.vector) : null;
 
-  const needed = Number(
+  // The question's distinct words a chunk must contain for its similarity to count, as BM25
+  // counted them while it scored the chunk.
+  const sharedWords = Number(
     opts.similarityNeedsKeyword ??
       (MOCK_EMBEDDING.test(index.embedding?.model ?? '') ? MOCK_SHARED_WORDS : 0),
   );
-  const sharesWords = sharedWords(index, query.text, keyword.coverage, needed);
   const relevant = (i: number): boolean =>
-    (similarities !== null && (similarities[i] ?? 0) >= opts.minSimilarity && sharesWords(i)) ||
+    (similarities !== null &&
+      (similarities[i] ?? 0) >= opts.minSimilarity &&
+      (keyword.matchedTerms[i] ?? 0) >= sharedWords) ||
     (keyword.coverage[i] ?? 0) >= opts.minKeywordCoverage;
 
   let bestCoverage = 0;
@@ -286,35 +289,6 @@ function measure(
   };
 
   return { opts, keyword, similarities, relevant, bestCoverage, hitAt };
-}
-
-/**
- * Whether chunk `i` contains at least `needed` of the question's distinct words, as BM25 reads
- * them. One word is any keyword coverage at all; more are counted in the chunk's own words, once
- * per chunk, which only the chunks that clear `minSimilarity` get to.
- */
-function sharedWords(
-  index: LoadedIndex,
-  question: string,
-  coverage: Float32Array,
-  needed: number,
-): (i: number) => boolean {
-  if (!(needed > 0)) return () => true;
-  if (needed <= 1) return (i) => (coverage[i] ?? 0) > 0;
-  const words = [...new Set(tokenize(question))];
-  if (words.length < needed) return () => false;
-  const counted = new Map<number, boolean>();
-  return (i) => {
-    if (!((coverage[i] ?? 0) > 0)) return false;
-    let shares = counted.get(i);
-    if (shares === undefined) {
-      const chunk = index.chunks[i];
-      const terms = new Set(chunk ? tokenize(chunkSearchText(chunk)) : []);
-      shares = words.filter((word) => terms.has(word)).length >= needed;
-      counted.set(i, shares);
-    }
-    return shares;
-  };
 }
 
 /**
