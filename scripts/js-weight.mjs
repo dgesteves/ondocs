@@ -199,8 +199,36 @@ async function measure(name, dir, baseline) {
         // A response without a body (a redirect).
       }
     });
+    // Scripts requested and not yet loaded, and every script request so far.
+    let pending = 0;
+    let requested = 0;
+    const isScript = (request) => request.resourceType() === 'script';
+    page.on('request', (request) => {
+      if (!isScript(request)) return;
+      pending += 1;
+      requested += 1;
+    });
+    const settled = (request) => {
+      if (isScript(request)) pending -= 1;
+    };
+    page.on('requestfinished', settled);
+    page.on('requestfailed', settled);
     await page.goto(`${server.url}${site.page}`, { waitUntil: 'networkidle' });
-    await page.waitForTimeout(500);
+    // What a page loads on its own once the browser is idle counts too: Starlight imports its
+    // search UI, about 25 KB gzipped, in a requestIdleCallback, which a busy CI runner can run
+    // after the network has gone quiet, and the dialog's opening was then charged for it. Wait
+    // for an idle callback queued after the page's own, then until every script requested has
+    // loaded and none has been requested for 500 ms.
+    await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          window.requestIdleCallback(() => resolve(undefined), { timeout: 10_000 });
+        }),
+    );
+    for (let seen = -1; seen !== requested || pending > 0;) {
+      seen = requested;
+      await page.waitForTimeout(500);
+    }
     const inline = await page.evaluate(() =>
       [...document.querySelectorAll('script:not([src])')]
         .filter((script) => !script.type || /javascript|module/.test(script.type))
