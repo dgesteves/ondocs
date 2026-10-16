@@ -256,6 +256,9 @@ function renderInline(
   const out: ReactNode[] = [];
   let last = 0;
   let key = 0;
+  // Where the last citation link ended, when it was the last thing shown: a citation right after
+  // it, as in [1][2] or [1, 2], is marked, so that on a touch screen the two keep their distance.
+  let citationEnd = -1;
   for (const match of text.matchAll(INLINE)) {
     if (match.index > last) out.push(text.slice(last, match.index));
     last = match.index + match[0].length;
@@ -285,17 +288,20 @@ function renderInline(
     } else if (citations !== undefined) {
       const ids = citations.split(',').map((id) => Number(id.trim()));
       if (ids.every((id) => sources.has(id))) {
+        let afterCitation = citationEnd !== -1 && !text.slice(citationEnd, match.index).trim();
         for (const id of ids) {
           const source = sources.get(id);
           const href = source ? mappedHref(source.url, sourceUrls) : null;
           if (!source || !href) {
             out.push(`[${String(id)}]`);
+            afterCitation = false;
             continue;
           }
           out.push(
             <a
               key={key++}
               className="ask-citation"
+              data-after-citation={afterCitation || undefined}
               href={href}
               title={source.heading ? `${source.title} › ${source.heading}` : source.title}
               aria-label={citationLabel
@@ -306,7 +312,9 @@ function renderInline(
               {id}
             </a>,
           );
+          afterCitation = true;
         }
+        citationEnd = afterCitation ? last : -1;
       } else {
         out.push(raw);
       }

@@ -45,8 +45,9 @@ export type DialogPanelProps = Omit<
 const cx = (...names: (string | undefined | false)[]): string => names.filter(Boolean).join(' ');
 
 // The command palette takes these keys for its list, and cancels them anywhere inside it. On the
-// answer and the Stop button they stop short of it: Enter follows the focused link or presses the
-// focused button, and the others scroll the answer. Escape, Tab and the shortcut still go on.
+// answer and the Stop and Close buttons they stop short of it: Enter follows the focused link or
+// presses the focused button, rather than asking the selected suggestion, and the others scroll the
+// answer. Escape, Tab and the shortcut still go on.
 const ownKeys = new Set(['Enter', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
 const keepOwnKeys = (event: KeyboardEvent): void => {
   if (ownKeys.has(event.key)) event.stopPropagation();
@@ -126,7 +127,8 @@ function Feedback({
   const [failed, setFailed] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
   // The thumbs give way to the thanks once the rating is in. Focus on the one pressed goes on to
-  // "Add a comment", rather than falling to the dialog.
+  // "Add a comment", rather than falling to the dialog, unless the visitor moved it elsewhere while
+  // the rating was sent: it is lost only if it is on the page's body as the thumbs go.
   const focusMore = useRef(false);
   const send = async (rating: 'up' | 'down', withComment?: string): Promise<void> => {
     const ok = await state.rate(rating, withComment);
@@ -195,7 +197,7 @@ function Feedback({
               ref={(button) => {
                 if (button && focusMore.current) {
                   focusMore.current = false;
-                  button.focus();
+                  if (document.activeElement === document.body) button.focus();
                 }
               }}
               onClick={() => {
@@ -534,7 +536,7 @@ export function DialogPanel({
               )}
               {/* A touch screen has no Escape key, and with an answer on screen, little of the page
                   left to tap: it shows this in the esc hint's place. */}
-              <Dialog.Close className="ask-close" aria-label={labels.close}>
+              <Dialog.Close className="ask-close" aria-label={labels.close} onKeyDown={keepOwnKeys}>
                 <CloseIcon />
               </Dialog.Close>
             </div>

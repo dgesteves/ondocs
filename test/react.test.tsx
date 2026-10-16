@@ -279,6 +279,18 @@ describe('AskAnswer', () => {
     expect(screen.getByRole('link', { name: 'a login page' })).toBeTruthy();
   });
 
+  // On a touch screen, a citation right after another keeps its distance from it (styles.css).
+  it('marks a citation that comes right after another', () => {
+    const two = [...sources, { id: 2, url: '/docs/b', title: 'B', heading: '' }];
+    render(
+      <AskAnswer text="One [1][2]. Two [1, 2]. Spaced [1] [2]. Apart [1] and [2]." sources={two} />,
+    );
+    const marked = screen
+      .getAllByRole('link')
+      .map((link) => `${link.textContent}${link.hasAttribute('data-after-citation') ? '+' : ''}`);
+    expect(marked).toEqual(['1', '2+', '1', '2+', '1', '2+', '1', '2']);
+  });
+
   it('extracts cited source numbers', () => {
     expect([...citedSourceIds('A [1]. B [2][3]. C [1, 4]. Not [x].')]).toEqual([1, 2, 3, 4]);
   });

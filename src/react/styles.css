@@ -736,8 +736,9 @@
   }
 }
 
-/* Fingers: buttons and the comment field 44 px tall, and citations with a larger area to tap,
-   spaced so that two side by side do not share it. */
+/* Fingers: buttons and the comment field 44 px tall, and citations with a larger area to tap. A
+   citation right after another, as in [1][2], keeps 12 px from it, twice how far each area
+   reaches, so the two do not meet; next to words and punctuation it keeps its usual spacing. */
 @media (pointer: coarse) {
   .ask-stop,
   .ask-retry,
@@ -755,7 +756,10 @@
 
   .ask-citation {
     position: relative;
-    margin: 0 0.5em;
+  }
+
+  .ask-citation[data-after-citation] {
+    margin-left: 12px;
   }
 
   .ask-citation::after {

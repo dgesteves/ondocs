@@ -63,9 +63,17 @@ describe('on a touch screen', () => {
       ]);
     }
     expect(rule(coarse, '.ask-feedback-button')).toMatch(/min-width:\s*44px;/);
-    // A citation keeps its look, with a larger area to tap and more room between neighbors.
+    // A citation keeps its look, with a larger area to tap, and one right after another keeps
+    // far enough from it that their areas do not meet.
     expect(rule(coarse, '.ask-citation')).toMatch(/position:\s*relative;/);
-    expect(rule(coarse, '.ask-citation::after')).toMatch(/inset:/);
+    // Next to words and punctuation it keeps its usual margins: "it [1]." with no gap before ".".
+    expect(rule(coarse, '.ask-citation')).not.toMatch(/margin/);
+    const reach = Number(/inset:\s*-(\d+)px;/.exec(rule(coarse, '.ask-citation::after'))?.[1]);
+    expect(reach).toBeGreaterThan(0);
+    const apart = /margin-left:\s*(\d+)px;/.exec(
+      rule(coarse, '.ask-citation[data-after-citation]'),
+    )?.[1];
+    expect(Number(apart)).toBeGreaterThanOrEqual(2 * reach);
   });
 });
 

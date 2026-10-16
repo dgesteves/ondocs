@@ -79,7 +79,7 @@ afterEach(() => {
 });
 
 /** The dialog with an answer on screen: the panel, its live region and what was navigated to. */
-async function answered(onFeedback?: () => void) {
+async function answered(onFeedback?: () => void | Promise<void>) {
   const user = userEvent.setup();
   const onNavigate = vi.fn((_url: string, event: { preventDefault: () => void }) => {
     event.preventDefault();
@@ -227,6 +227,21 @@ describe('focus after a control goes away', () => {
     expect(document.activeElement).toBe(more);
   });
 
+  it('stays where the visitor moved it while the rating was being sent', async () => {
+    let release = (): void => undefined;
+    const sent = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { user, dialog } = await answered(() => sent);
+    within(dialog).getByRole('button', { name: 'Yes, it helped' }).focus();
+    await user.keyboard('{Enter}');
+    const next = within(dialog).getByRole('button', { name: 'New question' });
+    next.focus();
+    release();
+    await within(dialog).findByRole('button', { name: 'Add a comment' });
+    expect(document.activeElement).toBe(next);
+  });
+
   it('goes from a sent comment to "New question"', async () => {
     const { user, dialog } = await answered(vi.fn());
     within(dialog).getByRole('button', { name: 'No, it did not help' }).focus();
@@ -291,6 +306,31 @@ describe('the Close button', () => {
   it('closes the dialog, with an answer on screen', async () => {
     const { user, dialog } = await answered();
     await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await closed();
+  });
+
+  // The command palette around it takes Enter for its list: on Close, Enter asked the selected
+  // suggestion, or did nothing with an answer on screen. A phone or tablet with a keyboard uses it.
+  it('closes on Enter, rather than asking the selected suggestion', async () => {
+    const user = userEvent.setup();
+    const fetch = handlerFetch();
+    render(<AskDialog fetch={fetch} defaultOpen suggestions={['How do I install with pnpm?']} />);
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog)
+        .getByRole('option', { name: 'How do I install with pnpm?' })
+        .getAttribute('aria-selected'),
+    ).toBe('true');
+    within(dialog).getByRole('button', { name: 'Close' }).focus();
+    await user.keyboard('{Enter}');
+    await closed();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('closes on Enter, with an answer on screen', async () => {
+    const { user, dialog } = await answered();
+    within(dialog).getByRole('button', { name: 'Close' }).focus();
+    await user.keyboard('{Enter}');
     await closed();
   });
 
