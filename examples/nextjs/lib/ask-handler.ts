@@ -3,11 +3,11 @@ import { type BudgetOptions, createAskHandler, memoryRateLimit } from 'ondocs/se
 import index from '../ask-index.json';
 import { chatModel, embeddingModel, embeddingProviderOptions, minSimilarity } from './ai';
 import { askCount } from './counters';
-import { SITE_URL } from './site';
+import { DEMO_ORIGINS, SITE_URL } from './site';
 
 /**
  * A daily cap for the whole site and the live demos that send their questions here
- * (app/api/ask/cors.ts), so rotating IPs cannot run up the bill. Raised for launch week from 300
+ * (`allowedOrigins` below), so rotating IPs cannot run up the bill. Raised for launch week from 300
  * questions and 1M model tokens: an answer is about 3k tokens, so 5M leaves about 3,300 for each
  * of the 1,500 questions and the token cap does not run out first. Back to 300 and 1M after launch
  * week. The counts live in memory, so each Vercel instance has its own; the hard cap is the spend
@@ -27,6 +27,12 @@ export const askHandler = createAskHandler({
   ...(embeddingProviderOptions ? { embeddingProviderOptions } : {}),
   siteName: 'the ondocs documentation',
   ...(minSimilarity ? { retrieval: { minSimilarity } } : {}),
+  // The live demos (examples/docusaurus, starlight and vitepress, each on Vercel) show these docs
+  // on another origin and send their questions here, with no model key of their own. Their
+  // origins, and only theirs, get CORS headers; any other origin gets none, so a browser on it
+  // cannot get past the preflight a JSON post needs. The rate limit and the daily budget below
+  // are the same for them as for the site's own dialog.
+  allowedOrigins: DEMO_ORIGINS,
   // Five questions a minute per visitor: in production every answer is a paid model call. A
   // token bucket, so a burst of five, then one more every 12 seconds. Keyed by the last
   // X-Forwarded-For entry, which Vercel sets, and by the /64 for IPv6. On Netlify, Cloudflare or

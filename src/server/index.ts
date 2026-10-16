@@ -2,6 +2,9 @@
  * ondocs/server: the ask endpoint and the MCP endpoint, as Web-standard request handlers.
  */
 
+export { createOndocs } from './ondocs';
+export type { OndocsHandlers, OndocsOptions } from './ondocs';
+export type { AllowedOrigins } from './shared';
 export { createAskHandler } from './handler';
 export type {
   AskFeedbackEvent,

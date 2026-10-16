@@ -309,6 +309,8 @@ describe('the Cloudflare Worker template', () => {
     const response = await ask('How do I rate limit with Upstash?');
     const text = await response.text();
     expect(response.headers.get('access-control-allow-origin')).toBe('https://acme.github.io');
+    // The dialog, on the site's origin, reads Retry-After on a 429.
+    expect(response.headers.get('access-control-expose-headers')).toBe('retry-after');
     expect(text).toContain('"url":"/docs/rate-limits#upstash"');
     expect(text).toContain('"retrieval":"hybrid"');
     expect([...text.matchAll(/"delta":"([^"]*)"/g)].map((m) => m[1]).join('')).toBe(

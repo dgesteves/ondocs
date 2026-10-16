@@ -207,7 +207,7 @@ ${indexesOption(site, '  ', (locale) => readIndex({ ...site, indexFile: localeFi
 });
 
 export const POST = handler;
-// CORS preflights, for a dialog on another origin (add access-control-* headers with \`headers\`).
+// CORS preflights, for a dialog on another origin (list its origin in \`allowedOrigins\`).
 export const OPTIONS = handler;
 `,
     },
@@ -691,11 +691,12 @@ function workerFetch(mcp: boolean): string {
 const SITE_AND_CORS = `/** The site's URL, with a trailing slash, as a base for its files' URLs. */
 const siteOf = (env: Env): URL => new URL(\`\${env.SITE_URL.replace(/\\/+$/, '')}/\`);
 
-/** CORS for the site's origin, and only for it. */
+/** CORS for the site's origin, and only for it. The dialog reads Retry-After on a 429. */
 const corsFor = (env: Env): Record<string, string> => ({
   'access-control-allow-origin': siteOf(env).origin,
   'access-control-allow-methods': 'POST, OPTIONS',
   'access-control-allow-headers': 'content-type',
+  'access-control-expose-headers': 'retry-after',
   'access-control-max-age': '86400',
   vary: 'origin',
 });`;

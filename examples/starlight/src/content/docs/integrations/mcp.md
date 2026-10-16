@@ -73,21 +73,44 @@ Pass the same imported `index` to `createAskHandler` and `createMcpHandler`, and
 
 For a static site, `npx ondocs init` writes it next to the ask endpoint: `api/mcp.ts` on Vercel, `netlify/functions/mcp.mts` on Netlify, `functions/api/mcp.ts` on Cloudflare Pages, or `/api/mcp` in the Worker it writes for a Cloudflare Worker or a GitHub Pages site, each rate-limited on the host's client IP header. On an Astro site with an SSR adapter, the integration serves `/api/mcp` itself. See [Deploying](/guides/deployment/#write-the-endpoint-with-init).
 
+## One call for both endpoints
+
+`createOndocs` from `ondocs/server` makes the ask endpoint and this one from one set of options, so people and agents search the same docs the same way: the same index, and each locale's in `indexes`, loaded once for both; the same embedding model, `retrieval` settings and [hooks](/guides/retrieval/#rerank-or-retrieve-your-own-way), so a search finds what the dialog answers from; and the same `siteName`. Each endpoint's own options go in `ask` and `mcp`, and their own `retrieval` and `headers` go over the shared ones.
+
+```ts
+import { openai } from '@ai-sdk/openai';
+import { createOndocs } from 'ondocs/server';
+import index from './ask-index.json';
+
+export const { ask, mcp } = createOndocs({
+  index,
+  embeddingModel: openai.embedding('text-embedding-3-small'),
+  embeddingProviderOptions: { openai: { dimensions: 512 } },
+  siteName: 'the Acme docs',
+  ask: { model: openai('gpt-5.4-mini') },
+  mcp: { siteUrl: 'https://docs.acme.com' },
+});
+```
+
+Mount `ask` at `/api/ask` and `mcp` at `/api/mcp`, as each is mounted on its own. With an `embeddingModel`, each search embeds its query, as each question does: one embedding call per search. `mcp: { embeddingModel: false }` keeps search keyword-only, so agents cost you no model call. The rate limit, the budget and `allowedOrigins` stay each endpoint's own, with its own defaults: this endpoint's `allowedOrigins` turns away every origin it does not list, hosted clients such as claude.ai included.
+
 ## The tools
 
-| Tool         | Input                                          | Returns                                                                                                                                                                                        |
-| ------------ | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `search`     | `query`: keywords or a short question          | Up to 8 sections, best first, each with an `id`, the page `title`, the section's `heading` path, its absolute `url` with the anchor, and `text`, a snippet of the part that matches the query. |
-| `fetch`      | `id`: an id from `search`, or a page URL       | The page as Markdown, or with an `#anchor`, that section. A page over 60,000 characters is cut, and the sections to fetch for the rest are listed.                                             |
-| `list_pages` | `prefix` (optional): a path, as `/docs/guides` | Every page's `id`, `title` and `url`, or those under the prefix, up to 500.                                                                                                                    |
+| Tool         | Input                                                                   | Returns                                                                                                                                                                                        |
+| ------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search`     | `query`: keywords or a short question; `locale` with `indexes`          | Up to 8 sections, best first, each with an `id`, the page `title`, the section's `heading` path, its absolute `url` with the anchor, and `text`, a snippet of the part that matches the query. |
+| `fetch`      | `id`: an id from `search`, or a page URL                                | The page as Markdown, or with an `#anchor`, that section. A page over 60,000 characters is cut, and the sections to fetch for the rest are listed.                                             |
+| `list_pages` | `prefix` (optional): a path, as `/docs/guides`; `locale` with `indexes` | Every page's `id`, `title` and `url`, or those under the prefix, up to 500.                                                                                                                    |
 
 Results come back as structured content, and as the same JSON in a text block for clients that read only text. That is the shape ChatGPT's connectors and deep research expect from `search` and `fetch`. `fetch` also takes a URL as an agent might write it: absolute, with a trailing slash, ending in `.md`, or with its anchor percent-encoded, as `#configura%C3%A7%C3%A3o` for `#configuração`. A page or tool that does not exist is an error the agent reads, with what to try instead.
+
+With `indexes`, the index of each other locale by its name, as the ask endpoint takes them, `search` and `list_pages` take a `locale`, one of those names, and read `index` without one, or for a locale with no index. `fetch` reads a page from whichever index has it, so a result of a search in French fetches the French page.
 
 ## Keyword-only or hybrid search
 
 Without an `embeddingModel`, `search` matches on keywords (BM25), and agent traffic costs you no model call of any kind. Keyword search finds a page best when the query uses the page's own words. On docusaurus.io's own docs (92 pages, 1,070 chunks), 22 agent-style queries written for this test in the docs' terms ("autogenerated sidebar from folder", "configureWebpack") have the right page in the top three for all 22, and first for 19. The same 22 questions, asked as a person asks ("How do I add a tip or warning callout box?"), have it in the top three for 20. The project wrote both sets knowing the docs, so these counts are a best case: a question in a reader's own words, which shares fewer words with the page, finds it less often. CI checks the counts on every change, in [`test/corpus.test.ts`](https://github.com/dgesteves/ondocs/blob/main/test/corpus.test.ts).
 
-With `embeddingModel`, each search also embeds its query, one embedding call at your provider's price, and merges both rankings as the ask endpoint does. That helps queries that share no words with the page. It must be the model the index was built with. If the provider fails, that search falls back to keywords.
+With `embeddingModel`, each search also embeds its query, one embedding call at your provider's price, and merges both rankings as the ask endpoint does. That helps queries that share no words with the page. It must be the model the index was built with. If the provider fails, that search falls back to keywords. The `rerank` and `retrieve` [hooks](/guides/retrieval/#rerank-or-retrieve-your-own-way) in `retrieval` run for each search as they do for each question, behind the same relevance gate.
 
 ```ts
 const handler = createMcpHandler({
@@ -106,7 +129,7 @@ const handler = createMcpHandler({
 
 The endpoint speaks MCP 2026-07-28, where every request names its version and there is no session, and, for clients that still start with `initialize`, 2025-11-25, 2025-06-18, 2025-03-26 and 2024-11-05, answered without a session. Claude Code's newer runtime asks for 2026-07-28 first, with `server/discover`. Cursor and VS Code start with `initialize`. Both ways are tested with the official MCP TypeScript client, and against the official conformance suite's scenarios that apply to a tools-only server.
 
-Browsers on other sites get no CORS headers, so they cannot read the answers. Requests are answered whatever their `Origin`, because hosted clients send one from their servers. `allowedOrigins: ['https://app.example.com']` turns on MCP's origin check: requests from any other origin get a 403, and the listed ones get CORS headers.
+Browsers on other sites get no CORS headers, so they cannot read the answers. Requests are answered whatever their `Origin`, because hosted clients send one from their servers. `allowedOrigins: ['https://app.example.com']` turns on MCP's origin check: requests from any other origin get a 403, and the listed ones get CORS headers, and can read `MCP-Protocol-Version` and `Retry-After`.
 
 ## Tested clients
 
@@ -145,20 +168,21 @@ claude mcp add --transport http docs http://localhost:8787/api/mcp
 
 ## Handler options
 
-| Option                     | Default            | Notes                                                                                                                             |
-| -------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `index`                    | required           | As for `createAskHandler`. The same imported object as the ask endpoint's is loaded once.                                         |
-| `embeddingModel`           | none               | Embeds each search query. Without it, search is keyword-only and no model is called.                                              |
-| `embeddingProviderOptions` | none               | As for `createAskHandler`.                                                                                                        |
-| `siteName`                 | `"this site"`      | Names the docs in the tools' descriptions, which the agent reads.                                                                 |
-| `siteUrl`                  | the request's      | The origin to make URLs absolute with, when the endpoint runs on another host. `false` keeps the index's URLs.                    |
-| `name`, `instructions`     | `ondocs`           | The server's name, and what it tells the agent about using the tools.                                                             |
-| `version`                  | ondocs's version   | The server's version beside its `name`, such as your docs'. A server named after your docs reports their version, not ondocs's.   |
-| `retrieval`                | keyword gate `0.3` | Retrieval settings for `search`; it keeps sections with at least 30% of the query's keyword weight, looser than the ask endpoint. |
-| `rateLimit`                | 60 a minute per IP | Any limiter, or `false`. `rateLimitFailure` works as for `createAskHandler`.                                                      |
-| `budget`                   | none               | `{ requestsPerDay, store }`: tool calls a day.                                                                                    |
-| `allowedOrigins`           | none               | A list of origins, or `'*'`, to check `Origin` and send CORS headers.                                                             |
-| `maxQueryLength`           | `500`              | Longest search query, in characters.                                                                                              |
-| `maxBodyBytes`             | 64 KiB             | Counted while reading.                                                                                                            |
-| `onToolCall`               | none               | `{ tool, arguments, isError, results, retrieval, durationMs }` after each call, to count agent traffic.                           |
-| `onError`                  | `console.error`    | Handled errors: embedding fallbacks, a failing limiter, a misconfigured index.                                                    |
+| Option                     | Default            | Notes                                                                                                                                                                   |
+| -------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index`                    | required           | As for `createAskHandler`. The same imported object as the ask endpoint's is loaded once.                                                                               |
+| `indexes`                  | none               | The index of each other locale, as for `createAskHandler`: `search` and `list_pages` then take a `locale`.                                                              |
+| `embeddingModel`           | none               | Embeds each search query. Without it, search is keyword-only and no model is called.                                                                                    |
+| `embeddingProviderOptions` | none               | As for `createAskHandler`.                                                                                                                                              |
+| `siteName`                 | `"this site"`      | Names the docs in the tools' descriptions, which the agent reads.                                                                                                       |
+| `siteUrl`                  | the request's      | The origin to make URLs absolute with, when the endpoint runs on another host. `false` keeps the index's URLs.                                                          |
+| `name`, `instructions`     | `ondocs`           | The server's name, and what it tells the agent about using the tools.                                                                                                   |
+| `version`                  | ondocs's version   | The server's version beside its `name`, such as your docs'. A server named after your docs reports their version, not ondocs's.                                         |
+| `retrieval`                | keyword gate `0.3` | Retrieval settings and the `rerank` and `retrieve` hooks for `search`; it keeps sections with at least 30% of the query's keyword weight, looser than the ask endpoint. |
+| `rateLimit`                | 60 a minute per IP | Any limiter, or `false`. `rateLimitFailure` works as for `createAskHandler`.                                                                                            |
+| `budget`                   | none               | `{ requestsPerDay, store }`: tool calls a day.                                                                                                                          |
+| `allowedOrigins`           | none               | A list of origins, or `'*'`, to check `Origin` and send CORS headers.                                                                                                   |
+| `maxQueryLength`           | `500`              | Longest search query, in characters.                                                                                                                                    |
+| `maxBodyBytes`             | 64 KiB             | Counted while reading.                                                                                                                                                  |
+| `onToolCall`               | none               | `{ tool, arguments, isError, results, retrieval, durationMs }` after each call, to count agent traffic.                                                                 |
+| `onError`                  | `console.error`    | Handled errors: embedding fallbacks, a failing limiter, a misconfigured index.                                                                                          |
