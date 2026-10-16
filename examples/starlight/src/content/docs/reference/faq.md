@@ -56,7 +56,7 @@ Yes. The dialog sends the thread with each question, and the endpoint rewrites a
 
 ## Does it work for docs that aren't in English?
 
-Yes, through the embedding model: a multilingual model such as Cohere's `embed-multilingual-v3.0` matches questions and pages across languages. The keyword side uses English stopwords, so it is weaker in other languages. The plugins build one index per locale, the dialog sends the page's locale so the endpoint answers from that locale's index, and every string the dialog shows can be given in your language with `labels`. See [Labels and languages](/reference/ask-dialog/#labels-and-languages).
+Yes, through the embedding model: a multilingual model such as Cohere's `embed-multilingual-v3.0` matches questions and pages across languages. The keyword side uses English stopwords, so it is weaker in other languages, and in Chinese, Japanese and Korean it misses most questions asked in plain words. MCP search without an `embeddingModel`, an index built with `-e none` and mock mode all rely on keywords, so for docs in those languages build the index with a multilingual embedding model and pass it to `createMcpHandler` as well. See [Language](/reference/limits/#language). The plugins build one index per locale, the dialog sends the page's locale so the endpoint answers from that locale's index, and every string the dialog shows can be given in your language with `labels`. See [Labels and languages](/reference/ask-dialog/#labels-and-languages).
 
 ## How is it different from Kapa, Inkeep or Algolia Ask AI?
 
