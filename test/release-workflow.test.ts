@@ -1,6 +1,7 @@
 // How .github/workflows/release.yml versions, publishes and checks a release. Only its release job
-// can write or publish, and it runs no tests or example builds; a dry run, started by hand, does
-// none of that. The `if` conditions here are evaluated as GitHub would, for each kind of run.
+// can write or publish, it runs no tests or example builds, and it runs only on a push; a dry run,
+// started by hand, runs a read-only job in its place. The `if` conditions here are evaluated as
+// GitHub would, for each kind of run.
 import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -46,6 +47,7 @@ const scripts = (
 const steps = Object.values(jobs).flatMap((job) => job?.steps ?? []);
 const changesets = steps.find((step) => step.uses?.startsWith('changesets/action@'));
 const release = jobs.release;
+const dryRun = jobs['dry-run'];
 const published = jobs.published;
 
 /**
@@ -119,11 +121,19 @@ describe('release workflow', () => {
   });
 
   // The validate job builds the four examples; a hung build would otherwise hold its runner for 6
-  // hours, as ci.yml's jobs are kept from doing.
+  // hours, as ci.yml's jobs are kept from doing. The release and check jobs wait for npm and
+  // jsDelivr, so theirs are longer.
   it.each(Object.keys(jobs))('gives the %s job a timeout', (id) => {
     const minutes = jobs[id]?.['timeout-minutes'];
     expect(minutes).toBeGreaterThan(0);
-    expect(minutes).toBeLessThanOrEqual(20);
+    expect(minutes).toBeLessThanOrEqual(30);
+  });
+
+  // The release step waits up to about 10 minutes for npm after a publish (NPM_TRIES), after an
+  // install and a build; the check job waits about 10 for npm, then about 5 for jsDelivr.
+  it('leaves the release and check jobs time to wait for npm and jsDelivr', () => {
+    expect(release?.['timeout-minutes']).toBeGreaterThanOrEqual(20);
+    expect(published?.['timeout-minutes']).toBeGreaterThanOrEqual(25);
   });
 
   // Without the pins, the release pull request fails test/package.test.ts: its version is the next
@@ -162,8 +172,42 @@ describe('who holds which token', () => {
     expect(runsInRelease).toContain('pnpm build');
   });
 
+  // The validate job runs the dependencies' test and build code, and setup-node saves the pnpm
+  // store after it: a package that ran there could leave files for the release job to install.
+  it('restores no cache in the release job', () => {
+    const cached = release?.steps.filter(
+      (step) => step.uses?.startsWith('actions/cache') === true || step.with?.cache !== undefined,
+    );
+    expect(cached?.map(label)).toEqual([]);
+  });
+
+  it('runs the release job only on a push, and the dry run only in its place', () => {
+    const on = (event: string) => ({
+      'github.repository': 'dgesteves/ondocs',
+      'github.event_name': event,
+    });
+    expect(runs(release?.if, on('push'))).toBe(true);
+    expect(runs(release?.if, on('workflow_dispatch'))).toBe(false);
+    expect(runs(dryRun?.if, on('push'))).toBe(false);
+    expect(runs(dryRun?.if, on('workflow_dispatch'))).toBe(true);
+  });
+
+  // The dry run versions and packs (scripts that run the built CLI and npm's lifecycle scripts)
+  // with nothing that could write, publish or push.
+  it('gives the dry-run job read permissions, and the App a read-only token there', () => {
+    expect(dryRun?.permissions).toEqual({ contents: 'read', 'pull-requests': 'read' });
+    const app = dryRun?.steps.find((step) =>
+      step.uses?.startsWith('actions/create-github-app-token@'),
+    );
+    expect(app?.with).toMatchObject({
+      'permission-contents': 'read',
+      'permission-pull-requests': 'read',
+    });
+    expect(Object.values(app?.with ?? {})).not.toContain('write');
+  });
+
   it('checks what npm and jsDelivr serve in a job that cannot write', () => {
-    expect([published?.needs].flat()).toEqual(['release']);
+    expect([published?.needs].flat()).toEqual(['release', 'dry-run']);
     expect(published?.permissions).toEqual({ contents: 'read' });
     const commands = published?.steps.map((step) => step.run ?? '').join('\n');
     expect(commands).toContain('node scripts/check-published.mjs npm');
@@ -252,10 +296,16 @@ describe('a publish', () => {
       { 'github.event_name': 'push' },
       { changesets: { 'has-changesets': 'false', ...results } },
     ).map(label);
-  const checks = (values: Record<string, string>) =>
-    runs(published?.if, { 'github.repository': 'dgesteves/ondocs', ...values })
-      ? simulate(published, { 'github.event_name': 'push', ...values })
-      : [];
+  // On a push, the dry-run job is skipped.
+  const checks = (values: Record<string, string>) => {
+    const context = {
+      'github.repository': 'dgesteves/ondocs',
+      'github.event_name': 'push',
+      'needs.dry-run.result': 'skipped',
+      ...values,
+    };
+    return runs(published?.if, context) ? simulate(published, context) : [];
+  };
 
   // changesets/action made a GitHub release for each package, three per version, and the
   // releases page opened on a plugin's "Updated dependencies".
@@ -265,6 +315,16 @@ describe('a publish', () => {
     const step = release?.steps.find((s) => s.run === 'node scripts/check-published.mjs release');
     expect(step?.env?.GH_TOKEN).toBe('${{ steps.app-token.outputs.token || github.token }}');
     expect(publishRun({ published: 'true' })).toContain('Create the GitHub release, for ondocs');
+  });
+
+  // npm served ondocs@0.10.0 about 3 minutes after the publish: a single read right after it
+  // would have found nothing, and made no release on a green run. The step waits when the
+  // packages this run published, as changesets/action lists them, include ondocs.
+  it('tells the release step what this run published, so it waits for npm', () => {
+    const step = release?.steps.find((s) => s.run === 'node scripts/check-published.mjs release');
+    expect(step?.env?.PUBLISHED_PACKAGES).toBe(
+      '${{ steps.changesets.outputs.published-packages }}',
+    );
   });
 
   // If the tag or the release failed, a re-run publishes nothing (published is false), so the
@@ -319,12 +379,16 @@ describe('a dry run', () => {
     for (const hasApp of [false, true]) {
       const values = {
         ...dispatch,
+        'github.repository': 'dgesteves/ondocs',
         'secrets.RELEASE_APP_ID': hasApp ? 'id' : '',
         'secrets.RELEASE_APP_PRIVATE_KEY': hasApp ? 'key' : '',
         'vars.RELEASE_AUTO_MERGE': 'true',
       };
-      const ran = simulate(release, values, { 'app-token': { token: 'app token' } });
+      expect(runs(release?.if, values)).toBe(false);
+      expect(runs(dryRun?.if, values)).toBe(true);
+      const ran = simulate(dryRun, values, { 'app-token': { token: 'app token' } });
       expect(ran.filter(writes).map(label)).toEqual([]);
+      expect(ran.some((step) => step.uses?.startsWith('changesets/action@'))).toBe(false);
       expect(ran.map(label)).toEqual(
         expect.arrayContaining([
           'pnpm build',
@@ -333,6 +397,9 @@ describe('a dry run', () => {
           'Dry run: the GitHub release this version would get',
         ]),
       );
+      expect(ran.map(label).includes('Get a read-only token from the release GitHub App')).toBe(
+        hasApp,
+      );
     }
   });
 
@@ -340,7 +407,8 @@ describe('a dry run', () => {
     const values = {
       ...dispatch,
       'github.repository': 'dgesteves/ondocs',
-      'needs.release.result': 'success',
+      'needs.release.result': 'skipped',
+      'needs.dry-run.result': 'success',
     };
     expect(runs(published?.if, values)).toBe(true);
     const ran = simulate(published, values);
@@ -373,8 +441,18 @@ describe('a dry run', () => {
     }
   });
 
+  it('runs no check when the dry run did not run', () => {
+    const values = {
+      ...dispatch,
+      'github.repository': 'dgesteves/ondocs',
+      'needs.release.result': 'skipped',
+      'needs.dry-run.result': 'skipped',
+    };
+    expect(runs(published?.if, values)).toBe(false);
+  });
+
   it('keeps the version commit in the runner', () => {
-    const version = release?.steps.find((s) => s.name?.startsWith('Dry run: version'));
+    const version = dryRun?.steps.find((s) => s.name?.startsWith('Dry run: version'));
     expect(version?.run).toContain('pnpm version-packages');
     expect(version?.run).not.toMatch(/git (commit|push)/);
   });

@@ -11,6 +11,9 @@ import {
   changelogEntry,
   checkNpm,
   ensureRelease,
+  main,
+  NPM_TRIES,
+  publishedByThisRun,
   purgeJsdelivr,
   releasedPackages,
 } from '../scripts/check-published.mjs';
@@ -114,6 +117,23 @@ describe('npm', () => {
     expect(tries).toBe(3);
   });
 
+  it('tries again when npm answers with an error', async () => {
+    let tries = 0;
+    const { fetch } = stand({
+      'https://registry.npmjs.org/ondocs/0.11.0': () =>
+        ++tries < 2 ? new Response('busy', { status: 503 }) : json({ version: '0.11.0' }),
+    });
+    expect(await checkNpm('0.11.0', ['ondocs'], { ...quiet, fetch })).toEqual([]);
+    expect(tries).toBe(2);
+  });
+
+  // npm's time for ondocs@0.10.0 is almost 3 minutes after its publish job ended, and the check
+  // job starts within a minute of that: the old budget, 2 minutes and 15 seconds, would have failed
+  // that good release.
+  it('waits about 10 minutes for npm by default', () => {
+    expect((NPM_TRIES.attempts - 1) * NPM_TRIES.delayMs).toBeGreaterThanOrEqual(9 * 60_000);
+  });
+
   it('fails when the plugins don’t install', async () => {
     const { fetch } = registry({
       ondocs: true,
@@ -184,11 +204,67 @@ describe('the GitHub release', () => {
     expect(calls.map((call) => call.method)).toEqual(['GET']);
   });
 
-  // A publish where ondocs failed: the plugins' tags can be there, but ondocs gets no release.
-  it('creates none while ondocs isn’t on npm', async () => {
+  // A publish where ondocs failed, or a push after one: the plugins' tags can be there, but ondocs
+  // gets no release, and the step reads npm once.
+  it('creates none while ondocs isn’t on npm and this run didn’t publish it', async () => {
     const { fetch, calls } = stand({});
     expect(await ensureRelease(release, { ...quiet, fetch })).toBe('not-on-npm');
     expect(calls.some((call) => call.method === 'POST')).toBe(false);
+    expect(calls.filter((call) => call.url.startsWith('https://registry.'))).toHaveLength(1);
+  });
+
+  // The step runs seconds after changeset publish, and npm served ondocs@0.10.0 about 3 minutes
+  // later: read once, this would have made no release on a green run.
+  it('waits for npm when this run published ondocs, then creates the release', async () => {
+    let tries = 0;
+    const { fetch, calls } = stand({
+      'https://registry.npmjs.org/ondocs/0.10.0': () =>
+        ++tries < 3 ? undefined : json({ version: '0.10.0' }),
+      [`POST ${api}/releases`]: () => json({ html_url: 'https://github.com/r' }, 201),
+    });
+    const sleeps: number[] = [];
+    const sleep = (ms: number) => {
+      sleeps.push(ms);
+      return Promise.resolve();
+    };
+    expect(
+      await ensureRelease(
+        { ...release, published: true },
+        { ...quiet, delayMs: 30_000, sleep, fetch },
+      ),
+    ).toBe('created');
+    expect(tries).toBe(3);
+    expect(sleeps).toEqual([30_000, 30_000]);
+    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+  });
+
+  it('gives up after its tries when this run published ondocs and npm never serves it', async () => {
+    const { fetch, calls } = stand({});
+    expect(await ensureRelease({ ...release, published: true }, { ...quiet, fetch })).toBe(
+      'not-on-npm',
+    );
+    expect(calls.filter((call) => call.url.startsWith('https://registry.'))).toHaveLength(3);
+    expect(calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
+  it('knows whether this run published a version, from changesets/action’s list', () => {
+    const list = JSON.stringify([
+      { name: 'docusaurus-plugin-ondocs', version: '0.11.0' },
+      { name: 'ondocs', version: '0.11.0' },
+    ]);
+    expect(publishedByThisRun(list, 'ondocs', '0.11.0')).toBe(true);
+    expect(publishedByThisRun(list, 'ondocs', '0.10.0')).toBe(false);
+    // A publish where ondocs failed and a plugin didn't: changesets/action lists the plugin only.
+    expect(
+      publishedByThisRun(
+        JSON.stringify([{ name: 'starlight-ondocs', version: '0.11.0' }]),
+        'ondocs',
+        '0.11.0',
+      ),
+    ).toBe(false);
+    for (const nothing of [undefined, '', '[]', 'not json', '{}']) {
+      expect(publishedByThisRun(nothing, 'ondocs', '0.11.0')).toBe(false);
+    }
   });
 
   it('creates nothing in a dry run, and says what it would create', async () => {
@@ -224,6 +300,47 @@ describe('the GitHub release', () => {
       prerelease: true,
       make_latest: 'false',
     });
+  });
+});
+
+// The step as the workflow runs it, for this checkout's version: an error that fails the job when
+// this run published ondocs and npm never served it, and only a warning otherwise.
+describe('the release step', () => {
+  const env = {
+    GITHUB_REPOSITORY: 'dgesteves/ondocs',
+    GH_TOKEN: 'token',
+    GITHUB_SHA: 'abc123',
+  };
+  const version = (
+    JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version: string }
+  ).version;
+  const step = async (extra: Record<string, string>) => {
+    const { fetch, calls } = stand({});
+    const lines: string[] = [];
+    const code = await main(['release'], {
+      ...quiet,
+      fetch,
+      log: (line) => lines.push(line),
+      env: { ...env, ...extra },
+    });
+    return { code, lines, calls };
+  };
+
+  it('fails, saying to re-run the job, when this run published ondocs and npm never serves it', async () => {
+    const { code, lines, calls } = await step({
+      PUBLISHED_PACKAGES: JSON.stringify([{ name: 'ondocs', version }]),
+    });
+    expect(code).toBe(1);
+    expect(lines.join('\n')).toMatch(
+      new RegExp(`error.*This run published ondocs@${version.replaceAll('.', '\\.')}.*re-run`),
+    );
+    expect(calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
+  it('only warns when ondocs isn’t on npm and this run didn’t publish it', async () => {
+    const { code, lines } = await step({ PUBLISHED_PACKAGES: '[]' });
+    expect(code).toBe(0);
+    expect(lines.join('\n')).toMatch(/warning.*is not on npm, so it gets no GitHub release yet/);
   });
 });
 

@@ -1,14 +1,22 @@
 // scripts/check-doc-imports.mjs: every `ondocs/...` import the docs show resolves in a package. The
 // docs deploy from main, and twice they described modules and names that npm's latest didn't have
-// yet: on 0.10.0, `import 'ondocs/embed/button.css'` failed the build, and `openAskDialog` was not
-// in `ondocs/embed`. The release workflow runs it on what it publishes.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+// yet: with 0.10.0 on npm, `import 'ondocs/embed/button.css'` failed the build, and the prose's
+// `` `openAskDialog(question?)` from `ondocs/embed` `` named a function 0.10.0 doesn't export. The
+// names come from import statements and from such prose. The release workflow runs it on what it
+// publishes.
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { checkImports, docFiles, findImports } from '../scripts/check-doc-imports.mjs';
+import {
+  checkImports,
+  docFiles,
+  fetchPackage,
+  findImports,
+  main,
+} from '../scripts/check-doc-imports.mjs';
 
 const root = join(import.meta.dirname, '..');
 
@@ -79,6 +87,26 @@ describe('the imports the docs show', () => {
     ]);
   });
 
+  // As ask-dialog.md says it, and the other ways the docs give a module names in prose.
+  it('take the names the prose gives a module in backticks', () => {
+    const page = [
+      'From code, `openAskDialog(question?)` from `ondocs/embed` does the same.',
+      'Import `createAskHandler` and `createMcpHandler` from `ondocs/server`.',
+      '`turnstile`, `remoteIndex` or `memoryRateLimit` from `ondocs/server` fit here.',
+      '- **React:** `<McpInstall url="https://docs.example.com/api/mcp" />` from `ondocs/react`.',
+      'Nothing from `window.Ondocs.open(question?)` from `ondocs/embed`, or `useChat` from `@ai-sdk/react`.',
+      'Without Starlight, add the integration from `ondocs/astro`.',
+    ].join('\n');
+    expect(findImports(page, 'page.md').map((entry) => [entry.specifier, entry.names])).toEqual([
+      ['ondocs/embed', ['openAskDialog']],
+      ['ondocs/server', ['createAskHandler', 'createMcpHandler']],
+      ['ondocs/server', ['turnstile', 'remoteIndex', 'memoryRateLimit']],
+      ['ondocs/react', ['McpInstall']],
+      ['ondocs/embed', []],
+      ['ondocs/astro', []],
+    ]);
+  });
+
   it('come from the README, the plugin packages’ READMEs and every page of the website’s docs', () => {
     const files = docFiles(root);
     expect(files.slice(0, 3)).toEqual([
@@ -91,15 +119,16 @@ describe('the imports the docs show', () => {
 });
 
 describe('checking them against a package', () => {
-  // The 0.11 docs on main, against 0.10.0 on npm.
+  // The 0.11 docs on main, against 0.10.0 on npm: line 2 is ask-dialog.md's own sentence.
   it('reports a module the package does not export, and a name its module lacks', () => {
     const imports = findImports(
       [
         "import 'ondocs/embed/button.css';",
-        "import { mountAskDialog, openAskDialog } from 'ondocs/embed';",
-        "import { type MountAskDialogOptions } from 'ondocs/embed';",
+        'From code, `openAskDialog(question?)` from `ondocs/embed` does the same in any framework.',
+        "import { mountAskDialog, type MountAskDialogOptions } from 'ondocs/embed';",
         "import ondocs from 'ondocs/astro';",
         "import 'ondocs/embed/launcher.css';",
+        'In an app with a bundler, `mountAskDialog(options)` from `ondocs/embed` does the same.',
       ].join('\n'),
       'ask-dialog.md',
     );
@@ -169,6 +198,77 @@ describe('checking them against a package', () => {
     for (const specifier of specifiers) {
       expect(Object.keys(manifest.exports), specifier).toContain(
         specifier === 'ondocs' ? '.' : `.${specifier.slice('ondocs'.length)}`,
+      );
+    }
+  });
+});
+
+describe('the published package', () => {
+  /** A checkout with one docs page, `page`, under a new temporary directory. */
+  const checkout = (page: string) =>
+    packageWith({
+      'README.md': '# ondocs\n',
+      'packages/docusaurus-plugin-ondocs/README.md': '# docusaurus-plugin-ondocs\n',
+      'examples/nextjs/content/docs/ask-dialog.md': page,
+    });
+  /** `npm pack` and `tar`, as stand-ins: npm fails `failures` times, then gives `from`, unpacked. */
+  const registry = (from: string, failures = 0) => {
+    const commands: string[] = [];
+    let tries = 0;
+    const exec = (command: string, args: string[]) => {
+      commands.push(command);
+      if (command === 'npm') {
+        if (++tries <= failures) throw new Error('Command failed: npm pack\nnpm error code E503');
+        return JSON.stringify([{ filename: 'ondocs-0.10.0.tgz' }]);
+      }
+      cpSync(from, join(args[args.indexOf('-C') + 1] ?? '', 'package'), { recursive: true });
+      return '';
+    };
+    return { exec, commands };
+  };
+  const quiet = { sleep: () => Promise.resolve(), attempts: 3, delayMs: 0 };
+
+  it('is downloaded again when npm fails, up to its tries', async () => {
+    const { exec, commands } = registry(ondocs010, 2);
+    const fetched = await fetchPackage('ondocs@0.10.0', { ...quiet, exec, log: () => undefined });
+    try {
+      expect(commands).toEqual(['npm', 'npm', 'npm', 'tar']);
+      expect(readFileSync(join(fetched.packageDir, 'package.json'), 'utf8')).toContain('0.10.0');
+    } finally {
+      rmSync(fetched.dir, { recursive: true, force: true });
+    }
+  });
+
+  it('fails the check when a docs page takes a name the release lacks', async () => {
+    const dir = checkout('From code, `openAskDialog(question?)` from `ondocs/embed` opens it.\n');
+    const lines: string[] = [];
+    const { exec } = registry(ondocs010);
+    const code = await main(['--npm', 'ondocs@0.10.0'], {
+      ...quiet,
+      exec,
+      dir,
+      log: (line) => lines.push(line),
+    });
+    expect(code).toBe(1);
+    expect(lines.join('\n')).toContain(
+      'ondocs/embed in ondocs@0.10.0 does not export openAskDialog',
+    );
+  });
+
+  // On a push that publishes nothing, a flaky npm would otherwise turn main's Release run red.
+  it('only warns, with --warn, when the download still fails after its tries', async () => {
+    const dir = checkout('Import `ondocs/embed`.\n');
+    for (const [args, expected] of [
+      [['--npm', 'ondocs@9.9.9', '--warn'], 0],
+      [['--npm', 'ondocs@9.9.9'], 1],
+    ] as const) {
+      const lines: string[] = [];
+      const { exec, commands } = registry(ondocs010, 99);
+      const code = await main([...args], { ...quiet, exec, dir, log: (line) => lines.push(line) });
+      expect(code).toBe(expected);
+      expect(commands).toEqual(['npm', 'npm', 'npm']);
+      expect(lines.at(-1)).toMatch(
+        new RegExp(`${expected === 0 ? 'warning' : 'error'}.*Could not download ondocs@9\\.9\\.9`),
       );
     }
   });

@@ -1,7 +1,10 @@
 // Checks that every `ondocs/...` import the docs show resolves in a package: each module is in its
-// `exports`, the file it points at is in the package, and each name a docs import statement takes
-// from it is in the module's types. The docs deploy from main, so a page can describe a module or
-// a name that the version on npm doesn't have yet, and following it then fails a site's build.
+// `exports`, the file it points at is in the package, and each name the docs take from it is in
+// the module's types. The names are those of import statements (`import { a } from 'ondocs/x'`)
+// and those the prose gives a module in backticks (`` `a(options)` from `ondocs/x` ``,
+// `` `A` and `B` from `ondocs/x` ``, `` `<A />` from `ondocs/x` ``). The docs deploy from main, so
+// a page can describe a module or a name that the version on npm doesn't have yet, and following
+// it then fails a site's build.
 //
 //   pnpm build && node scripts/check-doc-imports.mjs     # against this checkout's package
 //   node scripts/check-doc-imports.mjs --npm ondocs@0.11.0   # against that version on npm
@@ -10,7 +13,8 @@
 // The release workflow runs it on the version it has just published, and on npm's latest after
 // every other push to main, where a miss is a warning: the docs are ahead of npm until the next
 // release. With --npm it downloads the tarball (`npm pack`, which runs none of its scripts) into a
-// temporary directory, and reads it.
+// temporary directory, and reads it; a download that fails is tried again for a few minutes, and
+// with --warn, one that still fails is a warning too.
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -23,7 +27,32 @@ const DOCS = 'examples/nextjs/content/docs';
 /**
  * @typedef {{ file: string, line: number, specifier: string, names: string[] }} DocImport
  * @typedef {{ file: string, line: number, specifier: string, message: string }} Problem
+ * @typedef {object} Io
+ * @property {(command: string, args: string[], cwd: string) => string} [exec] Runs a command and
+ *   returns its stdout, or throws when it fails.
+ * @property {(ms: number) => Promise<void>} [sleep]
+ * @property {(line: string) => void} [log]
+ * @property {number} [attempts] How many times the download is tried before it fails.
+ * @property {number} [delayMs] The wait between two tries.
  */
+
+/** @param {Io} io */
+function withDefaults(io) {
+  return {
+    exec:
+      io.exec ??
+      ((command, args, cwd) =>
+        execFileSync(command, args, {
+          cwd,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'inherit'],
+        })),
+    sleep: io.sleep ?? ((ms) => new Promise((done) => setTimeout(done, ms))),
+    log: io.log ?? ((line) => console.log(line)),
+    attempts: io.attempts ?? 5,
+    delayMs: io.delayMs ?? 30_000,
+  };
+}
 
 /**
  * The pages to read, relative to `dir`: the README, the plugin packages' READMEs and the website's
@@ -45,9 +74,11 @@ export function docFiles(dir) {
 
 /**
  * Every module of the package that `text` names in quotes or backticks (`'ondocs/server'`,
- * `` `ondocs/embed/button.css` ``, `"ondocs"`), and the names each import statement takes from
- * it (`import { createAskHandler } from 'ondocs/server'`, `import ondocs from 'ondocs/astro'`,
- * which takes `default`).
+ * `` `ondocs/embed/button.css` ``, `"ondocs"`), and the names the docs take from it: those of an
+ * import statement (`import { createAskHandler } from 'ondocs/server'`, `import ondocs from
+ * 'ondocs/astro'`, which takes `default`), and those the prose gives it (`` `openAskDialog(question?)`
+ * from `ondocs/embed` ``, `` `createAskHandler` and `createMcpHandler` from `ondocs/server` ``,
+ * `` `<McpInstall url="…" />` from `ondocs/react` ``).
  * @param {string} text
  * @param {string} file
  * @returns {DocImport[]}
@@ -81,6 +112,21 @@ export function findImports(text, file) {
         .split(/\s+as\s+/)[0]
         ?.trim();
       if (name) entry.names.push(name);
+    }
+  }
+  // In prose: one or more names in backticks, joined by commas, `and` or `or`, then ` from ` and
+  // the module in backticks. A code span that is not a name, a call or a JSX element names nothing.
+  const prose =
+    /((?:`[^`\n]+`(?:,\s*|,?\s+(?:and|or)\s+))*`[^`\n]+`)\s+from\s+`(ondocs(?:\/[\w.@-]+)*)`/g;
+  for (const match of text.matchAll(prose)) {
+    const [whole, spans = '', specifier = ''] = match;
+    const entry = found.get(match.index + whole.length - specifier.length - 2);
+    if (!entry) continue;
+    for (const [, code = ''] of spans.matchAll(/`([^`\n]+)`/g)) {
+      const name =
+        /^<([A-Za-z_$][\w$]*)[\s/>]/.exec(code)?.[1] ??
+        /^([A-Za-z_$][\w$]*)(?:\(.*\))?$/.exec(code)?.[1];
+      if (name && !entry.names.includes(name)) entry.names.push(name);
     }
   }
   return [...found.values()];
@@ -201,71 +247,126 @@ export function checkImports(imports, packageDir) {
 }
 
 /**
- * Downloads `spec` (such as `ondocs@0.11.0`) from npm into a new temporary directory, unpacked,
- * and returns that directory and the package's.
- * @param {string} spec
- * @returns {{ dir: string, packageDir: string }}
+ * Why a command failed, in a few words: its exit code (its own output is printed above), or the
+ * first line of the error.
+ * @param {unknown} error
  */
-export function fetchPackage(spec) {
-  const dir = mkdtempSync(join(tmpdir(), 'ondocs-published-'));
-  const output = execFileSync(
-    'npm',
-    ['pack', spec, '--json', '--ignore-scripts', '--prefer-online', '--pack-destination', dir],
-    { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
-  );
-  const [packed] = /** @type {{ filename: string }[]} */ (JSON.parse(output));
-  if (!packed) throw new Error(`npm pack ${spec} gave no tarball`);
-  execFileSync('tar', ['-xzf', join(dir, packed.filename), '-C', dir]);
-  return { dir, packageDir: join(dir, 'package') };
+function failure(error) {
+  if (error && typeof error === 'object' && 'status' in error && typeof error.status === 'number') {
+    return `exit code ${String(error.status)}`;
+  }
+  return (error instanceof Error ? error.message : String(error)).trim().split('\n')[0] ?? '';
 }
 
 /**
- * Prints each problem, as a GitHub annotation in a workflow, and returns how many there were.
- * @param {Problem[]} problems
- * @param {'error' | 'warning'} level
+ * Downloads `spec` (such as `ondocs@0.11.0`) from npm into a new temporary directory, unpacked,
+ * and returns that directory and the package's. A download that fails is tried again, `attempts`
+ * times in all: npm can take minutes to serve a version it has just accepted.
+ * @param {string} spec
+ * @param {Io} [options]
+ * @returns {Promise<{ dir: string, packageDir: string }>}
  */
-function report(problems, level) {
-  for (const { file, line, message } of problems) {
-    console.log(
-      process.env.GITHUB_ACTIONS === 'true'
-        ? `::${level} file=${file},line=${String(line)}::${message}`
-        : `${file}:${String(line)}: ${message}`,
+export async function fetchPackage(spec, options = {}) {
+  const io = withDefaults(options);
+  for (let attempt = 1; ; attempt++) {
+    const dir = mkdtempSync(join(tmpdir(), 'ondocs-published-'));
+    try {
+      const output = io.exec(
+        'npm',
+        ['pack', spec, '--json', '--ignore-scripts', '--prefer-online', '--pack-destination', dir],
+        dir,
+      );
+      const [packed] = /** @type {{ filename: string }[]} */ (JSON.parse(output));
+      if (!packed) throw new Error(`npm pack ${spec} gave no tarball`);
+      io.exec('tar', ['-xzf', join(dir, packed.filename), '-C', dir], dir);
+      return { dir, packageDir: join(dir, 'package') };
+    } catch (error) {
+      rmSync(dir, { recursive: true, force: true });
+      if (attempt >= io.attempts) throw error;
+      const reason = failure(error);
+      io.log(
+        `  Downloading ${spec} failed: ${reason}. Trying again (${String(attempt + 1)} of ${String(io.attempts)}).`,
+      );
+      await io.sleep(io.delayMs);
+    }
+  }
+}
+
+/**
+ * Prints one line as a GitHub annotation in a workflow, or plainly.
+ * @param {'error' | 'warning'} level
+ * @param {string} message
+ * @param {{ file: string, line: number }} [where]
+ * @param {(line: string) => void} [log]
+ */
+function annotate(level, message, where, log = (line) => console.log(line)) {
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    const at = where ? ` file=${where.file},line=${String(where.line)}` : '';
+    log(`::${level}${at}::${message}`);
+  } else {
+    log(where ? `${where.file}:${String(where.line)}: ${message}` : `${level}: ${message}`);
+  }
+}
+
+/**
+ * Checks the docs of the checkout at `dir` against its own build, or with `--npm <spec>` against
+ * that package on npm, and returns the exit code: 1 when something doesn't resolve or the
+ * download fails, unless `--warn`, which reports both as warnings.
+ * @param {string[]} args
+ * @param {Io & { dir?: string }} [options]
+ * @returns {Promise<number>}
+ */
+export async function main(args, options = {}) {
+  const io = withDefaults(options);
+  const dir = options.dir ?? root;
+  const npmAt = args.indexOf('--npm');
+  const spec = npmAt === -1 ? undefined : args[npmAt + 1];
+  if (npmAt !== -1 && !spec) throw new Error('--npm needs a package spec, such as ondocs@latest');
+  const warn = args.includes('--warn');
+  const level = warn ? 'warning' : 'error';
+  const pages = docFiles(dir);
+  const imports = pages.flatMap((file) => findImports(readFileSync(join(dir, file), 'utf8'), file));
+  /** @type {{ dir: string, packageDir: string } | undefined} */
+  let fetched;
+  if (spec) {
+    try {
+      fetched = await fetchPackage(spec, options);
+    } catch (error) {
+      const reason = failure(error);
+      annotate(
+        level,
+        `Could not download ${spec} from npm, so the docs' imports were not checked against it: ${reason}.`,
+        undefined,
+        io.log,
+      );
+      return warn ? 0 : 1;
+    }
+  }
+  try {
+    const packageDir = fetched?.packageDir ?? dir;
+    const problems = checkImports(imports, packageDir);
+    const { name, version } = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'));
+    const where = spec ? `${name}@${version} on npm` : `this checkout's ${name}@${version}`;
+    const modules = new Set(imports.map((entry) => entry.specifier)).size;
+    const names = imports.reduce((count, entry) => count + entry.names.length, 0);
+    if (problems.length === 0) {
+      io.log(
+        `✓ ${String(modules)} modules, named ${String(imports.length)} times in ${String(pages.length)} pages, and the ${String(names)} names the docs take from them resolve in ${where}.`,
+      );
+      return 0;
+    }
+    for (const problem of problems) annotate(level, problem.message, problem, io.log);
+    io.log(
+      `${warn ? '!' : '✗'} ${String(problems.length)} of the docs' imports do not resolve in ${where}.` +
+        (warn ? ' The docs are ahead of it until the next release.' : ''),
     );
+    return warn ? 0 : 1;
+  } finally {
+    if (fetched) rmSync(fetched.dir, { recursive: true, force: true });
   }
 }
 
 // Run as a script (the real path, so a symlinked checkout still runs it), not imported by a test.
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2);
-  const npmAt = args.indexOf('--npm');
-  const spec = npmAt === -1 ? undefined : args[npmAt + 1];
-  if (npmAt !== -1 && !spec) throw new Error('--npm needs a package spec, such as ondocs@latest');
-  const warn = args.includes('--warn');
-  const pages = docFiles(root);
-  const imports = pages.flatMap((file) =>
-    findImports(readFileSync(join(root, file), 'utf8'), file),
-  );
-  const fetched = spec ? fetchPackage(spec) : undefined;
-  try {
-    const packageDir = fetched?.packageDir ?? root;
-    const problems = checkImports(imports, packageDir);
-    const { name, version } = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8'));
-    const where = spec ? `${name}@${version} on npm` : `this checkout's ${name}@${version}`;
-    const modules = new Set(imports.map((entry) => entry.specifier)).size;
-    const statements = imports.filter((entry) => entry.names.length > 0).length;
-    if (problems.length === 0) {
-      console.log(
-        `✓ ${String(modules)} modules, named ${String(imports.length)} times in ${String(pages.length)} pages, and the names in ${String(statements)} import statements resolve in ${where}.`,
-      );
-    } else {
-      report(problems, warn ? 'warning' : 'error');
-      console.log(
-        `${warn ? '!' : '✗'} ${String(problems.length)} of the docs' imports do not resolve in ${where}.` +
-          (warn ? ' The docs are ahead of it until the next release.' : ''),
-      );
-      if (!warn) process.exitCode = 1;
-    }
-  } finally {
-    if (fetched) rmSync(fetched.dir, { recursive: true, force: true });
-  }
+  process.exitCode = await main(process.argv.slice(2));
 }

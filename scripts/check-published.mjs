@@ -11,14 +11,18 @@
 // plugin packages pin ondocs at their own version. If ondocs fails while a plugin succeeds,
 // `npm i docusaurus-plugin-ondocs` fails with ETARGET until the run is repeated, so this checks the
 // registry for each one, then installs the plugins in an empty directory (with --dry-run, so
-// nothing is written) and checks that they bring this ondocs. npm can take a minute to serve a
-// version it has just accepted, so each check is tried again for a few minutes before it fails.
+// nothing is written) and checks that they bring this ondocs. npm can take minutes to serve a
+// version it has just accepted (npm's time for ondocs@0.10.0 is almost 3 minutes after its publish
+// job ended), so each check is tried again for about 10 minutes before it fails.
 //
 // release: one GitHub release per version, for ondocs, with its CHANGELOG.md entry as the notes,
 // marked as the latest. The plugin packages get their tags but no release. It does nothing when
-// the release exists, or when npm doesn't have the version, so it runs on every push to main with
-// no pending changesets: a run whose tag or release failed is completed by re-running it, or by
-// the next push. A missing tag is created at this run's commit (GITHUB_SHA).
+// the release exists, so it runs on every push to main with no pending changesets: a run whose tag
+// or release failed is completed by re-running it, or by the next push. A missing tag is created
+// at this run's commit (GITHUB_SHA). When this run published ondocs (PUBLISHED_PACKAGES, the
+// published-packages output of changesets/action, names it), it waits for npm to serve it as the
+// npm check does, and fails if npm never does. Otherwise a version npm doesn't have gets no
+// release, and a warning.
 //
 // jsdelivr: the docs' script tags load ondocs@MAJOR.MINOR, which jsDelivr resolves and caches for
 // up to 12 hours, so a patch would reach those sites half a day late. This purges that range and
@@ -35,6 +39,12 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const REGISTRY = 'https://registry.npmjs.org';
 const CDN = 'https://cdn.jsdelivr.net/npm';
 const PURGE = 'https://purge.jsdelivr.net/npm';
+// How long one request to npm or jsDelivr may take before it counts as a failed try.
+const REQUEST_TIMEOUT_MS = 30_000;
+/** How long the npm checks wait for a new version: 20 tries, 30 s apart, about 10 minutes. */
+export const NPM_TRIES = { attempts: 20, delayMs: 30_000 };
+/** How long the jsDelivr check waits for its ranges: 10 tries, 30 s apart, about 5 minutes. */
+export const JSDELIVR_TRIES = { attempts: 10, delayMs: 30_000 };
 // The launcher, and the dialog it loads from the URL it was loaded from.
 const CDN_FILES = ['dist/embed.global.js', 'dist/embed-dialog.global.js'];
 
@@ -61,8 +71,8 @@ function withDefaults(io) {
       }),
     sleep: io.sleep ?? ((ms) => new Promise((done) => setTimeout(done, ms))),
     log: io.log ?? ((line) => console.log(line)),
-    attempts: io.attempts ?? 10,
-    delayMs: io.delayMs ?? 15_000,
+    attempts: io.attempts ?? NPM_TRIES.attempts,
+    delayMs: io.delayMs ?? NPM_TRIES.delayMs,
   };
 }
 
@@ -128,17 +138,23 @@ export function cdnPaths(name, version) {
 
 /**
  * Tries `check` until it returns no problems, or `attempts` times, and returns the last problems.
+ * A try that throws (an HTTP error, a timeout) counts as one that found a problem.
  * @param {() => Promise<string[]>} check
  * @param {ReturnType<typeof withDefaults>} io
  */
 async function retry(check, io) {
-  let problems = await check();
-  for (let attempt = 2; attempt <= io.attempts && problems.length > 0; attempt++) {
-    io.log(
-      `  ${problems.join('; ')}. Trying again (${String(attempt)} of ${String(io.attempts)}).`,
-    );
+  const attempt = async () => {
+    try {
+      return await check();
+    } catch (error) {
+      return [error instanceof Error ? error.message : String(error)];
+    }
+  };
+  let problems = await attempt();
+  for (let tries = 2; tries <= io.attempts && problems.length > 0; tries++) {
+    io.log(`  ${problems.join('; ')}. Trying again (${String(tries)} of ${String(io.attempts)}).`);
     await io.sleep(io.delayMs);
-    problems = await check();
+    problems = await attempt();
   }
   return problems;
 }
@@ -152,6 +168,7 @@ async function retry(check, io) {
 async function onNpm(name, version, io) {
   const response = await io.fetch(`${REGISTRY}/${name}/${version}`, {
     headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
   if (response.status === 404) return false;
   if (!response.ok)
@@ -207,15 +224,54 @@ export async function checkNpm(version, packages, options = {}) {
 }
 
 /**
+ * Whether `publishedPackages`, the published-packages output of changesets/action (a JSON list of
+ * `{ name, version }`), names `name@version`.
+ * @param {string | undefined} publishedPackages
+ * @param {string} name
+ * @param {string} version
+ */
+export function publishedByThisRun(publishedPackages, name, version) {
+  if (!publishedPackages) return false;
+  /** @type {unknown} */
+  let list;
+  try {
+    list = JSON.parse(publishedPackages);
+  } catch {
+    return false;
+  }
+  return (
+    Array.isArray(list) &&
+    list.some(
+      (entry) =>
+        entry !== null &&
+        typeof entry === 'object' &&
+        /** @type {{ name?: unknown }} */ (entry).name === name &&
+        /** @type {{ version?: unknown }} */ (entry).version === version,
+    )
+  );
+}
+
+/**
  * Makes sure `name@version` has a GitHub release, with its CHANGELOG.md entry as the notes. Returns
- * what it found or did.
- * @param {{ name: string, version: string, changelog: string, repository: string, sha?: string, token?: string, api?: string, dryRun?: boolean }} release
+ * what it found or did. With `published` (this run published it), it waits for npm to serve the
+ * version, as the npm check does, before it gives up with 'not-on-npm'; otherwise it reads npm
+ * once.
+ * @param {{ name: string, version: string, changelog: string, repository: string, sha?: string, token?: string, api?: string, dryRun?: boolean, published?: boolean }} release
  * @param {Io} [options]
  * @returns {Promise<'exists' | 'not-on-npm' | 'would-create' | 'created'>}
  */
 export async function ensureRelease(release, options = {}) {
   const io = withDefaults(options);
-  const { name, version, changelog, repository, sha, token, dryRun = false } = release;
+  const {
+    name,
+    version,
+    changelog,
+    repository,
+    sha,
+    token,
+    dryRun = false,
+    published = false,
+  } = release;
   const api = release.api || 'https://api.github.com';
   const tag = `${name}@${version}`;
   /** @type {Record<string, string>} */
@@ -240,9 +296,17 @@ export async function ensureRelease(release, options = {}) {
     );
   }
   const notes = changelogEntry(changelog, version);
-  if (!(await onNpm(name, version, io))) {
-    io.log(`${tag} is not on npm, so it gets no GitHub release yet.`);
+  const onNpmNow = published
+    ? (
+        await retry(
+          async () => ((await onNpm(name, version, io)) ? [] : [`npm has no ${tag} yet`]),
+          io,
+        )
+      ).length === 0
+    : await onNpm(name, version, io);
+  if (!onNpmNow) {
     if (!dryRun) return 'not-on-npm';
+    io.log(`${tag} is not on npm yet: a real run creates its release only once npm has it.`);
   }
   if (!notes) throw new Error(`CHANGELOG.md has no entry for ${version}`);
   const prerelease = version.includes('-');
@@ -294,10 +358,15 @@ export async function purgeJsdelivr(paths, version, options = {}) {
     const stale = paths.filter((path) => served.get(path) !== version);
     for (const path of stale) {
       if (!dryRun) {
-        const purge = await io.fetch(`${PURGE}/${path}`);
+        const purge = await io.fetch(`${PURGE}/${path}`, {
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
         if (!purge.ok) io.log(`  The purge of ${path} answered HTTP ${String(purge.status)}.`);
       }
-      const head = await io.fetch(`${CDN}/${path}`, { method: 'HEAD' });
+      const head = await io.fetch(`${CDN}/${path}`, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
       served.set(
         path,
         head.ok ? (head.headers.get('x-jsd-version') ?? 'nothing') : `HTTP ${String(head.status)}`,
@@ -315,48 +384,77 @@ export async function purgeJsdelivr(paths, version, options = {}) {
 }
 
 /**
- * Prints `problems`, as GitHub annotations in a workflow, and sets a failing exit code unless
- * `warn`.
- * @param {string[]} problems
- * @param {boolean} warn
+ * Runs one check (`npm`, `release` or `jsdelivr`, and `--dry-run`) for the version in the
+ * package.json at `dir`, as the release workflow does, and returns the exit code. Problems are
+ * printed as GitHub annotations in a workflow: errors, which fail the step, or warnings.
+ * @param {string[]} args
+ * @param {Io & { dir?: string, env?: Record<string, string | undefined> }} [options]
+ * @returns {Promise<number>}
  */
-function report(problems, warn) {
-  const level = warn ? 'warning' : 'error';
-  for (const problem of problems) {
-    console.log(
-      process.env.GITHUB_ACTIONS === 'true' ? `::${level}::${problem}` : `${level}: ${problem}`,
-    );
+export async function main(args, options = {}) {
+  const { dir = root, env = process.env, ...rest } = options;
+  const io = withDefaults(rest);
+  const [check, ...flags] = args;
+  const dryRun = flags.includes('--dry-run');
+  const { name, version } = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
+  /** @param {string[]} problems @param {boolean} warn */
+  const report = (problems, warn) => {
+    const level = warn ? 'warning' : 'error';
+    for (const problem of problems) {
+      io.log(env.GITHUB_ACTIONS === 'true' ? `::${level}::${problem}` : `${level}: ${problem}`);
+    }
+    return problems.length > 0 && !warn ? 1 : 0;
+  };
+  if (check === 'npm') {
+    return report(await checkNpm(version, releasedPackages(dir), rest), false);
   }
-  if (problems.length > 0 && !warn) process.exitCode = 1;
+  if (check === 'release') {
+    const repository = env.GITHUB_REPOSITORY;
+    if (!repository) throw new Error('GITHUB_REPOSITORY must name the repository, as owner/name');
+    const tag = `${name}@${version}`;
+    const published = publishedByThisRun(env.PUBLISHED_PACKAGES, name, version);
+    const result = await ensureRelease(
+      {
+        name,
+        version,
+        changelog: readFileSync(join(dir, 'CHANGELOG.md'), 'utf8'),
+        repository,
+        sha: env.GITHUB_SHA,
+        token: env.GH_TOKEN,
+        api: env.GITHUB_API_URL,
+        dryRun,
+        published,
+      },
+      rest,
+    );
+    if (result !== 'not-on-npm') return 0;
+    // A green run with no release would leave it missing until some later push to main.
+    return published
+      ? report(
+          [
+            `This run published ${tag}, but npm still doesn't serve it, so it has no GitHub release. Once \`npm view ${tag} version\` prints ${version}, re-run this job: it publishes nothing more, and creates the release.`,
+          ],
+          false,
+        )
+      : report(
+          [
+            `${tag} is not on npm, so it gets no GitHub release yet. If its publish failed, re-run the Version or publish job of the run that merged the release pull request.`,
+          ],
+          true,
+        );
+  }
+  if (check === 'jsdelivr') {
+    const problems = await purgeJsdelivr(cdnPaths(name, version), version, {
+      ...JSDELIVR_TRIES,
+      ...rest,
+      dryRun,
+    });
+    return report(problems, dryRun);
+  }
+  throw new Error(`Usage: node scripts/check-published.mjs npm|release|jsdelivr [--dry-run]`);
 }
 
 // Run as a script (the real path, so a symlinked checkout still runs it), not imported by a test.
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const [check, ...args] = process.argv.slice(2);
-  const dryRun = args.includes('--dry-run');
-  const { name, version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-  if (check === 'npm') {
-    report(await checkNpm(version, releasedPackages(root)), false);
-  } else if (check === 'release') {
-    const repository = process.env.GITHUB_REPOSITORY;
-    if (!repository) throw new Error('GITHUB_REPOSITORY must name the repository, as owner/name');
-    await ensureRelease({
-      name,
-      version,
-      changelog: readFileSync(join(root, 'CHANGELOG.md'), 'utf8'),
-      repository,
-      sha: process.env.GITHUB_SHA,
-      token: process.env.GH_TOKEN,
-      api: process.env.GITHUB_API_URL,
-      dryRun,
-    });
-  } else if (check === 'jsdelivr') {
-    const problems = await purgeJsdelivr(cdnPaths(name, version), version, {
-      dryRun,
-      delayMs: 30_000,
-    });
-    report(problems, dryRun);
-  } else {
-    throw new Error(`Usage: node scripts/check-published.mjs npm|release|jsdelivr [--dry-run]`);
-  }
+  process.exitCode = await main(process.argv.slice(2));
 }

@@ -3,10 +3,11 @@ name: Release
 # On a push to main: with pending changesets, open or update the release pull request; with none
 # (once it is merged), publish to npm what npm doesn't have yet, then check what npm and jsDelivr
 # serve. Started by hand (Actions, Release, Run workflow, or `gh workflow run release.yml --ref
-# <branch>`), it is a dry run of that branch: the same jobs, which version the packages without
-# pushing, pack them without publishing, and check what npm, jsDelivr and GitHub serve now. A dry
-# run publishes nothing, pushes nothing, and opens no pull request, tag or release. RELEASING.md
-# says what each step does, and what to do when one fails.
+# <branch>`), it is a dry run of that branch: in place of the release job, a job with read
+# permissions versions the packages without pushing and packs them without publishing, then the
+# checks read what npm, jsDelivr and GitHub serve now. A dry run publishes nothing, pushes nothing,
+# and opens no pull request, tag or release. RELEASING.md says what each step does, and what to do
+# when one fails.
 on:
   push:
     branches: [main]
@@ -43,12 +44,15 @@ jobs:
         run: node scripts/corpus.mjs
       - run: pnpm validate
 
+  # Only on a push to main: a run started by hand gets the dry-run job below instead.
   release:
     name: Version or publish
     needs: validate
-    if: github.repository == 'dgesteves/ondocs'
+    if: github.repository == 'dgesteves/ondocs' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Install and build take a few minutes, and after a publish the release step can wait about 10
+    # more for npm to serve the new ondocs.
+    timeout-minutes: 25
     permissions:
       contents: write # the tags and the GitHub release, and the version commit without the App
       pull-requests: write # the release pull request, without the App
@@ -87,10 +91,11 @@ jobs:
       # repository this runs in. `changeset publish` publishes every workspace package that isn't
       # private and whose version isn't on npm yet, all three at once and in no set order, so the
       # plugins can reach npm before the ondocs they pin: the published job checks all three.
+      # No pnpm store cache: the validate job, which runs the dependencies' test and build code,
+      # could save one, and this job would restore it next to the OIDC token.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
-          cache: pnpm
       - run: pnpm install --frozen-lockfile
       # version-packages runs the built CLI (scripts/sync-template.mjs) and the examples' docs sync.
       - run: pnpm build
@@ -126,16 +131,52 @@ jobs:
       # With no pending changesets, ondocs@<version in package.json> gets its GitHub release, with
       # its CHANGELOG.md entry, if it is on npm and has none yet. A run whose publish half failed
       # still gets it, and a re-run (which publishes nothing new) or the next push to main
-      # creates one that is missing.
+      # creates one that is missing. When this run published ondocs, npm can take minutes to
+      # serve it, so the step waits for it, and fails, saying to re-run the job, if npm never does.
       - name: Create the GitHub release, for ondocs
         if: ${{ !cancelled() && github.event_name == 'push' && steps.changesets.outputs.has-changesets == 'false' }}
         run: node scripts/check-published.mjs release
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          # What this run published, as changesets/action lists it ([{ "name", "version" }]).
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.published-packages }}
 
-      # A dry run: the steps above without their pushes. The version commit stays in this runner.
+  # A run started by hand, in place of the release job, and with read permissions only: what the
+  # release job would do, kept in this runner. The version commit and the tarballs stay here.
+  dry-run:
+    name: 'Dry run: version and pack, without pushing or publishing'
+    needs: validate
+    if: github.repository == 'dgesteves/ondocs' && github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read # @changesets/changelog-github reads each changeset's pull request
+    env:
+      HAS_APP: ${{ secrets.RELEASE_APP_ID != '' && secrets.RELEASE_APP_PRIVATE_KEY != '' }}
+    steps:
+      # With the App's secrets set, a token that can only read, so the dry run shows that the App
+      # is installed and its secrets work before a release needs them.
+      - name: Get a read-only token from the release GitHub App
+        id: app-token
+        if: env.HAS_APP == 'true'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: read
+          permission-pull-requests: read
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - name: 'Dry run: version the packages as the release pull request would, without pushing'
-        if: github.event_name != 'push'
         env:
           # @changesets/changelog-github reads each changeset's pull request with it.
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
@@ -144,29 +185,28 @@ jobs:
           git status --short
           git diff --stat
       - name: 'Dry run: pack the three packages as changeset publish would, without publishing'
-        if: github.event_name != 'push'
         run: |
           pnpm --filter ondocs --filter docusaurus-plugin-ondocs --filter starlight-ondocs pack --pack-destination "$RUNNER_TEMP/packs"
           for tarball in "$RUNNER_TEMP"/packs/*.tgz; do
             tar -xOzf "$tarball" package/package.json | jq -c '{ name, version, dependencies }'
           done
       - name: 'Dry run: the GitHub release this version would get'
-        if: github.event_name != 'push'
         run: node scripts/check-published.mjs release --dry-run
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
 
   # After a publish: the three packages on npm, the docs' imports in the published ondocs, and
   # jsDelivr, with no write permission. After any other push to main, only the docs' imports, in
-  # npm's latest ondocs, as warnings: until the next release, the docs can be ahead of npm. A dry
-  # run reads what npm and jsDelivr serve now, and purges nothing.
+  # npm's latest ondocs, as warnings: until the next release, the docs can be ahead of npm. After a
+  # dry run, it reads what npm and jsDelivr serve now, and purges nothing.
   published:
     name: Check npm, jsDelivr and the docs
-    needs: release
-    if: ${{ !cancelled() && needs.release.result != 'skipped' && github.repository == 'dgesteves/ondocs' }}
+    needs: [release, dry-run]
+    if: ${{ !cancelled() && github.repository == 'dgesteves/ondocs' && (needs.release.result != 'skipped' || needs.dry-run.result != 'skipped') }}
     runs-on: ubuntu-latest
-    # npm and jsDelivr can take a few minutes to serve a new version; each check waits for them.
-    timeout-minutes: 15
+    # npm can take minutes to serve a new version, and jsDelivr its ranges: the npm check waits
+    # about 10 minutes for them, and the jsDelivr one about 5.
+    timeout-minutes: 30
     permissions:
       contents: read
     env:
