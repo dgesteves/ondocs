@@ -288,7 +288,7 @@ function withLauncher<
   if (!warnedRenames.has(where)) {
     warnedRenames.add(where);
     consoleLogger().warn(
-      `${where}buttonLabel is now ${where}launcher. The old name still works until 0.10.`,
+      `${where}buttonLabel is now ${where}launcher. The old name still works until 1.0.`,
     );
   }
   return rest.launcher === undefined ? { ...rest, launcher: buttonLabel } : rest;
