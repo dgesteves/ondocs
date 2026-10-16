@@ -121,6 +121,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:package": "publint --strict && attw --pack . --profile esm-only --exclude-entrypoints ./react/styles.css ./embed/launcher.css ./embed/button.css ./starlight/launcher.css ./vitepress/launcher.css ./astro/McpInstall.astro ./starlight/Search.astro && pnpm --filter './packages/*' exec publint --strict && pnpm --filter './packages/*' exec attw --pack . --profile esm-only",
+    "check:doc-imports": "node scripts/check-doc-imports.mjs",
     "bench": "pnpm build && node --expose-gc bench/run.mjs",
     "assets": "node scripts/assets/architecture.mjs",
     "screenshot": "node scripts/assets/screenshot.mjs",
