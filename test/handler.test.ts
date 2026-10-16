@@ -1,6 +1,7 @@
+import { createOpenAI } from '@ai-sdk/openai';
 import { MockEmbeddingModelV4, MockLanguageModelV4 } from 'ai/test';
-import { simulateReadableStream } from 'ai';
-import { describe, expect, it, vi } from 'vitest';
+import { APICallError, createGateway, simulateReadableStream } from 'ai';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildIndex, fromMarkdown, serializeIndexFile } from '../src';
 import { MOCK_MIN_SIMILARITY, mockEmbeddingModel, mockLanguageModel } from '../src/mock';
@@ -486,6 +487,85 @@ describe('createAskHandler', () => {
     expect(text).toContain('The answer could not be generated. Please try again.');
     expect(text).not.toContain('secret details');
     expect(onError).toHaveBeenCalled();
+  });
+
+  describe('a model the endpoint cannot call as it is set up', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+    const noNetwork = () => Promise.reject(new Error('no network in this test'));
+    const rejecting = (error: Error) =>
+      new MockLanguageModelV4({ doStream: () => Promise.reject(error) });
+    const apiError = (statusCode: number) =>
+      new APICallError({
+        message: `status ${String(statusCode)}`,
+        url: 'https://api.openai.com/v1/responses',
+        requestBodyValues: {},
+        statusCode,
+      });
+
+    it.each([
+      [
+        'no API key',
+        () => {
+          vi.stubEnv('OPENAI_API_KEY', undefined);
+          return createOpenAI({ fetch: noNetwork })('gpt-5.4-mini');
+        },
+        'AI_LoadAPIKeyError',
+      ],
+      [
+        'no AI Gateway key or OIDC token',
+        () => {
+          vi.stubEnv('AI_GATEWAY_API_KEY', undefined);
+          vi.stubEnv('VERCEL_OIDC_TOKEN', undefined);
+          return createGateway({ fetch: noNetwork })('openai/gpt-5.4-mini');
+        },
+        'GatewayAuthenticationError',
+      ],
+      ['a key the provider rejects (401)', () => rejecting(apiError(401)), 'AI_APICallError'],
+      ['a key without access (403)', () => rejecting(apiError(403)), 'AI_APICallError'],
+    ])('says it is misconfigured, after the sources: %s', async (_, model, name) => {
+      const { handler, onError } = setup({ model: model() });
+      const response = await handler(post({ question: 'How are int8 vectors stored?' }));
+      expect(response.status).toBe(200);
+      const { parts } = await readParts(response);
+      const types = parts.map((part) => part.type);
+      expect(types.indexOf('source-url')).toBeGreaterThan(0);
+      expect(types.indexOf('source-url')).toBeLessThan(types.indexOf('error'));
+      expect(parts.find((part) => part.type === 'error')).toEqual({
+        type: 'error',
+        errorText: 'The ask endpoint is misconfigured.',
+      });
+      // The metadata says so, so the dialog offers no retry; `useChat` keeps it on the message.
+      expect(parts.at(types.indexOf('error') + 1)).toEqual({
+        type: 'message-metadata',
+        messageMetadata: { refused: false, retrieval: 'hybrid', misconfigured: true },
+      });
+      // The cause is reported once, as it was thrown.
+      expect(onError).toHaveBeenCalledOnce();
+      expect((onError.mock.calls[0]?.[0] as Error).name).toBe(name);
+    });
+
+    it.each([
+      ['an outage (500)', apiError(500)],
+      ['a rate limit (429)', apiError(429)],
+      ['an error of its own', new Error('socket hang up')],
+    ])('still says to try again after %s', async (_, error) => {
+      const { handler, onError } = setup({
+        model: rejecting(error),
+        // Without the AI SDK's retries, which wait seconds between tries.
+        generation: { maxRetries: 0 },
+      });
+      const { parts } = await readParts(
+        await handler(post({ question: 'How are int8 vectors stored?' })),
+      );
+      expect(parts.find((part) => part.type === 'error')).toEqual({
+        type: 'error',
+        errorText: 'The answer could not be generated. Please try again.',
+      });
+      expect(parts.some((part) => part.type === 'message-metadata')).toBe(false);
+      expect(onError).toHaveBeenCalled();
+    });
   });
 
   it.each([

@@ -19,10 +19,14 @@ export interface AskError {
   retryAfter?: number;
   /**
    * What happened, for words of your own: `unavailable` (no endpoint there, a 404), `no-body`,
-   * `interrupted` (the stream broke off), `cut-off` (it ended without finishing), or `server`
-   * (the server's own message, such as the model failing).
+   * `interrupted` (the stream broke off), `cut-off` (it ended without finishing), `server` (the
+   * server's own message, such as the model failing), or `misconfigured` (the endpoint says it is
+   * set up wrong). A `misconfigured` error of kind `stream` is a model the endpoint cannot call,
+   * as without a key for it, which asking again will not fix. One of kind `http` is a 500: the
+   * endpoint could not load its index, or the index does not match its embedding model. That
+   * can pass, as a remote index that failed to download is fetched again on the next request.
    */
-  reason?: 'unavailable' | 'no-body' | 'interrupted' | 'cut-off' | 'server';
+  reason?: 'unavailable' | 'no-body' | 'interrupted' | 'cut-off' | 'server' | 'misconfigured';
 }
 
 /** A question asked earlier in the thread, with its answer. */
@@ -173,13 +177,17 @@ async function errorFrom(response: Response, endpoint: string): Promise<AskError
     // Not JSON; keep the generic message.
   }
   if (response.status === 404 && isDevelopment()) {
-    const url = typeof location === 'undefined' ? endpoint : new URL(endpoint, location.href).href;
     console.warn(
-      `[ondocs] POST ${url} returned 404: no ask endpoint answers there. While you ` +
-        'develop, run `npx ondocs dev` and point the dialog’s `endpoint` at ' +
-        'http://localhost:8787/api/ask; to deploy one, see https://github.com/dgesteves/ondocs#readme.',
+      `[ondocs] POST ${endpointUrl(endpoint)} returned 404: no ask endpoint answers there. ` +
+        'While you develop, run `npx ondocs dev` and start the site with ' +
+        'ASK_ENDPOINT=http://localhost:8787/api/ask; with React, pass that address as ' +
+        '`endpoint`, and with the script tag as `data-endpoint`. To deploy one, see ' +
+        'https://ondocs.vercel.app/docs/deployment.',
     );
   }
+  // What the endpoint answers when it cannot load its index, or the index does not match it.
+  const misconfigured = response.status === 500 && code === 'internal_error';
+  if (misconfigured) hintServerLog(endpoint, 'index');
   if (response.status === 429) {
     const retryAfter = Number(response.headers.get('retry-after'));
     return {
@@ -196,7 +204,43 @@ async function errorFrom(response: Response, endpoint: string): Promise<AskError
     status: response.status,
     ...(code ? { code } : {}),
     ...(response.status === 404 ? { reason: 'unavailable' as const } : {}),
+    ...(misconfigured ? { reason: 'misconfigured' as const } : {}),
   };
+}
+
+/** `endpoint` as the console names it: absolute, against the page's URL. */
+const endpointUrl = (endpoint: string): string =>
+  typeof location === 'undefined' ? endpoint : new URL(endpoint, location.href).href;
+
+const TROUBLESHOOTING = 'https://ondocs.vercel.app/docs/troubleshooting';
+
+/**
+ * While you develop, says in the console that the endpoint's log has the cause of an error the
+ * endpoint reported, as the browser never gets it: a model it cannot call as it is set up, an
+ * index it could not load or use (its 500), or another failed answer.
+ */
+function hintServerLog(endpoint: string, cause: 'model' | 'index' | 'answer'): void {
+  if (!isDevelopment()) return;
+  const at = `[ondocs] The ask endpoint at ${endpointUrl(endpoint)}`;
+  if (cause === 'model') {
+    console.warn(
+      `${at} cannot call its model as it is set up, and asking again will not help. Its log ` +
+        'says why, such as a missing OPENAI_API_KEY or a key the provider rejects. See ' +
+        `${TROUBLESHOOTING}#answers-arent-set-up-on-this-site-yet.`,
+    );
+  } else if (cause === 'index') {
+    console.warn(
+      `${at} returned 500: it could not load its index, or the index does not match its ` +
+        'embedding model. Its log says why, such as an index embedded with another model. A ' +
+        'remote index that failed to download is fetched again on the next request. See ' +
+        `${TROUBLESHOOTING}#the-ask-endpoint-is-misconfigured.`,
+    );
+  } else {
+    console.warn(
+      `${at} could not write the answer. Its log says why. See ` +
+        `${TROUBLESHOOTING}#the-answer-could-not-be-generated.`,
+    );
+  }
 }
 
 /** A development build (as the bundler defines `NODE_ENV`), or a page served from this machine. */
@@ -364,12 +408,13 @@ export function useAsk(options: UseAskOptions = {}): UseAsk {
     let streamError: string | null = null;
     let streamReason: AskError['reason'] = 'server';
     // An object, so the flags set inside the stream callback are visible to control-flow analysis.
-    const progress = { finished: false, truncated: false };
+    const progress = { finished: false, truncated: false, misconfigured: false };
     try {
       await readAskStream(response.body, {
         // Sent as the answer starts, and again as it ends when it turned out to be a refusal,
-        // without the id the first one carried.
-        metadata: ({ refused, retrieval, feedback, id }) => {
+        // without the id the first one carried, or after an error the endpoint's setup caused.
+        metadata: ({ refused, retrieval, feedback, id, misconfigured }) => {
+          if (misconfigured) progress.misconfigured = true;
           commit({ refused, retrieval, feedbackEnabled: feedback === true, ...(id ? { id } : {}) });
         },
         source: (source) => {
@@ -402,7 +447,11 @@ export function useAsk(options: UseAskOptions = {}): UseAsk {
     if (streamError === null && !progress.finished) {
       streamError = 'The answer was cut off. Please try again.';
       streamReason = 'cut-off';
+    } else if (streamError !== null && streamReason === 'server' && progress.misconfigured) {
+      streamReason = 'misconfigured';
     }
+    if (streamReason === 'misconfigured') hintServerLog(endpoint, 'model');
+    else if (streamReason === 'server' && streamError !== null) hintServerLog(endpoint, 'answer');
     commit(
       streamError === null
         ? { status: 'done', answer, truncated: progress.truncated }

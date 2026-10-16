@@ -84,6 +84,13 @@ export interface AskDialogLabels {
   /** The answer's stream ended without finishing. */
   errorCutOff: string;
   /**
+   * The endpoint says it is set up wrong. When it cannot call its model, as without a key for it,
+   * asking again will not help, so the dialog offers no Retry. For its 500 (an index it could not
+   * load, or one that does not match its embedding model) the dialog keeps Retry, as a remote
+   * index that failed to download is fetched again on the next request.
+   */
+  errorMisconfigured: string;
+  /**
    * The endpoint checks for bots, and the question went without a token: the check could not
    * run, as when the page blocks Turnstile's script.
    */
@@ -154,6 +161,7 @@ export const DEFAULT_LABELS: Readonly<DefaultLabels> = {
   errorNoBody: 'The response had no body.',
   errorInterrupted: 'The answer was interrupted. Please try again.',
   errorCutOff: 'The answer was cut off. Please try again.',
+  errorMisconfigured: 'Answers aren’t set up on this site yet.',
   challengeRequired: 'The check that you’re not a bot didn’t load. Reload the page and try again.',
   challengeFailed: 'The check that you’re not a bot failed. Please try again.',
   errorUnknown: 'Something went wrong.',

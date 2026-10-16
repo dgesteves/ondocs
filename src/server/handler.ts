@@ -1,8 +1,11 @@
 import {
+  APICallError,
   createUIMessageStream,
   createUIMessageStreamResponse,
   generateId,
   generateText,
+  LoadAPIKeyError,
+  LoadSettingError,
   streamText,
   toUIMessageStream,
   type EmbeddingModel,
@@ -234,6 +237,20 @@ export interface AskFeedbackEvent {
 }
 
 const MODEL_ERROR_MESSAGE = 'The answer could not be generated. Please try again.';
+
+/** What a misconfigured endpoint says, as a 500 or in the stream; its log has the cause. */
+const MISCONFIGURED_MESSAGE = 'The ask endpoint is misconfigured.';
+
+/**
+ * Whether a model call failed because of how the endpoint is set up, which asking again cannot
+ * fix: no API key or other setting for the provider, or a key the provider rejects (401) or that
+ * may not use the model (403). AI Gateway's is matched by name, so nothing imports it.
+ */
+function isMisconfiguration(error: unknown): boolean {
+  if (LoadAPIKeyError.isInstance(error) || LoadSettingError.isInstance(error)) return true;
+  if (APICallError.isInstance(error)) return error.statusCode === 401 || error.statusCode === 403;
+  return error instanceof Error && error.name === 'GatewayAuthenticationError';
+}
 
 const feedbackSchema = z.object({
   feedback: z.object({
@@ -616,9 +633,7 @@ export function createAskHandler(
     const misconfigured = (error: unknown): Response => {
       if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
       reportError(error);
-      return json(500, {
-        error: { code: 'internal_error', message: 'The ask endpoint is misconfigured.' },
-      });
+      return json(500, { error: { code: 'internal_error', message: MISCONFIGURED_MESSAGE } });
     };
 
     let index: LoadedIndex;
@@ -864,15 +879,21 @@ export function createAskHandler(
         }
 
         // A reply that is only "I don't know" is a refusal: the stream's last part says so, so the
-        // dialog shows it as one, without the sources it was given.
+        // dialog shows it as one, without the sources it was given. A model the endpoint cannot
+        // call as it is set up is said to be misconfigured, after the error, so the dialog offers
+        // no retry.
         let reply = '';
         writer.merge(
           toUIMessageStream({
             stream: generate().stream,
             sendStart: false,
-            onError: () => MODEL_ERROR_MESSAGE,
+            onError: (error) =>
+              isMisconfiguration(error) ? MISCONFIGURED_MESSAGE : MODEL_ERROR_MESSAGE,
             messageMetadata: ({ part }) => {
               if (part.type === 'text-delta') reply += part.text;
+              if (part.type === 'error' && isMisconfiguration(part.error)) {
+                return { ...metadata, misconfigured: true };
+              }
               return part.type === 'finish' && saysOnlyIDontKnow(reply)
                 ? { ...metadata, refused: true }
                 : undefined;

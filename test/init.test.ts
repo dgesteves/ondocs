@@ -365,11 +365,64 @@ describe('ondocs init', () => {
     expect(named.code).toBe(0);
     // `ondocs index` needs -e none to build without a key, which the plugins do not.
     expect(named.stdout).toContain(
-      'without it there, add -e none to the index command for a keyword-only index, which works too',
-    );
-    expect(named.stdout).toContain(
       'Build the index after the site: npx ondocs index _site -o _site/ask-index.json (it embeds with OPENAI_API_KEY; -e none builds a keyword-only index without it)',
     );
+  });
+
+  it('does not call the key optional where one variable serves the build and the functions', async () => {
+    const variables = (stdout: string) =>
+      stdout
+        .slice(stdout.indexOf('Set (init reads none of these):'), stdout.indexOf('\nNext:'))
+        .split('\n')
+        .filter((line) => line.startsWith('  OPENAI_API_KEY, '));
+    const NEEDED =
+      'without it, the MCP endpoint works and off-topic questions are refused, but the Ask box cannot answer; for no key at all, init --host github-pages writes a Worker that answers with Workers AI';
+    const NEXT = {
+      'package.json': JSON.stringify({ name: 'acme', dependencies: { next: '16' } }),
+      'next.config.ts': 'export default {};\n',
+      'src/app/page.tsx': '',
+    };
+    for (const [contents, args] of [
+      [{ ...DOCUSAURUS, 'vercel.json': '{}' }, []],
+      [{ ...DOCUSAURUS, 'netlify.toml': '' }, []],
+      [NEXT, ['--host', 'vercel']],
+      [{ ...NEXT, 'netlify.toml': '' }, []],
+      [
+        { 'package.json': JSON.stringify({ name: 'acme' }) },
+        ['--out', '_site', '--host', 'vercel'],
+      ],
+    ] as const) {
+      await rm(cwd, { recursive: true, force: true });
+      await mkdir(cwd);
+      await site(contents);
+      const result = await run(['--dry-run', ...args]);
+      expect(result.code).toBe(0);
+      const [line, ...more] = variables(result.stdout);
+      expect(more).toEqual([]);
+      expect(line).toMatch(/^ {2}OPENAI_API_KEY, for the (functions|app) and the /);
+      expect(line).toContain(NEEDED);
+      expect(line).not.toContain('which works too');
+    }
+
+    // Without the MCP endpoint, the line does not name it.
+    await rm(cwd, { recursive: true, force: true });
+    await mkdir(cwd);
+    await site({ ...DOCUSAURUS, 'vercel.json': '{}' });
+    expect(variables((await run(['--dry-run', '--no-mcp'])).stdout)).toEqual([
+      expect.stringContaining(
+        '; without it, off-topic questions are refused, but the Ask box cannot answer; ',
+      ),
+    ]);
+
+    // Where the build has a variable of its own, the build can do without it; the functions can't.
+    await rm(cwd, { recursive: true, force: true });
+    await mkdir(cwd);
+    await site(DOCUSAURUS);
+    const pages = variables((await run(['--dry-run', '--host', 'cloudflare'])).stdout);
+    expect(pages).toEqual([
+      "  OPENAI_API_KEY, for the functions: npx wrangler pages secret put OPENAI_API_KEY, or the project's Variables and Secrets",
+      '  OPENAI_API_KEY, for the site’s build: a build variable; without it there, the index is keyword-only, which works too',
+    ]);
   });
 
   it('asks which host when the site has config for two', async () => {

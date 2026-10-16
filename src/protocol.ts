@@ -8,7 +8,8 @@
  * 1. `start`, with {@link AskMetadata} as `messageMetadata`
  * 2. one `source-url` part per numbered source; `sourceId` is the citation number
  * 3. `text-start` / `text-delta` / `text-end` for the answer, which cites sources as `[n]`
- * 4. `finish` (or `error`)
+ * 4. `finish` (or `error`, followed by a `message-metadata` part with `misconfigured` when the
+ *    endpoint cannot call its model as it is set up)
  */
 
 /** A numbered source, as cited in the answer with `[id]`. */
@@ -24,8 +25,9 @@ export interface AskSource {
 }
 
 /**
- * Sent as `messageMetadata` on the stream's `start` part, and again on its `finish` part when the
- * answer turned out to be a refusal.
+ * Sent as `messageMetadata` on the stream's `start` part, again on its `finish` part when the
+ * answer turned out to be a refusal, and on a `message-metadata` part after an `error` part that
+ * is `misconfigured`.
  */
 export interface AskMetadata {
   /**
@@ -38,6 +40,12 @@ export interface AskMetadata {
   retrieval: 'hybrid' | 'keyword';
   /** True when the endpoint takes feedback on its answers (`onFeedback`), so a client offers it. */
   feedback?: boolean;
+  /**
+   * True when the answer failed because of how the endpoint is set up: its model has no API key,
+   * or the provider rejects the key. Asking again cannot help, so a client offers no retry. The
+   * endpoint's log has the cause.
+   */
+  misconfigured?: boolean;
 }
 
 /**
@@ -87,6 +95,12 @@ export interface AskErrorBody {
       | 'challenge_required'
       /** The bot check's token was bad, expired or used before. */
       | 'challenge_failed'
+      /**
+       * A 500: the endpoint could not load its index, or the index does not match its embedding
+       * model. The endpoint's log has the cause. A mismatch lasts until the index or the endpoint
+       * changes, but a load can fail for a moment: a `remoteIndex` that could not download the
+       * file tries again on the next request.
+       */
       | 'internal_error'
       | 'service_unavailable';
     message: string;
