@@ -24,7 +24,7 @@ import {
   type AskSource,
 } from '../protocol';
 import type { LoadedIndex, RetrievalResult } from '../search/retrieve';
-import { createBudget, type BudgetOptions } from './budget';
+import { BUDGET_EXCEEDED_MESSAGE, createBudget, type BudgetOptions } from './budget';
 import type { ChallengeVerifier } from './challenge';
 import { retrieveWithHooks, type AskRetrievalOptions } from './retrieval';
 import {
@@ -45,16 +45,18 @@ import {
   type FollowUpOptions,
 } from './follow-up';
 import { buildSources, defaultInstructions, formatPrompt } from './prompt';
-import type { RateLimiter, RateLimitResult } from './rate-limit';
+import type { RateLimiter } from './rate-limit';
 import {
   CLIENT_CLOSED,
+  corsPolicy,
   defaultRateLimit,
   embedQuery,
   indexLoader,
-  isJson,
-  rateLimitHeaders,
-  readBody,
+  requestGuard,
+  type AllowedOrigins,
   type IndexSource,
+  type Refusal,
+  type RefusalReason,
 } from './shared';
 
 type StreamTextOptions = Parameters<typeof streamText>[0];
@@ -171,7 +173,16 @@ export interface AskHandlerOptions {
    * and the normalized question, so a rebuilt index starts fresh.
    */
   answerCache?: boolean | AnswerCacheOptions;
-  /** Extra headers on every response, e.g. for CORS. */
+  /**
+   * The origins whose pages may ask across origins, as `['https://blog.example.com']`, or `'*'`
+   * for any: each gets the CORS headers the dialog needs, its preflight answered and `Retry-After`
+   * readable on a 429. Any other origin gets none, so a browser on it cannot get past the
+   * preflight a JSON post needs. Requests from other origins are still answered, unlike the MCP
+   * endpoint's `allowedOrigins`, so the site's own pages and clients outside a browser are never
+   * turned away, even behind a proxy that changes the URL the endpoint sees.
+   */
+  allowedOrigins?: AllowedOrigins;
+  /** Extra headers on every response. */
   headers?: Record<string, string>;
   /**
    * Follow-up questions. A request with the conversation (`{ messages }`, as the dialog and
@@ -237,6 +248,21 @@ export interface AskFeedbackEvent {
 }
 
 const MODEL_ERROR_MESSAGE = 'The answer could not be generated. Please try again.';
+
+/** How the ask endpoint words each refusal of the request guard. */
+const REFUSALS: Record<RefusalReason, AskErrorBody['error']> = {
+  method: { code: 'method_not_allowed', message: 'Use POST.' },
+  media_type: { code: 'unsupported_media_type', message: 'Send the body as application/json.' },
+  too_large: { code: 'payload_too_large', message: 'Request body too large.' },
+  unreadable: { code: 'invalid_json', message: 'Could not read the body.' },
+  not_json: { code: 'invalid_json', message: 'Body must be JSON.' },
+  rate_limited: { code: 'rate_limited', message: 'Too many questions. Try again shortly.' },
+  budget: { code: 'budget_exceeded', message: BUDGET_EXCEEDED_MESSAGE },
+  unavailable: {
+    code: 'service_unavailable',
+    message: 'The service is unavailable. Try again shortly.',
+  },
+};
 
 /** What a misconfigured endpoint says, as a 500 or in the stream; its log has the cause. */
 const MISCONFIGURED_MESSAGE = 'The ask endpoint is misconfigured.';
@@ -338,6 +364,30 @@ function conversationFrom(body: z.infer<typeof requestSchema>): {
   return { question: lastMessage ? messageText(lastMessage) : '', history };
 }
 
+/** A question as the request asks it. */
+interface AskedQuestion {
+  question: string;
+  /** The conversation before it, oldest first. */
+  history: ConversationTurn[];
+  locale: string | undefined;
+  /** The bot check's token. */
+  challenge: string | undefined;
+}
+
+/** A question on its way through the handler's stages, once its index is loaded. */
+interface Turn {
+  request: Request;
+  index: LoadedIndex;
+  /** The question as the visitor asked it. */
+  question: string;
+  /** What the cache, retrieval and the answer work from: the question, or its rewrite. */
+  searched: string;
+  /** The rewrite of a follow-up, for `onFinish`. */
+  followUp: AskFinishEvent['followUp'];
+  /** Whether the question already counted against the budget, before its rewrite. */
+  admitted: boolean;
+}
+
 /** Input plus output tokens, when the usage says. */
 function totalTokens(usage: LanguageModelUsage | undefined): number | undefined {
   if (!usage) return undefined;
@@ -437,13 +487,32 @@ export function createAskHandler(
         maxContextChars: contextChars ?? oldContextChars ?? null,
       })
     : null;
-  const unavailable = (): Response =>
-    json(503, {
-      error: {
-        code: 'service_unavailable',
-        message: 'The service is unavailable. Try again shortly.',
+  const guard = requestGuard({
+    rateLimit,
+    failure: options.rateLimitFailure,
+    maxBodyBytes,
+    report: reportError,
+    now: options.budget?.now,
+  });
+  const cors = corsPolicy(options.allowedOrigins, {
+    methods: 'POST, OPTIONS',
+    allowHeaders: 'content-type',
+    // The dialog reads Retry-After on a 429.
+    exposeHeaders: 'retry-after',
+  });
+  /** A request the guard turned away, as this endpoint words it. */
+  const refused = (refusal: Refusal): Response =>
+    json(
+      refusal.status,
+      {
+        error:
+          refusal.reason === 'budget' && budget
+            ? { code: 'budget_exceeded', message: budget.message }
+            : REFUSALS[refusal.reason],
       },
-    });
+      refusal.headers,
+    );
+  const unavailable = (): Response => json(503, { error: REFUSALS.unavailable });
   /**
    * Runs a budget check: `{ response }` turns the request away, with a 429 once the day's budget
    * is spent or a 503 when the store fails; `{ result }` lets it through (`result` is `null` when
@@ -452,23 +521,8 @@ export function createAskHandler(
   const overBudget = async <T extends { allowed: boolean; resetAt?: number }>(
     check: () => Promise<T>,
   ): Promise<{ response: Response } | { result: T | null }> => {
-    let result: T;
-    try {
-      result = await check();
-    } catch (error) {
-      reportError(error);
-      return options.rateLimitFailure === 'open' ? { result: null } : { response: unavailable() };
-    }
-    if (result.allowed || !budget) return { result };
-    const now = options.budget?.now ?? Date.now;
-    const seconds = Math.max(1, Math.ceil(((result.resetAt ?? 0) - now()) / 1000));
-    return {
-      response: json(
-        429,
-        { error: { code: 'budget_exceeded', message: budget.message } },
-        { 'retry-after': String(seconds) },
-      ),
-    };
+    const admission = await guard.admit(check);
+    return 'refusal' in admission ? { response: refused(admission.refusal) } : admission;
   };
 
   /** A rating posted to the endpoint: handed to `onFeedback`, with nothing kept here. */
@@ -505,82 +559,73 @@ export function createAskHandler(
   };
 
   return async function handleAsk(request: Request): Promise<Response> {
+    const response = await answerRequest(request);
+    // The CORS headers `allowedOrigins` gives the request's origin, on every response.
+    const cross = request.method === 'OPTIONS' ? cors.preflight(request) : cors.headers(request);
+    for (const [name, value] of Object.entries(cross)) response.headers.set(name, value);
+    return response;
+  };
+
+  /**
+   * A request, stage by stage: the guard, the question, the bot check, the index, the rewrite of
+   * a follow-up, the cache, the budget, then retrieval and the answer.
+   */
+  async function answerRequest(request: Request): Promise<Response> {
     // CORS preflight: `useAsk` posts JSON, so cross-origin requests are always preflighted.
-    // Answer with the configured headers (put the access-control-* ones in `headers`).
+    // Answered with `headers`, plus the CORS headers `allowedOrigins` gives.
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
         headers: { ...baseHeaders, allow: 'POST, OPTIONS' },
       });
     }
-    if (request.method !== 'POST') {
-      return json(
-        405,
-        { error: { code: 'method_not_allowed', message: 'Use POST.' } },
-        { allow: 'POST, OPTIONS' },
-      );
-    }
 
     // Browsers send a cross-origin POST without a CORS preflight only if its content type is
     // text/plain, a form encoding or absent. Requiring JSON forces the preflight, which fails
-    // unless `headers` allows the origin, so other sites cannot spend your model budget through
-    // their visitors' browsers.
-    if (!isJson(request.headers.get('content-type'))) {
-      return json(415, {
-        error: { code: 'unsupported_media_type', message: 'Send the body as application/json.' },
-      });
-    }
-
-    if (rateLimit) {
-      let limit: RateLimitResult;
-      try {
-        limit = await rateLimit(request);
-      } catch (error) {
-        // Failing closed by default: the limiter is what stands between the endpoint and an
-        // unbounded model bill, and its outage can be provoked (a flood can exhaust a Redis
-        // plan's request quota), so an error should not quietly switch it off.
-        reportError(error);
-        if (options.rateLimitFailure !== 'open') {
-          return json(503, {
-            error: {
-              code: 'service_unavailable',
-              message: 'The service is unavailable. Try again shortly.',
-            },
-          });
-        }
-        limit = { success: true };
-      }
-      if (!limit.success) {
-        return json(
-          429,
-          { error: { code: 'rate_limited', message: 'Too many questions. Try again shortly.' } },
-          rateLimitHeaders(limit),
-        );
-      }
-    }
-
-    const tooLarge = (): Response =>
-      json(413, { error: { code: 'payload_too_large', message: 'Request body too large.' } });
-    if (Number(request.headers.get('content-length') ?? 0) > maxBodyBytes) return tooLarge();
-    let raw: string | null;
-    try {
-      raw = await readBody(request, maxBodyBytes);
-    } catch {
-      return json(400, { error: { code: 'invalid_json', message: 'Could not read the body.' } });
-    }
-    if (raw === null) return tooLarge();
-    let body: unknown;
-    try {
-      body = JSON.parse(raw);
-    } catch {
-      return json(400, { error: { code: 'invalid_json', message: 'Body must be JSON.' } });
-    }
+    // unless the origin is allowed, so other sites cannot spend your model budget through their
+    // visitors' browsers. The rate limit runs before the body is read.
+    const read = await guard.read(request);
+    if ('refusal' in read) return refused(read.refusal);
+    const { body } = read;
     if (typeof body === 'object' && body !== null && 'feedback' in body) {
       return takeFeedback(body);
     }
 
+    const asked = parseQuestion(body);
+    if (asked instanceof Response) return asked;
+    // The bot check, before anything is spent on the question: the cache, the embedding, the model.
+    const challenged = await checkChallenge(request, asked.challenge);
+    if (challenged) return challenged;
+
+    let index: LoadedIndex;
+    try {
+      index = await ((asked.locale ? localeIndexes.get(asked.locale) : undefined) ?? getIndex)();
+    } catch (error) {
+      return misconfigured(request, error);
+    }
+
+    const rewritten = await rewriteFollowUp(request, asked);
+    if (rewritten instanceof Response) return rewritten;
+    const turn: Turn = { request, index, question: asked.question, ...rewritten };
+
+    const cacheKey = cache ? await cache.key(index, turn.searched) : null;
+    if (cache && cacheKey) {
+      const hit = await cache.get(cacheKey, reportError);
+      if (hit) return answerFromCache(turn, hit);
+    }
+
+    if (budget && !turn.admitted) {
+      const admission = await overBudget(() => budget.admit());
+      if ('response' in admission) return admission.response;
+    }
+
+    return retrieveAndAnswer(turn, cacheKey);
+  }
+
+  /** The question, and the conversation before it, from the body; or the 400 it gets. */
+  function parseQuestion(body: unknown): AskedQuestion | Response {
     const parsed = requestSchema.safeParse(body);
-    const { question, history: conversation } = parsed.success
+    const { question, history } = parsed.success
       ? conversationFrom(parsed.data)
       : { question: '', history: [] };
     if (!question) {
@@ -596,131 +641,142 @@ export function createAskHandler(
         },
       });
     }
-
-    // The bot check, before anything is spent on the question: the cache, the embedding, the model.
-    if (options.challenge) {
-      const token = parsed.success ? parsed.data.challenge : undefined;
-      if (!token) {
-        return json(403, {
-          error: {
-            code: 'challenge_required',
-            message: 'Send the bot check’s token as `challenge` with the question.',
-          },
-        });
-      }
-      let passed: boolean;
-      try {
-        passed = (await options.challenge(token, request)).success;
-      } catch (error) {
-        if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
-        // As for the rate limiter: failing closed by default, so an outage cannot switch it off.
-        reportError(error);
-        if (options.rateLimitFailure !== 'open') return unavailable();
-        passed = true;
-      }
-      if (!passed) {
-        return json(403, {
-          error: {
-            code: 'challenge_failed',
-            message: 'The bot check failed, or its token was used before. Ask again.',
-          },
-        });
-      }
-    }
-
-    // A client that hung up while the index loaded or the question was embedded is not an error
-    // worth reporting.
-    const misconfigured = (error: unknown): Response => {
-      if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
-      reportError(error);
-      return json(500, { error: { code: 'internal_error', message: MISCONFIGURED_MESSAGE } });
+    return {
+      question,
+      history,
+      locale: parsed.success ? parsed.data.locale : undefined,
+      challenge: parsed.success ? parsed.data.challenge : undefined,
     };
+  }
 
-    let index: LoadedIndex;
+  /** The bot check, with `challenge`: a 403 without a good token, or `null` to go on. */
+  async function checkChallenge(
+    request: Request,
+    token: string | undefined,
+  ): Promise<Response | null> {
+    if (!options.challenge) return null;
+    if (!token) {
+      return json(403, {
+        error: {
+          code: 'challenge_required',
+          message: 'Send the bot check’s token as `challenge` with the question.',
+        },
+      });
+    }
+    let passed: boolean;
     try {
-      const locale = parsed.success ? parsed.data.locale : undefined;
-      index = await ((locale ? localeIndexes.get(locale) : undefined) ?? getIndex)();
+      passed = (await options.challenge(token, request)).success;
     } catch (error) {
-      return misconfigured(error);
+      if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
+      // As for the rate limiter: failing closed by default, so an outage cannot switch it off.
+      reportError(error);
+      if (options.rateLimitFailure !== 'open') return unavailable();
+      passed = true;
     }
+    if (passed) return null;
+    return json(403, {
+      error: {
+        code: 'challenge_failed',
+        message: 'The bot check failed, or its token was used before. Ask again.',
+      },
+    });
+  }
 
-    // A follow-up that does not stand on its own is rewritten first, so everything after it,
-    // the cache included, works from the standalone question. That is a model call, so the
-    // question counts against the budget before it, not after a cache hit as otherwise.
-    const history = followUps ? conversation.slice(-2 * followUps.maxTurns) : [];
-    let searched = question;
-    let followUp: AskFinishEvent['followUp'];
+  /**
+   * An index that could not be loaded, or a question that could not be embedded, is a
+   * misconfiguration; a client that hung up meanwhile is not an error worth reporting.
+   */
+  function misconfigured(request: Request, error: unknown): Response {
+    if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
+    reportError(error);
+    return json(500, { error: { code: 'internal_error', message: MISCONFIGURED_MESSAGE } });
+  }
+
+  /**
+   * A follow-up that does not stand on its own is rewritten first, so everything after it, the
+   * cache included, works from the standalone question. That is a model call, so the question
+   * counts against the budget before it, not after a cache hit as otherwise.
+   */
+  async function rewriteFollowUp(
+    request: Request,
+    asked: AskedQuestion,
+  ): Promise<Response | Pick<Turn, 'searched' | 'followUp' | 'admitted'>> {
+    const { question } = asked;
+    const history = followUps ? asked.history.slice(-2 * followUps.maxTurns) : [];
+    if (!followUps || history.length === 0 || (!followUps.always && looksStandalone(question))) {
+      return { searched: question, followUp: undefined, admitted: false };
+    }
     let admitted = false;
-    if (followUps && history.length > 0 && (followUps.always || !looksStandalone(question))) {
-      if (budget) {
-        const admission = await overBudget(() => budget.admit());
-        if ('response' in admission) return admission.response;
-        admitted = true;
-      }
-      const prompt = followUpPrompt(history, question);
-      let settle: ((actual: number | undefined) => Promise<void>) | null = null;
-      if (budget) {
-        const estimate =
-          Math.ceil((followUps.instructions.length + prompt.length) / 3) + FOLLOW_UP_MAX_TOKENS;
-        const reserved = await overBudget(() => budget.reserve(estimate));
-        if ('response' in reserved) return reserved.response;
-        if (reserved.result?.allowed) settle = reserved.result.settle;
-      }
-      try {
-        const result = await generateText({
-          model: followUps.model,
-          instructions: followUps.instructions,
-          prompt,
-          maxOutputTokens: FOLLOW_UP_MAX_TOKENS,
-          temperature: 0,
-          reasoning: 'minimal',
-          maxRetries: 1,
-          timeout: FOLLOW_UP_TIMEOUT_MS,
-          abortSignal: request.signal,
-        });
-        await settle?.(totalTokens(result.usage)).catch(reportError);
-        searched = standaloneQuestion(result.text, question, maxQuestionLength);
-        followUp = { question: searched, usage: result.usage };
-      } catch (error) {
-        if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
-        // Answer the question as it was asked rather than fail it. The rewrite reported no usage,
-        // so its reservation goes back: a bad key or an outage must not use up the day's budget.
-        reportError(error);
-        await settle?.(0).catch(reportError);
-      }
-    }
-
-    const cacheKey = cache ? await cache.key(index, searched) : null;
-    if (cache && cacheKey) {
-      const hit = await cache.get(cacheKey, reportError);
-      if (hit) {
-        const id = generateId();
-        return respond(hit, id, null, () =>
-          finish({
-            id,
-            lowConfidence: !hit.refused && !citesSources(hit.answer, hit.sources),
-            question,
-            answer: hit.answer,
-            sources: hit.sources,
-            refused: hit.refused,
-            retrieval: { hits: [], answerable: !hit.refused, mode: hit.retrieval, best: hit.best },
-            cached: true,
-            ...(followUp ? { followUp } : {}),
-          }),
-        );
-      }
-    }
-
-    if (budget && !admitted) {
+    if (budget) {
       const admission = await overBudget(() => budget.admit());
       if ('response' in admission) return admission.response;
+      admitted = true;
     }
+    const prompt = followUpPrompt(history, question);
+    let settle: ((actual: number | undefined) => Promise<void>) | null = null;
+    if (budget) {
+      const estimate =
+        Math.ceil((followUps.instructions.length + prompt.length) / 3) + FOLLOW_UP_MAX_TOKENS;
+      const reserved = await overBudget(() => budget.reserve(estimate));
+      if ('response' in reserved) return reserved.response;
+      if (reserved.result?.allowed) settle = reserved.result.settle;
+    }
+    try {
+      const result = await generateText({
+        model: followUps.model,
+        instructions: followUps.instructions,
+        prompt,
+        maxOutputTokens: FOLLOW_UP_MAX_TOKENS,
+        temperature: 0,
+        reasoning: 'minimal',
+        maxRetries: 1,
+        timeout: FOLLOW_UP_TIMEOUT_MS,
+        abortSignal: request.signal,
+      });
+      await settle?.(totalTokens(result.usage)).catch(reportError);
+      const searched = standaloneQuestion(result.text, question, maxQuestionLength);
+      return { searched, followUp: { question: searched, usage: result.usage }, admitted };
+    } catch (error) {
+      if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
+      // Answer the question as it was asked rather than fail it. The rewrite reported no usage,
+      // so its reservation goes back: a bad key or an outage must not use up the day's budget.
+      reportError(error);
+      await settle?.(0).catch(reportError);
+      return { searched: question, followUp: undefined, admitted };
+    }
+  }
 
+  /** A question asked before, answered from the cache without a model call. */
+  function answerFromCache(turn: Turn, hit: CachedAnswer): Response {
+    const { question, followUp } = turn;
+    const id = generateId();
+    return respond(hit, id, null, () =>
+      finish({
+        id,
+        lowConfidence: !hit.refused && !citesSources(hit.answer, hit.sources),
+        question,
+        answer: hit.answer,
+        sources: hit.sources,
+        refused: hit.refused,
+        retrieval: { hits: [], answerable: !hit.refused, mode: hit.retrieval, best: hit.best },
+        cached: true,
+        ...(followUp ? { followUp } : {}),
+      }),
+    );
+  }
+
+  /**
+   * Embeds the question, retrieves its sources and answers: "I don't know" without a model call
+   * when nothing clears the relevance gate, and otherwise the model's answer, once its worst case
+   * fits in the day's token budget.
+   */
+  async function retrieveAndAnswer(turn: Turn, cacheKey: string | null): Promise<Response> {
+    const { request, index, question, searched, followUp } = turn;
     let queryVector: number[] | null;
     try {
       queryVector = await embedQuery(searched, index, options, request.signal, reportError);
     } catch (error) {
-      return misconfigured(error);
+      return misconfigured(request, error);
     }
 
     const retrieval = await retrieveWithHooks(
@@ -836,7 +892,7 @@ export function createAskHandler(
         },
       });
     });
-  };
+  }
 
   /**
    * Streams an answer: metadata, the numbered sources, then the text, either `answer.answer` as

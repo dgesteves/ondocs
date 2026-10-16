@@ -9,7 +9,13 @@ import {
   sectionMarkdown,
   snippet,
 } from '../search/pages';
-import { retrieve, type LoadedIndex, type RetrievalOptions } from '../search/retrieve';
+import {
+  retrieve,
+  type LoadedIndex,
+  type RetrievalHit,
+  type RetrievalOptions,
+} from '../search/retrieve';
+import type { RetrievalHooks } from './retrieval';
 
 /** A tool as `tools/list` describes it. */
 export interface McpTool {
@@ -64,7 +70,27 @@ const READ_ONLY = {
   openWorldHint: false,
 } as const;
 
-export function mcpTools(siteName: string, maxQueryLength: number): McpTool[] {
+/**
+ * The `locale` argument of `search` and `list_pages`, for an endpoint with `indexes`: the locales
+ * it has an index for, besides the default one.
+ */
+function localeProperty(locales: readonly string[]): Record<string, unknown> {
+  return locales.length === 0
+    ? {}
+    : {
+        locale: {
+          type: 'string',
+          description: 'The docs in this language, instead of the default ones.',
+          enum: [...locales],
+        },
+      };
+}
+
+export function mcpTools(
+  siteName: string,
+  maxQueryLength: number,
+  locales: readonly string[] = [],
+): McpTool[] {
   return [
     {
       name: 'search',
@@ -82,6 +108,7 @@ export function mcpTools(siteName: string, maxQueryLength: number): McpTool[] {
             minLength: 1,
             maxLength: maxQueryLength,
           },
+          ...localeProperty(locales),
         },
         required: ['query'],
         additionalProperties: false,
@@ -155,6 +182,7 @@ export function mcpTools(siteName: string, maxQueryLength: number): McpTool[] {
             description: 'Only pages whose path starts with this, e.g. /docs/guides.',
             maxLength: 2048,
           },
+          ...localeProperty(locales),
         },
         additionalProperties: false,
       },
@@ -207,6 +235,13 @@ function absolute(url: string, site: string | undefined): string {
   }
 }
 
+/** The retrieval settings `search` runs with: its own defaults, then the endpoint's `retrieval`. */
+export function searchRetrieval(
+  retrieval: (RetrievalOptions & RetrievalHooks) | undefined,
+): RetrievalOptions & RetrievalHooks {
+  return { ...MCP_RETRIEVAL, topK: SEARCH_RESULTS * 3, ...retrieval };
+}
+
 /**
  * The sections that best match `query`: retrieval's ranked chunks, merged by section (one result
  * per URL, anchor included) with a snippet of the best chunk, at most {@link SEARCH_RESULTS}.
@@ -217,21 +252,26 @@ export function searchSections(
   vector: readonly number[] | null,
   options: { retrieval?: RetrievalOptions | undefined; siteUrl?: string | undefined },
 ): McpSearchResult[] {
-  const retrieval = retrieve(
-    index,
-    { text: query, vector },
-    { ...MCP_RETRIEVAL, topK: SEARCH_RESULTS * 3, ...options.retrieval },
-  );
+  const retrieval = retrieve(index, { text: query, vector }, searchRetrieval(options.retrieval));
+  return sectionResults(retrieval.hits, query, options.siteUrl);
+}
+
+/** Ranked chunks as `search` returns them: one result per section, best first. */
+export function sectionResults(
+  hits: readonly RetrievalHit[],
+  query: string,
+  siteUrl: string | undefined,
+): McpSearchResult[] {
   const results: McpSearchResult[] = [];
   const seen = new Set<string>();
-  for (const { chunk } of retrieval.hits) {
+  for (const { chunk } of hits) {
     if (seen.has(chunk.url)) continue;
     seen.add(chunk.url);
     results.push({
       id: chunk.url,
       title: chunk.title,
       heading: chunk.heading,
-      url: absolute(chunk.url, options.siteUrl),
+      url: absolute(chunk.url, siteUrl),
       text: snippet(chunk.text, query),
     });
     if (results.length === SEARCH_RESULTS) break;

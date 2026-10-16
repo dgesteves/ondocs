@@ -5,28 +5,33 @@ import type { EmbeddingModel } from 'ai';
 
 import { version } from '../../package.json' with { type: 'json' };
 import type { EmbeddingProviderOptions } from '../build';
+import { findPage } from '../search/pages';
 import type { LoadedIndex, RetrievalOptions } from '../search/retrieve';
-import { createBudget, type BudgetOptions } from './budget';
+import { BUDGET_EXCEEDED_MESSAGE, createBudget, type BudgetOptions } from './budget';
 import {
   fetchPage,
   listPages,
   mcpTools,
   searchResult,
-  searchSections,
+  searchRetrieval,
+  sectionResults,
   toolError,
   type McpTool,
   type McpToolResult,
 } from './mcp-tools';
-import type { RateLimiter, RateLimitResult } from './rate-limit';
+import type { RateLimiter } from './rate-limit';
+import { retrieveWithHooks, type RetrievalHooks } from './retrieval';
 import {
   CLIENT_CLOSED,
+  corsPolicy,
   defaultRateLimit,
   embedQuery,
   indexLoader,
-  isJson,
-  rateLimitHeaders,
-  readBody,
+  requestGuard,
+  type AllowedOrigins,
   type IndexSource,
+  type Refusal,
+  type RefusalReason,
 } from './shared';
 
 /**
@@ -64,6 +69,12 @@ export interface McpHandlerOptions {
    */
   index: IndexSource | (() => IndexSource | Promise<IndexSource>);
   /**
+   * The index of each other locale, by its name (`fr`, `pt-br`), as for `createAskHandler`. With
+   * them, `search` and `list_pages` take a `locale`, one of these, and read `index` without one
+   * or for one with no index here; `fetch` reads a page from whichever index has it.
+   */
+  indexes?: Record<string, IndexSource | (() => IndexSource | Promise<IndexSource>)>;
+  /**
    * The model the index was embedded with, to embed each search query (one embedding call per
    * search, at the provider's embedding price). Without it, search is keyword-only and the
    * endpoint makes no model call at all.
@@ -88,8 +99,12 @@ export interface McpHandlerOptions {
   version?: string;
   /** Instructions for the agent, sent on `initialize`. Default: how to use the tools. */
   instructions?: string;
-  /** Retrieval settings for `search`, over its defaults: `{ minKeywordCoverage: 0.3 }`. */
-  retrieval?: RetrievalOptions;
+  /**
+   * Retrieval settings for `search`, over its defaults (`{ minKeywordCoverage: 0.3 }`), and the
+   * `rerank` and `retrieve` hooks, which run as they do for `createAskHandler`, behind the same
+   * relevance gate.
+   */
+  retrieval?: RetrievalOptions & RetrievalHooks;
   /** Longest accepted search query, in characters. Default 500. */
   maxQueryLength?: number;
   /** Largest accepted request body, in bytes, enforced while reading. Default 64 KiB. */
@@ -118,7 +133,7 @@ export interface McpHandlerOptions {
    * browser work: the docs are public, and a server on the public internet gains nothing from
    * the check.
    */
-  allowedOrigins?: readonly string[] | '*';
+  allowedOrigins?: AllowedOrigins;
   /** Extra headers on every response. */
   headers?: Record<string, string>;
   /** Called after each tool call, e.g. to count agent traffic. Errors in it are reported, not raised. */
@@ -176,6 +191,18 @@ const DEFAULT_RATE_LIMIT = 60;
 const CORS_HEADERS =
   'content-type, accept, authorization, mcp-protocol-version, mcp-method, mcp-name, mcp-session-id, last-event-id';
 
+/** How the MCP endpoint words each refusal of the request guard, as a JSON-RPC error. */
+const REFUSALS: Record<RefusalReason, { code: number; message: string }> = {
+  method: { code: SERVER_ERROR, message: 'Method not allowed: send JSON-RPC with POST.' },
+  media_type: { code: SERVER_ERROR, message: 'Send the body as application/json.' },
+  too_large: { code: INVALID_REQUEST, message: 'Request body too large.' },
+  unreadable: { code: PARSE_ERROR, message: 'Could not read the body.' },
+  not_json: { code: PARSE_ERROR, message: 'Parse error: the body is not JSON.' },
+  rate_limited: { code: SERVER_ERROR, message: 'Too many requests. Try again shortly.' },
+  budget: { code: SERVER_ERROR, message: BUDGET_EXCEEDED_MESSAGE },
+  unavailable: { code: SERVER_ERROR, message: 'The service is unavailable. Try again shortly.' },
+};
+
 /**
  * Creates the MCP endpoint: a Web-standard `(request: Request) => Promise<Response>` that serves
  * the index to agents over MCP's Streamable HTTP transport, statelessly, with three read-only
@@ -213,7 +240,16 @@ export function createMcpHandler(
     );
   }
   const getIndex = indexLoader(options.index, options.embeddingModel);
-  const tools = mcpTools(siteName, maxQueryLength);
+  const localeIndexes = new Map(
+    Object.entries(options.indexes ?? {}).map(([locale, source]) => [
+      locale,
+      indexLoader(source, options.embeddingModel),
+    ]),
+  );
+  /** The index a tool reads: its `locale`'s, when there is one for it, and `index` otherwise. */
+  const indexFor = (locale: unknown): (() => Promise<LoadedIndex>) =>
+    (typeof locale === 'string' ? localeIndexes.get(locale) : undefined) ?? getIndex;
+  const tools = mcpTools(siteName, maxQueryLength, [...localeIndexes.keys()]);
   const serverInfo = {
     // An empty name or version is no name for a client to show.
     name: options.name || 'ondocs',
@@ -226,27 +262,40 @@ export function createMcpHandler(
       'the ones you need to read in full. Cite the URLs you used.';
   const capabilities = { tools: { listChanged: false } };
 
-  const allowed = options.allowedOrigins;
-  const ownOrigin = (request: Request): string => new URL(request.url).origin;
-  const originAllowed = (origin: string, request: Request): boolean =>
-    allowed === undefined ||
-    allowed === '*' ||
-    allowed.includes(origin) ||
-    origin === ownOrigin(request);
+  const guard = requestGuard({
+    rateLimit,
+    failure: options.rateLimitFailure,
+    maxBodyBytes,
+    report: reportError,
+    now: options.budget?.now,
+  });
   /** CORS headers for an allowed cross-origin caller; none by default. */
-  const corsFor = (request: Request): Record<string, string> => {
-    const origin = request.headers.get('origin');
-    if (!origin || allowed === undefined || origin === ownOrigin(request)) return {};
-    if (!originAllowed(origin, request)) return {};
-    return {
-      'access-control-allow-origin': allowed === '*' ? '*' : origin,
-      'access-control-expose-headers': 'mcp-protocol-version',
-      ...(allowed === '*' ? {} : { vary: 'origin' }),
-    };
+  const cors = corsPolicy(options.allowedOrigins, {
+    methods: 'POST, GET, DELETE, OPTIONS',
+    allowHeaders: CORS_HEADERS,
+    // A browser client reads the version answered, and how long to wait after a 429.
+    exposeHeaders: 'mcp-protocol-version, retry-after',
+  });
+  /** What a refusal says: when a rate-limited client may try again, or the budget's message. */
+  const refusalMessage = (refusal: Refusal): string => {
+    if (refusal.reason === 'rate_limited') {
+      return `Too many requests. Try again in ${refusal.headers?.['retry-after'] ?? 'a few'} seconds.`;
+    }
+    if (refusal.reason === 'budget' && budget) return budget.message;
+    return REFUSALS[refusal.reason].message;
   };
+  /** A request the guard turned away, as a JSON-RPC error. */
+  const refused = (refusal: Refusal, id: JsonRpcId | null, rpcError: RpcError): Response =>
+    rpcError(refusal.status, id, REFUSALS[refusal.reason].code, refusalMessage(refusal), {
+      headers: refusal.headers ?? {},
+    });
 
   return async function handleMcp(request: Request): Promise<Response> {
-    const baseHeaders = { 'cache-control': 'no-store', ...options.headers, ...corsFor(request) };
+    const baseHeaders = {
+      'cache-control': 'no-store',
+      ...options.headers,
+      ...cors.headers(request),
+    };
     const reply = (status: number, body: unknown, headers?: Record<string, string>): Response =>
       body === null
         ? new Response(null, { status, headers: { ...baseHeaders, ...headers } })
@@ -265,48 +314,18 @@ export function createMcpHandler(
     // MCP has HTTP servers check `Origin`, so a page on another site cannot reach a private
     // server through a name that resolves to it (DNS rebinding); see `allowedOrigins`.
     const origin = request.headers.get('origin');
-    if (origin !== null && !originAllowed(origin, request)) {
+    if (origin !== null && !cors.allows(origin, request)) {
       return rpcError(403, null, SERVER_ERROR, `Origin ${origin} is not allowed.`);
     }
 
     if (request.method === 'OPTIONS') {
-      const cors = corsFor(request);
-      return reply(204, null, {
-        allow: 'POST, OPTIONS',
-        ...('access-control-allow-origin' in cors
-          ? {
-              'access-control-allow-methods': 'POST, GET, DELETE, OPTIONS',
-              'access-control-allow-headers': CORS_HEADERS,
-              'access-control-max-age': '86400',
-            }
-          : {}),
-      });
+      return reply(204, null, { allow: 'POST, OPTIONS', ...cors.preflight(request) });
     }
-    // Stateless: no stream to open with GET, and no session to end with DELETE.
-    if (request.method !== 'POST') {
-      return rpcError(405, null, SERVER_ERROR, 'Method not allowed: send JSON-RPC with POST.', {
-        headers: { allow: 'POST, OPTIONS' },
-      });
-    }
-    if (!isJson(request.headers.get('content-type'))) {
-      return rpcError(415, null, SERVER_ERROR, 'Send the body as application/json.');
-    }
-    if (Number(request.headers.get('content-length') ?? 0) > maxBodyBytes) {
-      return rpcError(413, null, INVALID_REQUEST, 'Request body too large.');
-    }
-    let raw: string | null;
-    try {
-      raw = await readBody(request, maxBodyBytes);
-    } catch {
-      return rpcError(400, null, PARSE_ERROR, 'Could not read the body.');
-    }
-    if (raw === null) return rpcError(413, null, INVALID_REQUEST, 'Request body too large.');
-    let message: unknown;
-    try {
-      message = JSON.parse(raw);
-    } catch {
-      return rpcError(400, null, PARSE_ERROR, 'Parse error: the body is not JSON.');
-    }
+    // Stateless: no stream to open with GET, and no session to end with DELETE. Only tool calls
+    // count against the rate limit, so it runs once the message says what it is.
+    const read = await guard.read(request, { limit: false });
+    if ('refusal' in read) return refused(read.refusal, null, rpcError);
+    const message = read.body;
     if (Array.isArray(message)) {
       return rpcError(400, null, INVALID_REQUEST, 'Batches are not supported: send one message.');
     }
@@ -500,47 +519,17 @@ export function createMcpHandler(
       return ok(toolError('arguments must be an object.'));
     }
 
-    if (rateLimit) {
-      let limit: RateLimitResult;
-      try {
-        limit = await rateLimit(request);
-      } catch (error) {
-        reportError(error);
-        if (options.rateLimitFailure !== 'open') return unavailable(id, rpcError);
-        limit = { success: true };
-      }
-      if (!limit.success) {
-        const headers = rateLimitHeaders(limit);
-        return rpcError(
-          429,
-          id,
-          SERVER_ERROR,
-          `Too many requests. Try again in ${headers['retry-after'] ?? 'a few'} seconds.`,
-          { headers },
-        );
-      }
-    }
+    const limited = await guard.limit(request);
+    if (limited) return refused(limited, id, rpcError);
     if (budget) {
-      let decision;
-      try {
-        decision = await budget.admit();
-      } catch (error) {
-        reportError(error);
-        if (options.rateLimitFailure !== 'open') return unavailable(id, rpcError);
-        decision = { allowed: true as const };
-      }
-      if (!decision.allowed) {
-        const now = options.budget?.now ?? Date.now;
-        const seconds = Math.max(1, Math.ceil((decision.resetAt - now()) / 1000));
-        return rpcError(429, id, SERVER_ERROR, budget.message, {
-          headers: { 'retry-after': String(seconds) },
-        });
-      }
+      const admission = await guard.admit(() => budget.admit());
+      if ('refusal' in admission) return refused(admission.refusal, id, rpcError);
     }
 
+    const record = args as Record<string, unknown>;
     let index: LoadedIndex;
     try {
-      index = await getIndex();
+      index = await indexFor(record.locale)();
     } catch (error) {
       if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
       reportError(error);
@@ -550,7 +539,6 @@ export function createMcpHandler(
     const started = Date.now();
     const siteUrl =
       options.siteUrl === false ? undefined : (options.siteUrl ?? new URL(request.url).origin);
-    const record = args as Record<string, unknown>;
     let result: McpToolResult;
     const event: Omit<McpToolCallEvent, 'isError' | 'durationMs'> = {
       tool: tool.name,
@@ -591,6 +579,9 @@ export function createMcpHandler(
       }
       return value;
     };
+    // `locale`, which search and list_pages take with `indexes`, chose the index.
+    const locale = string('locale', false);
+    if (locale !== null && typeof locale !== 'string') return locale;
     switch (tool) {
       case 'search': {
         const query = string('query', true);
@@ -599,10 +590,13 @@ export function createMcpHandler(
           return toolError(`query is limited to ${String(maxQueryLength)} characters.`);
         }
         const vector = await embedQuery(query, index, options, request.signal, reportError);
-        const results = searchSections(index, query, vector, {
-          retrieval: options.retrieval,
-          siteUrl,
-        });
+        const retrieval = await retrieveWithHooks(
+          index,
+          { text: query, vector },
+          searchRetrieval(options.retrieval),
+          { signal: request.signal, report: reportError },
+        );
+        const results = sectionResults(retrieval.hits, query, siteUrl);
         event.results = results.map((entry) => entry.id);
         event.retrieval = vector ? 'hybrid' : 'keyword';
         return searchResult(results);
@@ -610,7 +604,7 @@ export function createMcpHandler(
       case 'fetch': {
         const reference = string('id', true);
         if (typeof reference !== 'string') return reference ?? toolError('id is required.');
-        return fetchPage(index, reference, siteUrl);
+        return fetchPage(await pageIndex(index, reference), reference, siteUrl);
       }
       case 'list_pages': {
         const prefix = string('prefix', false);
@@ -621,10 +615,24 @@ export function createMcpHandler(
         return toolError(`Unknown tool: ${tool}`);
     }
   }
-}
 
-function unavailable(id: JsonRpcId, rpcError: RpcError): Response {
-  return rpcError(503, id, SERVER_ERROR, 'The service is unavailable. Try again shortly.');
+  /**
+   * The index that has the page `id`: `index`, or else the first other locale's that has it, as
+   * a search result's id names a page of the locale it was found in. An index that fails to load
+   * is reported and skipped.
+   */
+  async function pageIndex(index: LoadedIndex, id: string): Promise<LoadedIndex> {
+    if (localeIndexes.size === 0 || findPage(index, id)) return index;
+    for (const load of localeIndexes.values()) {
+      try {
+        const other = await load();
+        if (findPage(other, id)) return other;
+      } catch (error) {
+        reportError(error);
+      }
+    }
+    return index;
+  }
 }
 
 /** A JSON-RPC 2.0 request, notification or response. */
