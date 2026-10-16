@@ -22,7 +22,7 @@ import {
   type OndocsOptions,
 } from '../astro/integration';
 
-/** What the dialog shows; passed to `mountAskDialog` from `ondocs/embed`. */
+/** What the dialog shows; passed to `mountAskDialog` from `ondocs/embed/standalone`. */
 export interface OndocsDialogOptions extends AstroDialogOptions {
   /**
    * An "Ask AI" button in the header, after the search box: `true`, or the button's label, by

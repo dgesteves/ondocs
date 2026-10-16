@@ -41,6 +41,16 @@ const PACKAGES = [
     guide: 'docusaurus',
     keywords: ['docusaurus', 'docusaurus-plugin', 'ask-ai'],
     noise: ['chatbot', 'ui', 'utility', 'edge', 'command-palette'],
+    // The theme renders the dialog with the site's React.
+    peers: [
+      '@docusaurus/core',
+      'react',
+      'react-dom',
+      '@radix-ui/react-dialog',
+      'cmdk',
+      'ai',
+      '@ai-sdk/openai',
+    ],
     // Docusaurus loads the plugin's theme and stylesheets by their paths inside ondocs, so a
     // project that only has this package builds; the endpoint and the CLI still need ondocs.
     wraps: false,
@@ -55,13 +65,16 @@ const PACKAGES = [
     // ondocs dropped ui and utility from its own keywords as noise on npm; this package keeps
     // them for the Astro library's categories, so that ondocs is not listed there twice.
     noise: ['chatbot', 'edge', 'command-palette'],
+    // The launcher mounts ondocs/embed/standalone, whose dialog brings its own React, Radix and
+    // cmdk: npm installs required peers, so asking for them would install React on every site.
+    peers: ['@astrojs/starlight', 'astro', 'ai', '@ai-sdk/openai'],
     // The Astro integration adds `ondocs/...` modules to the pages, which the build resolves from
     // the project: the plugin checks it can, before Starlight sets up.
     wraps: true,
   },
 ];
 
-describe.each(PACKAGES)('$dir', ({ dir, entry, guide, keywords, noise, wraps }) => {
+describe.each(PACKAGES)('$dir', ({ dir, entry, guide, keywords, noise, peers, wraps }) => {
   const pkg = manifest(`${dir}/package.json`);
 
   it('re-exports its entry of ondocs, default and named, in JavaScript and types', () => {
@@ -135,9 +148,7 @@ describe.each(PACKAGES)('$dir', ({ dir, entry, guide, keywords, noise, wraps }) 
     for (const [name, range] of Object.entries(pkg.peerDependencies)) {
       expect([name, range]).toEqual([name, main.peerDependencies[name]]);
     }
-    expect(Object.keys(pkg.peerDependencies)).toEqual(
-      expect.arrayContaining(['react', 'react-dom', '@radix-ui/react-dialog', 'cmdk', 'ai']),
-    );
+    expect(Object.keys(pkg.peerDependencies).sort()).toEqual([...peers].sort());
   });
 
   it('has the keywords people search for, and none that only add noise to npm search', () => {

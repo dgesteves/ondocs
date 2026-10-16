@@ -44,7 +44,7 @@ import {
 /** What the dialog shows in one locale, over the dialog's own options. */
 export type OndocsLocaleDialogOptions = LocaleDialogOptions;
 
-/** What the dialog shows; passed to `mountAskDialog` from `ondocs/embed`. */
+/** What the dialog shows; passed to `mountAskDialog` from `ondocs/embed/standalone`. */
 export interface OndocsDialogOptions extends DialogOptions {
   /** The dialog's accessible name. Default "Ask {site title}", in each locale its own. */
   title?: string;

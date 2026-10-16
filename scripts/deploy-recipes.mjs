@@ -531,6 +531,7 @@ async function astroRecipe() {
       text.replace(/^---\n/, '---\nlayout: ../../layouts/Doc.astro\n'),
     );
   }
+  // No React, Radix or cmdk: the integration's dialog brings its own, as the Astro guide says.
   await run('npm', [
     'install',
     '--no-audit',
@@ -540,11 +541,13 @@ async function astroRecipe() {
     '@ai-sdk/openai',
     VERSIONS.astro,
     recipe.adapter,
-    'react',
-    'react-dom',
-    '@radix-ui/react-dialog',
-    'cmdk',
   ]);
+  for (const name of ['react', 'react-dom', '@radix-ui/react-dialog', 'cmdk']) {
+    expect(
+      !existsSync(join(dir, 'node_modules', name)),
+      `${name} is installed, so the build does not show the dialog brings its own`,
+    );
+  }
   const before = readdirSync(dir).sort().join();
   await run('npx', ['ondocs', 'init']);
   expect(

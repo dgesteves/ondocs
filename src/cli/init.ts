@@ -603,12 +603,11 @@ function install(p: Project, packages: string[], dev = false): string | null {
  * import ondocs/server and @ai-sdk/openai.
  */
 function sitePackages(site: Site, openai = true, functions = false): string[] {
+  // A React site's dialog renders with the site's React, and these two. The Starlight, Astro and
+  // VitePress plugins mount ondocs/embed/standalone, whose dialog brings its own React, Radix and
+  // cmdk, as the script tag on a static site does.
   const dialog =
-    site.kind === 'starlight' || site.kind === 'astro' || site.kind === 'vitepress'
-      ? ['react', 'react-dom', '@radix-ui/react-dialog', 'cmdk']
-      : site.kind === 'static'
-        ? []
-        : ['@radix-ui/react-dialog', 'cmdk'];
+    site.kind === 'docusaurus' || site.kind === 'next' ? ['@radix-ui/react-dialog', 'cmdk'] : [];
   // The plugins embed the pages with OpenAI when OPENAI_API_KEY is set as the site builds. A
   // static site is indexed with npx, so it needs the models only for its functions; the
   // standalone Worker has a package.json of its own.

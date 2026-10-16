@@ -510,27 +510,15 @@ importers:
       '@astrojs/starlight':
         specifier: '>=0.32.0'
         version: 0.42.6(astro@7.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))(supports-color@7.2.0)(typescript@6.0.3)
-      '@radix-ui/react-dialog':
-        specifier: ^1.1.23
-        version: 1.2.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       ai:
         specifier: ^7.0.95
         version: 7.0.139(zod@4.6.6)
       astro:
         specifier: ^5.0.0 || ^6.0.0 || ^7.0.0
         version: 7.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1)
-      cmdk:
-        specifier: ^1.1.1
-        version: 1.1.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       ondocs:
         specifier: workspace:*
         version: link:../..
-      react:
-        specifier: ^18.3.0 || ^19.0.0
-        version: 19.3.0
-      react-dom:
-        specifier: ^18.3.0 || ^19.0.0
-        version: 19.3.0(react@19.3.0)
 
 packages:
 

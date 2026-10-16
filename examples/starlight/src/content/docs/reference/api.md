@@ -8,21 +8,22 @@ sidebar:
 
 The package has one CLI and these imports. Each is tree-shakeable, and only `ondocs/node`, `ondocs/integration`, the framework plugins and the CLI touch Node.js built-ins, so the rest runs on edge runtimes, in workers and in browsers.
 
-| Import                          | For                                                                                                                          |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `ondocs`                        | Loaders, chunking, `buildIndex`, `checkIndex`, `loadIndex`, `retrieve`, `buildLlmsFiles`, `mcpInstallLinks`                  |
-| `ondocs/node`                   | `loadDirectory`, `readIndexFile`, `writeIndexFile`, and the config module's types                                            |
-| `ondocs/integration`            | The build helpers the plugins are made of, for [writing an integration](/integrations/writing-an-integration/)               |
-| `ondocs/server`                 | `createAskHandler`, `createMcpHandler`, `remoteIndex`, the rate limiters, the budget and answer cache stores                 |
-| `ondocs/react`                  | `AskDialog`, `AskButton`, `useAsk`, `AskAnswer`, `McpInstall` and `loadAskDialog`; needs `@radix-ui/react-dialog` and `cmdk` |
-| `ondocs/embed`                  | `mountAskDialog`: the dialog and its button without writing React; `openAskDialog`, to open any page's dialog                |
-| `ondocs/docusaurus`             | The [Docusaurus plugin](/integrations/docusaurus/)                                                                           |
-| `ondocs/astro`                  | The [Astro integration](/integrations/astro/)                                                                                |
-| `ondocs/starlight`              | The [Starlight plugin](/integrations/astro/)                                                                                 |
-| `ondocs/vitepress`              | The [VitePress plugin](/integrations/vitepress/): `withOndocs`                                                               |
-| `ondocs/astro/McpInstall.astro` | The "Add to Cursor / VS Code / Claude" block for an Astro or Starlight page                                                  |
-| `ondocs/mock`                   | `mockEmbeddingModel` and `mockLanguageModel`, for tests and offline demos                                                    |
-| `ondocs` (bin)                  | [`ondocs index`, `init`, `dev` and `eval`](/reference/cli/)                                                                  |
+| Import                          | For                                                                                                                                                                                  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ondocs`                        | Loaders, chunking, `buildIndex`, `checkIndex`, `loadIndex`, `retrieve`, `buildLlmsFiles`, `mcpInstallLinks`                                                                          |
+| `ondocs/node`                   | `loadDirectory`, `readIndexFile`, `writeIndexFile`, and the config module's types                                                                                                    |
+| `ondocs/integration`            | The build helpers the plugins are made of, for [writing an integration](/integrations/writing-an-integration/)                                                                       |
+| `ondocs/server`                 | `createAskHandler`, `createMcpHandler`, `remoteIndex`, the rate limiters, the budget and answer cache stores                                                                         |
+| `ondocs/react`                  | `AskDialog`, `AskButton`, `useAsk`, `AskAnswer`, `McpInstall` and `loadAskDialog`; needs `@radix-ui/react-dialog` and `cmdk`                                                         |
+| `ondocs/embed`                  | `mountAskDialog`: the dialog and its button without writing React; `openAskDialog`, to open any page's dialog. Needs the site's React, `@radix-ui/react-dialog` and `cmdk`           |
+| `ondocs/embed/standalone`       | The same `mountAskDialog` and `openAskDialog`, with React, Radix and cmdk built into the dialog's chunk, for a site without React. The Astro, Starlight and VitePress plugins use it |
+| `ondocs/docusaurus`             | The [Docusaurus plugin](/integrations/docusaurus/)                                                                                                                                   |
+| `ondocs/astro`                  | The [Astro integration](/integrations/astro/)                                                                                                                                        |
+| `ondocs/starlight`              | The [Starlight plugin](/integrations/astro/)                                                                                                                                         |
+| `ondocs/vitepress`              | The [VitePress plugin](/integrations/vitepress/): `withOndocs`                                                                                                                       |
+| `ondocs/astro/McpInstall.astro` | The "Add to Cursor / VS Code / Claude" block for an Astro or Starlight page                                                                                                          |
+| `ondocs/mock`                   | `mockEmbeddingModel` and `mockLanguageModel`, for tests and offline demos                                                                                                            |
+| `ondocs` (bin)                  | [`ondocs index`, `init`, `dev` and `eval`](/reference/cli/)                                                                                                                          |
 
 The handlers are documented in [The ask endpoint](/reference/ask-endpoint/) and [MCP server](/integrations/mcp/), and the React components in [The ask dialog](/reference/ask-dialog/).
 

@@ -1,7 +1,8 @@
 ---
-'ondocs': patch
+'ondocs': minor
+'starlight-ondocs': minor
 ---
 
-The Astro, Starlight and VitePress plugins no longer need React. Their dialog now comes prebuilt with its own React, Radix and cmdk, from the new `ondocs/embed/standalone`, so a site installs `ondocs`, `ai` and `@ai-sdk/openai` and nothing else. Before, a Vue or Astro site without React had to install `react`, `react-dom`, `@radix-ui/react-dialog` and `cmdk`, or its build failed. The dialog still loads only the first time it is wanted, in a chunk of its own: 92.6 KB gzipped on the Starlight example (93.6 KB before) and 95.6 KB on the VitePress one (96.8 KB before). A site that installed the four packages only for the dialog can remove them. On an Astro site with React islands, the dialog no longer shares their React.
+The Astro, Starlight and VitePress plugins no longer need React. Their dialog now comes prebuilt with its own React, Radix and cmdk, from the new `ondocs/embed/standalone`, so a site installs `ondocs`, `ai` and `@ai-sdk/openai` and nothing else. Before, a Vue or Astro site without React had to install `react`, `react-dom`, `@radix-ui/react-dialog` and `cmdk`, or its build failed. `ondocs init` no longer lists them for these sites, and `starlight-ondocs` no longer asks for them as peers, so npm no longer installs them with it. The dialog still loads only the first time it is wanted, in a chunk of its own: 92.6 KB gzipped on the Starlight example (93.6 KB before) and 95.6 KB on the VitePress one (96.8 KB before). A site that installed the four packages only for the dialog can remove them. On an Astro site with React islands, the dialog no longer shares their React.
 
-`ondocs/embed/standalone` has the same `mountAskDialog` and `openAskDialog` as `ondocs/embed`, for an app with a bundler and no React. `launcherScript` from `ondocs/integration` now mounts the launcher with it.
+`ondocs/embed/standalone` has the same `mountAskDialog` and `openAskDialog` as `ondocs/embed`, for an app with a bundler and no React. On such a site, import `openAskDialog` from it: `ondocs/embed` renders the dialog with the site's React, so the build fails without React installed. `launcherScript` from `ondocs/integration` now mounts the launcher with it.

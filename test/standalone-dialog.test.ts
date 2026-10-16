@@ -29,6 +29,7 @@ describe('the setup guides for sites without React', () => {
       ['README.md', '**Starlight.** `npm i '],
       ['examples/nextjs/content/docs/astro.md', 'npm i '],
       ['examples/nextjs/content/docs/vitepress.md', 'npm i '],
+      ['packages/starlight-ondocs/README.md', 'npm i '],
     ].map(([file = '', start = '']) => {
       const line = read(file)
         .split('\n')
@@ -44,6 +45,20 @@ describe('the setup guides for sites without React', () => {
       ['README.md', []],
       ['examples/nextjs/content/docs/astro.md', []],
       ['examples/nextjs/content/docs/vitepress.md', []],
+      ['packages/starlight-ondocs/README.md', []],
+    ]);
+  });
+
+  it('match the landing page’s install step for Astro, Starlight and VitePress', () => {
+    const page = read('examples/nextjs/app/(home)/page.tsx');
+    // The last tab with each id is the install section's; the first is the demos'.
+    const install = (id: string) =>
+      /'npm i ([^']+)'/.exec(
+        page.slice(page.lastIndexOf(`id: '${id}'`)).split(/\bid: '/)[1] ?? '',
+      )?.[1];
+    expect([install('astro'), install('vitepress')]).toEqual([
+      'ondocs ai @ai-sdk/openai',
+      'ondocs ai @ai-sdk/openai',
     ]);
   });
 });

@@ -134,10 +134,7 @@ async function setupTabs(): Promise<SetupTab[]> {
       steps: [
         {
           title: 'Install',
-          code: await codeBlock(
-            'npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk',
-            'sh',
-          ),
+          code: await codeBlock('npm i ondocs ai @ai-sdk/openai', 'sh'),
         },
         {
           title: 'Add the plugin',
@@ -181,10 +178,7 @@ async function setupTabs(): Promise<SetupTab[]> {
       steps: [
         {
           title: 'Install',
-          code: await codeBlock(
-            'npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk',
-            'sh',
-          ),
+          code: await codeBlock('npm i ondocs ai @ai-sdk/openai', 'sh'),
         },
         {
           title: 'Wrap the config',

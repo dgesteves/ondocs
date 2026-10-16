@@ -526,16 +526,15 @@ function starlight(entry) {
           ),
       );
     },
-    // The dialog brings its own React, Radix and cmdk, so the guide installs none of them.
-    // starlight-ondocs still names them as peers, which npm installs, so only ondocs/starlight's
-    // site is checked for them.
+    // The dialog brings its own React, Radix and cmdk, so the guide installs none of them, and
+    // starlight-ondocs asks for none of them as peers, which npm would install.
     install: MODELS,
     build: [['npx', 'astro', 'build']],
     index: 'dist/ask-index.json',
     llms: 'dist',
     dimensions: 512,
     linked: true,
-    ...(entry === 'ondocs/starlight' ? { check: (dir) => withoutReact(dir) } : {}),
+    check: (dir) => withoutReact(dir),
   };
 }
 
