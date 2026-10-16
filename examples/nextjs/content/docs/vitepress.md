@@ -36,6 +36,8 @@ export default withOndocs(
 
 Options go in a second argument: `withOndocs(defineConfig({ ... }), { endpoint: 'https://ask.acme.dev/api/ask' })`. Your config's own `buildEnd`, `transformHtml` and Vite plugins keep working: `withOndocs` adds its own after them.
 
+`withOndocs` takes the config in any shape VitePress does, and returns it in the same shape: an object, a Promise of one, or a function of `{ command, mode }` that returns either. So it can wrap another wrapper that returns a Promise, such as `withPwa` from `@vite-pwa/vitepress`, or go inside it: `withOndocs(withPwa(defineConfig({ ... })))` and `withPwa(withOndocs(defineConfig({ ... })))` both work.
+
 ## What VitePress indexes
 
 After `vitepress build`, the index is written to `.vitepress/dist/ask-index.json`, or `docs/.vitepress/dist/ask-index.json` when the site is in `docs/`. It is at the URLs VitePress serves: under `base`, with or without `.html` as `cleanUrls` has it, at the paths `rewrites` give the pages, and with a page for each path of a dynamic route. Files in `srcExclude` are not pages, so they are not indexed, and neither are pages with `search: false` in their frontmatter, which VitePress's local search leaves out too, or with `<meta name="robots" content="noindex">`. To keep a site out of search engines and still index it, send an `X-Robots-Tag: noindex` header from the host rather than the meta tag.

@@ -81,6 +81,11 @@ export interface McpHandlerOptions {
   siteUrl?: string | false;
   /** The server's name in `initialize`, which clients show. Default `"ondocs"`. */
   name?: string;
+  /**
+   * The server's version beside its `name`, such as your docs' or your product's. Default: the
+   * version of ondocs that serves it, which suits the name `ondocs` and not one of your own.
+   */
+  version?: string;
   /** Instructions for the agent, sent on `initialize`. Default: how to use the tools. */
   instructions?: string;
   /** Retrieval settings for `search`, over its defaults: `{ minKeywordCoverage: 0.3 }`. */
@@ -210,9 +215,10 @@ export function createMcpHandler(
   const getIndex = indexLoader(options.index, options.embeddingModel);
   const tools = mcpTools(siteName, maxQueryLength);
   const serverInfo = {
-    name: options.name ?? 'ondocs',
+    // An empty name or version is no name for a client to show.
+    name: options.name || 'ondocs',
     title: siteName === 'this site' ? 'Docs search' : `Search ${siteName}`,
-    version,
+    version: options.version || version,
   };
   const instructions =
     options.instructions ??

@@ -37,6 +37,8 @@ export type DialogPanelProps = Omit<
   open: boolean;
   onOpenChange: (open: boolean) => void;
   theme?: OndocsTheme;
+  /** The footer's credit line, as `AskButton` takes it: `true` for `labels.poweredBy`, or a line. */
+  poweredBy?: boolean | string;
 };
 
 const cx = (...names: (string | undefined | false)[]): string => names.filter(Boolean).join(' ');
@@ -184,6 +186,36 @@ function Feedback({
   );
 }
 
+/** Where the footer's credit line links, and where in the line the link goes. */
+const ONDOCS_SLOT = '{ondocs}';
+const ONDOCS_URL = 'https://ondocs.vercel.app';
+
+/**
+ * The footer's credit line: `line`, with the link to ondocs's site where it says `{ondocs}`, or
+ * all of it the link when it doesn't. A new tab, so the answer stays open; the referrer is kept.
+ */
+function PoweredBy({ line }: { line: string }): ReactNode {
+  const at = line.indexOf(ONDOCS_SLOT);
+  const link = (text: string): ReactNode => (
+    <a href={ONDOCS_URL} target="_blank" rel="noopener">
+      {text}
+    </a>
+  );
+  return (
+    <span className="ask-powered-by">
+      {at === -1 ? (
+        link(line)
+      ) : (
+        <>
+          {line.slice(0, at)}
+          {link('ondocs')}
+          {line.slice(at + ONDOCS_SLOT.length)}
+        </>
+      )}
+    </span>
+  );
+}
+
 /**
  * An error in the labels' words. The endpoint's own messages (rate limits, the daily budget, a
  * failed answer) show as it sends them, unless a label for them was given.
@@ -269,6 +301,7 @@ export function DialogPanel({
   challenge,
   sourceUrls,
   question,
+  poweredBy,
   ...askOptions
 }: DialogPanelProps): ReactNode {
   const labels = resolveLabels(given);
@@ -489,6 +522,12 @@ export function DialogPanel({
                 {(state.status === 'done' || state.status === 'error') && !showsSources(state)
                   ? labels.footerNoSources
                   : labels.footer}
+                {poweredBy ? (
+                  <>
+                    {' '}
+                    <PoweredBy line={poweredBy === true ? labels.poweredBy : poweredBy} />
+                  </>
+                ) : null}
               </span>
               <span className="ask-footer-keys" aria-hidden="true">
                 <kbd className="ask-kbd">↵</kbd> {labels.footerAsk}{' '}

@@ -14,13 +14,13 @@ Add this tag to your base template, before `</body>` or in `<head>`:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.10/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.11/dist/embed.global.js"
   data-endpoint="/api/ask"
   defer
 ></script>
 ```
 
-The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.10.0`, in production.
+The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.11.0`, in production.
 
 ## Script size
 
@@ -74,7 +74,7 @@ Any element with a `data-ondocs-open` attribute opens the dialog, and its value,
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.10/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.11/dist/embed.global.js"
   data-endpoint="/api/ask"
   data-launcher="false"
   defer

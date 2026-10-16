@@ -8,11 +8,23 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { MockEmbeddingModelV4 } from 'ai/test';
 import { describe, expect, it } from 'vitest';
 
-import { buildIndex, parseFrontmatter } from '../src';
+import {
+  buildIndex,
+  chunkDocument,
+  DEFAULT_CHUNKING,
+  loadIndex,
+  parseFrontmatter,
+  retrieve,
+  tokenize,
+} from '../src';
 import { main } from '../src/cli/main';
+import { MOCK_MIN_SIMILARITY, hashEmbedding, mockEmbeddingModel } from '../src/mock';
 import { loadDirectory, writeIndexFile } from '../src/node';
+import { searchSections } from '../src/server/mcp-tools';
+import { QUESTIONS, SITES, type SiteLanguage } from './cjk-sites';
 
 const root = join(import.meta.dirname, '..');
 const DOCS = join(root, 'examples/nextjs/content/docs');
@@ -152,6 +164,129 @@ describe('the docs’ numbers', () => {
     expect(paragraph).toMatch(/best case/);
     expect(paragraph).toContain('test/corpus.test.ts');
     expect(paragraph).not.toMatch(/Agents write good search queries/);
+  });
+});
+
+describe('what the docs say about Chinese, Japanese and Korean', () => {
+  // Keyword search splits words at spaces and punctuation, so a run of Chinese or Japanese is one
+  // term, and a Korean word keeps its particle or ending: a question matches a page only where
+  // both have the same run. The docs said keyword matching was only "weaker" in other languages.
+  // These are the counts the limits page quotes, on the same small site in each language.
+
+  /** Of the questions, how many each keyword path answers with the right page first. */
+  const measure = async (language: SiteLanguage) => {
+    const documents = SITES[language];
+    const keywordOnly = loadIndex((await buildIndex({ documents })).index);
+    const mock = loadIndex(
+      (await buildIndex({ documents, embeddingModel: mockEmbeddingModel() })).index,
+    );
+    const page = (url: string | undefined) =>
+      documents.find((document) => document.url === url?.split('#')[0])?.id;
+    const counts = { keywordOnly: 0, mock: 0, mcp: 0 };
+    for (const [question, id] of QUESTIONS[language]) {
+      if (page(retrieve(keywordOnly, { text: question }).hits[0]?.chunk.url) === id) {
+        counts.keywordOnly += 1;
+      }
+      // As `ondocs dev` and the Astro route answer from a `-e mock` index.
+      const vector = hashEmbedding(question, 512);
+      const answer = retrieve(
+        mock,
+        { text: question, vector },
+        { minSimilarity: MOCK_MIN_SIMILARITY },
+      );
+      if (page(answer.hits[0]?.chunk.url) === id) counts.mock += 1;
+      if (page(searchSections(keywordOnly, question, null, {})[0]?.id) === id) counts.mcp += 1;
+    }
+    return counts;
+  };
+
+  it('quote what keyword search finds in them, against the same site in English', async () => {
+    const asked = QUESTIONS.zh.length;
+    const [zh, ja, ko, en] = await Promise.all((['zh', 'ja', 'ko', 'en'] as const).map(measure));
+    const cells = (key: 'keywordOnly' | 'mock' | 'mcp') =>
+      [zh, ja, ko, en].map((counts) => `${String(counts?.[key])} of ${String(asked)}`);
+    const language = section(doc('limits').body, 'Language');
+    expect(row(language, 'Ask endpoint, `-e none` index')).toEqual(cells('keywordOnly'));
+    expect(row(language, 'Ask endpoint, `-e mock` index')).toEqual(cells('mock'));
+    expect(row(language, 'MCP search without `embeddingModel`')).toEqual(cells('mcp'));
+    expect(language).toContain(`asked ${String(asked)} questions its pages answer`);
+    expect(language).toContain('test/docs-claims.test.ts');
+    expect(language).not.toMatch(/Other languages still work/);
+  });
+
+  it('explain why, with examples that tokenize and search as they say', async () => {
+    expect(tokenize('怎么安装插件？')).toEqual(['怎么安装插件']);
+    const zh = loadIndex((await buildIndex({ documents: SITES.zh })).index);
+    expect(searchSections(zh, '环境变量', null, {}).map((result) => result.id)).toEqual([
+      '/zh/docs/config#环境变量',
+    ]);
+    // The Korean install page says 설치합니다; the question's form of the word finds nothing.
+    const ko = loadIndex((await buildIndex({ documents: SITES.ko })).index);
+    expect(tokenize('설치하나요')).toHaveLength(1);
+    expect(searchSections(ko, '설치하나요', null, {})).toEqual([]);
+    expect(searchSections(ko, '설치합니다', null, {})[0]?.id).toMatch(/^\/ko\/docs\/install#/);
+
+    const language = section(doc('limits').body, 'Language');
+    expect(language).toContain('`怎么安装插件？` is the single word `怎么安装插件`');
+    expect(language).toContain(
+      'The query `环境变量` finds the section headed 环境变量, not the page that says 部署时需要设置环境变量',
+    );
+    expect(language).toContain('`설치하나요` in a question does not match `설치합니다` on a page');
+  });
+
+  it('say that an embedding model lets a question through with no word in common', async () => {
+    // A stand-in for a multilingual model: the question and the install page share a meaning.
+    const embeddingModel = new MockEmbeddingModelV4({
+      provider: 'test',
+      modelId: 'multilingual',
+      maxEmbeddingsPerCall: 2048,
+      supportsParallelCalls: true,
+      doEmbed: ({ values }) =>
+        Promise.resolve({
+          embeddings: values.map((value) => (value.includes('安装') ? [1, 0] : [0, 1])),
+          usage: { tokens: 0 },
+          warnings: [],
+        }),
+    });
+    const loaded = loadIndex((await buildIndex({ documents: SITES.zh, embeddingModel })).index);
+    const vector = [1, 0];
+    const result = retrieve(loaded, { text: '怎么安装插件？', vector });
+    expect(result.best.keywordCoverage).toBe(0);
+    expect(result.hits[0]?.chunk.url).toMatch(/^\/zh\/docs\/install#/);
+    expect(searchSections(loaded, '怎么安装插件？', vector, {})[0]?.id).toMatch(
+      /^\/zh\/docs\/install#/,
+    );
+
+    const language = section(doc('limits').body, 'Language');
+    expect(language).toMatch(/pass it as `embeddingModel` to `createMcpHandler`/);
+    expect(language).toMatch(/on similarity alone, with no word in common/);
+    const faq = section(doc('faq').body, "Does it work for docs that aren't in English?");
+    expect(faq).toMatch(/Chinese, Japanese and Korean/);
+    expect(faq).toContain('`embeddingModel`');
+    expect(faq).toContain('](/docs/limits#language)');
+    expect(faq).not.toMatch(/so it is weaker in other languages\. The plugins/);
+  });
+
+  it('say that a long paragraph in them is cut mid-sentence, with no overlap', () => {
+    const paragraph = Array.from(
+      { length: 60 },
+      (_, i) => `第${String(i)}步：使用包管理器安装插件，然后重新启动开发服务器以加载新的配置。`,
+    ).join('');
+    const chunks = chunkDocument({
+      id: 'long',
+      url: '/zh/long',
+      title: '长段落',
+      content: paragraph,
+    });
+    expect(chunks.length).toBe(2);
+    expect(chunks[0]?.text.length).toBe(DEFAULT_CHUNKING.maxChars);
+    expect(chunks[0]?.text.endsWith('。')).toBe(false);
+    expect(chunks.map((chunk) => chunk.text).join('')).toBe(paragraph);
+    const language = section(doc('limits').body, 'Language');
+    expect(language).toContain(
+      `is cut at ${DEFAULT_CHUNKING.maxChars.toLocaleString('en-US')} characters, mid-sentence, with no overlap`,
+    );
+    expect(language).toContain('`。` does not count as the end of a sentence');
   });
 });
 

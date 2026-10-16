@@ -1,12 +1,12 @@
 ---
 # Generated from examples/nextjs/content/docs/ask-dialog.md by scripts/sync-example-docs.mjs. Edit that file instead.
 title: 'The ask dialog'
-description: 'AskDialog props, the launcher button, shortcuts, theming, accessibility and the useAsk hook.'
+description: 'AskDialog props, the Ask button for your header, the launcher button, shortcuts, theming, accessibility and the useAsk hook.'
 ---
 
 # The ask dialog
 
-`AskDialog` from `ondocs/react` is a command palette built on Radix Dialog and cmdk. The Docusaurus, Astro and Starlight plugins and the script tag render the same component, so everything here applies to them too, through their `dialog` options or `data-*` attributes.
+`AskDialog` from `ondocs/react` is a command palette built on Radix Dialog and cmdk. The Docusaurus, Astro and Starlight plugins and the script tag render the same component, so everything here applies to them too, through their `dialog` options or `data-*` attributes. In a React site's header, [`AskButton`](#the-ask-button) renders the dialog with the button that opens it.
 
 ## AskDialog props
 
@@ -40,7 +40,7 @@ To change the keyboard shortcut, pass another key, as in `shortcut="k"` on a sit
 
 ## Open it from your own button
 
-Any element with a `data-ondocs-open` attribute opens the dialog the page has: the Docusaurus, Starlight or VitePress plugin's, the script tag's, or one from `mountAskDialog`. With a value, the attribute is a question, which the dialog asks in a new thread. A form with the attribute asks what its `question` field holds, or its first input, when it is submitted. There is no script to write, so it works in Markdown, MDX, a theme's template or an HTML navbar item:
+Any element with a `data-ondocs-open` attribute opens the dialog the page has: the Docusaurus, Starlight or VitePress plugin's, the script tag's, one from `mountAskDialog`, or an [`AskButton`](#the-ask-button)'s. With a value, the attribute is a question, which the dialog asks in a new thread. A form with the attribute asks what its `question` field holds, or its first input, when it is submitted. There is no script to write, so it works in Markdown, MDX, a theme's template or an HTML navbar item:
 
 ```html
 <button type="button" data-ondocs-open>Ask AI</button>
@@ -55,6 +55,74 @@ Any element with a `data-ondocs-open` attribute opens the dialog the page has: t
 From code, `openAskDialog(question?)` from `ondocs/embed` does the same in any framework, and so does `window.Ondocs.open(question?)` on a page with the script tag. A pointer over the element, or focus on it, loads the dialog's code, as on the launcher. The plugins' `navbar` option puts such a button in the navbar for you: see [Docusaurus](/docusaurus#ask-ai-in-the-docusaurus-navbar), [Starlight](/astro#ask-ai-in-the-starlight-header) and [VitePress](/vitepress#ask-ai-in-the-vitepress-nav-bar). For its look on a button of your own, import `ondocs/embed/button.css` and give the button the `ondocs-button` class, with its label in a `<span class="ondocs-button-label">`.
 
 In React, with a controlled `open`, the `question` prop does the same: set both to open the dialog on a question.
+
+## The Ask button
+
+`AskButton` from `ondocs/react` is the "Ask AI" button for a React site's header, with the shortcut on it, and the `AskDialog` it opens. It takes the dialog's props, except `trigger` and `launcher`:
+
+```tsx
+// components/header-ask.tsx
+'use client';
+import { AskButton } from 'ondocs/react';
+import 'ondocs/react/styles.css';
+import 'ondocs/embed/button.css';
+import { useRouter } from 'next/navigation';
+
+export function HeaderAsk() {
+  const router = useRouter();
+  return (
+    <AskButton
+      shortcut="k"
+      onNavigate={(url, event) => {
+        event.preventDefault();
+        router.push(url);
+      }}
+    />
+  );
+}
+```
+
+Its shortcut, ⌘I or Ctrl+I by default and ⌘K here, opens the dialog, also while the dialog's code is still loading. So do `openAskDialog()` and any element with `data-ondocs-open`, so the page's other ways into the dialog need no code of their own. A question asked that way is asked once, in a new thread, and dropped when the dialog closes.
+
+It renders the plugins' navbar button: the `ondocs-button` class, its label in `ondocs-button-label`, and the key in a `<kbd>`. `ondocs/embed/button.css` gives it their look, filled with the accent, and only the icon on a phone; or style those classes yourself.
+
+| Prop                  | Default                     | Notes                                                                                           |
+| --------------------- | --------------------------- | ----------------------------------------------------------------------------------------------- |
+| `children`            | `labels.launcher`, "Ask AI" | The button's label.                                                                             |
+| `className`           | none                        | Classes for the button, after `ondocs-button`.                                                  |
+| `poweredBy`           | `false`                     | `true` or a line of your own: a credit line in the footer; see [Credit ondocs](#credit-ondocs). |
+| The `AskDialog` props | as there                    | `open`, `onOpenChange`, `labels`, `suggestions` and the rest, for the dialog it opens.          |
+
+Render one per page, and not on a page that already has a dialog from a plugin, the script tag or `mountAskDialog`: `openAskDialog()` and `data-ondocs-open` would open both.
+
+On Apple devices the key hint shows ⌘ instead of Ctrl. The stylesheet reads that from a `data-ondocs-mac` attribute on `<html>`, which `AskButton` sets once the page has hydrated, so a server-rendered page shows Ctrl until then. To have ⌘ from the first paint, set the attribute in the root layout's `<head>`, as the plugins do:
+
+```tsx
+// app/layout.tsx
+const MAC_SCRIPT =
+  "document.documentElement.toggleAttribute('data-ondocs-mac',/Mac|iPhone|iPad/.test(navigator.platform))";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: MAC_SCRIPT }} />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+### Credit ondocs
+
+`poweredBy` adds a line to the end of the dialog's footer, "Answers by ondocs.", whose link opens ondocs.vercel.app in a new tab. It is off by default. `true` shows the `poweredBy` label, so it is translated with the dialog's other labels. A string is the line in your own words, with `{ondocs}` where the link goes:
+
+```tsx
+<AskButton poweredBy="Answers and docs MCP by {ondocs}." />
+```
+
+A `footer` of your own replaces it with the rest of the footer. The link has `rel="noopener"` and no `noreferrer`, so ondocs's site can see which site a visitor came from (only its origin, under browsers' default referrer policy). `AskDialog` and the plugins' `dialog` options don't take `poweredBy` yet.
 
 ## When the dialog's code loads
 
@@ -124,6 +192,7 @@ The endpoint's own words, its "I don't know" answer, its rate limit and budget m
 | `footerNoSources`    | Answers come from this site and can be wrong.                                                |
 | `footerAsk`          | ask                                                                                          |
 | `footerClose`        | close                                                                                        |
+| `poweredBy`          | Answers by {ondocs}.                                                                         |
 | `searching`          | Searching the site…                                                                          |
 | `writing`            | Writing an answer…                                                                           |
 | `noAnswerFound`      | No answer found on this site.                                                                |

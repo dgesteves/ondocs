@@ -35,7 +35,56 @@ describe('warnDeprecated', () => {
       [warning('buttonLabel', 'launcher')],
       [warning('maxContextChars', 'retrieval.maxContextChars')],
     ]);
-    expect(REMOVED_IN).toBe('0.10');
+  });
+});
+
+describe('REMOVED_IN', () => {
+  const root = join(import.meta.dirname, '..');
+
+  /** A version's major and minor, as numbers. */
+  const minorOf = (version: string): [number, number] => {
+    const [major = 0, minor = 0] = version.split('.').map(Number);
+    return [major, minor];
+  };
+
+  /** The versions `text` says remove the old names: "until 1.0", "1.0 removes them". */
+  const removals = (text: string): string[] =>
+    [...text.matchAll(/\buntil (\d+\.\d+)\b|\b(\d+\.\d+) removes\b/g)].map(
+      (match) => match[1] ?? match[2] ?? '',
+    );
+
+  it('names a version that has not shipped yet', async () => {
+    // package.json has the last version released, since the release pull request bumps it. A
+    // release that reaches REMOVED_IN has to remove the old names, not warn with a past deadline.
+    const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
+      version: string;
+    };
+    const [major, minor] = minorOf(version);
+    const [removedMajor, removedMinor] = minorOf(REMOVED_IN);
+    expect(
+      removedMajor > major || (removedMajor === major && removedMinor > minor),
+      `${REMOVED_IN} comes after ${version}`,
+    ).toBe(true);
+    // The old names go at 1.0, not in a minor before it.
+    expect(REMOVED_IN).toBe('1.0');
+  });
+
+  it('is the one removal version the source and the upgrading page name', async () => {
+    const src = join(root, 'src');
+    const named: string[] = [];
+    for (const file of await readdir(src, { recursive: true })) {
+      if (!/\.tsx?$/.test(file)) continue;
+      named.push(...removals(await readFile(join(src, file), 'utf8')));
+    }
+    // The old options' docblocks, which cannot read REMOVED_IN, and the Docusaurus plugin's
+    // warning, which imports ondocs only through ondocs/integration.
+    expect(named.length).toBeGreaterThan(0);
+    expect(new Set(named)).toEqual(new Set([REMOVED_IN]));
+
+    const page = await readFile(join(root, 'examples/nextjs/content/docs/upgrading.md'), 'utf8');
+    expect(removals(page)).toContain(REMOVED_IN);
+    expect(new Set(removals(page))).toEqual(new Set([REMOVED_IN]));
+    expect(page.match(/until the next minor[^.]*/g)).toBeNull();
   });
 });
 

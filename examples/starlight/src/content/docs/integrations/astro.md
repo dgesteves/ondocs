@@ -33,6 +33,8 @@ export default defineConfig({
 });
 ```
 
+Put it in Starlight's `plugins`, not in Astro's `integrations`: a Starlight plugin does nothing there, so the build stops with an error that says to move it. `npx astro add starlight-ondocs` puts it in `integrations`, so add it by hand instead.
+
 ## Add it to any Astro site
 
 Without Starlight, add the integration from `ondocs/astro` to `integrations`:
@@ -75,13 +77,13 @@ Embeddings work as in the Docusaurus plugin. OpenAI's `text-embedding-3-small` a
 
 ## Deploy the endpoint for Astro
 
-With an SSR adapter, there is nothing to deploy apart from the site: the integration serves `POST /api/ask` and `/api/mcp` itself, from the index it builds, and the dialog posts there. Set `OPENAI_API_KEY` where the site builds and where it runs. `route` changes the model and the limits, and `route: false` turns the routes off; see [Astro with an adapter](/guides/deployment/#astro-with-an-adapter). With `site` set, `llms.txt` and `McpInstall.astro` point agents at the MCP route, unless `mcp` names another endpoint. With `dialog.challenge.turnstile`, the ask route checks each question's [bot check](/guides/bot-challenge/) token, with the secret in `TURNSTILE_SECRET_KEY`.
+With an SSR adapter, there is nothing to deploy apart from the site: the integration serves `POST /api/ask` and `/api/mcp` itself, from the index it builds, and the dialog posts there, under `base`, as it does to a route file of the site's own at `src/pages/api/ask.ts`. Set `OPENAI_API_KEY` where the site builds and where it runs. `route` changes the model and the limits, and `route: false` turns the routes off; see [Astro with an adapter](/guides/deployment/#astro-with-an-adapter). With `site` set, `llms.txt` and `McpInstall.astro` point agents at the MCP route, unless `mcp` names another endpoint. With `dialog.challenge.turnstile`, the ask route checks each question's [bot check](/guides/bot-challenge/) token, with the secret in `TURNSTILE_SECRET_KEY`.
 
 With the Node adapter, the server reads the index from the build's `dist/client/`, which it finds as the adapter does, so `dist` can move. It never fetches the index from the request's Host, which Astro 5 takes from the Host or X-Forwarded-Host header the client sends. On Vercel and Netlify, which route each request by its Host, the routes fetch it from the site's own URL, and on Cloudflare through the `ASSETS` binding.
 
 The routes limit each visitor by the client address the adapter reports, an IPv6 address by its /64. Astro's Node adapter reports the first `X-Forwarded-For` entry, which the client sends: on Astro 5 always, and on later versions for a Host in `security.allowedDomains`. Behind a proxy, name the header it sets, as in `route: { trustedHeader: 'x-real-ip' }`, or `'x-forwarded-for'` behind one proxy that appends to it, and the routes key visitors by its last entry.
 
-A static site, without an adapter, needs the endpoint as a function on its host, or `endpoint` set to one on another origin that sends CORS headers for the site's origin (see [Cross-origin requests](/guides/security/#cross-origin-requests)). Write it with `npx ondocs init`, which reads `dist/ask-index.json` on Vercel, Netlify or Cloudflare, or writes a Cloudflare Worker for GitHub Pages; see [Deploying](/guides/deployment/). Astro writes `base` into URLs, not folders, so with `base: '/docs'` the file is still `dist/ask-index.json` and is served at `/docs/ask-index.json`.
+A static site, without an adapter, needs the endpoint as a function on its host, or `endpoint` set to one on another origin that sends CORS headers for the site's origin (see [Cross-origin requests](/guides/security/#cross-origin-requests)). Write it with `npx ondocs init`, which reads `dist/ask-index.json` on Vercel, Netlify or Cloudflare, or writes a Cloudflare Worker for GitHub Pages; see [Deploying](/guides/deployment/). Until then, a static build warns that the dialog posts to `/api/ask`, which it does not serve. The warning stops once the site has the endpoint `init` writes for Vercel, Netlify or Cloudflare (`api/ask.ts`, `netlify/functions/ask.mts`, `functions/api/ask.ts` or `worker/ondocs.ts`), or once `endpoint` is set. Astro writes `base` into URLs, not folders, so with `base: '/docs'` the file is still `dist/ask-index.json` and is served at `/docs/ask-index.json`.
 
 To try it locally, build the site once and start `astro dev`: with an adapter, the integration's routes answer from the index the build wrote. Without one, run `npx ondocs dev`, which answers from `dist/ask-index.json` or `dist/client/ask-index.json`, and start `astro dev` with `ASK_ENDPOINT=http://localhost:8787/api/ask`.
 

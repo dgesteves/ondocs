@@ -64,7 +64,7 @@ Search runs in memory inside one function you deploy: BM25 and vectors, merged w
 | Nextra                             | A route and a component                            | [Nextra](https://ondocs.vercel.app/docs/nextra)             |
 | Hugo, Jekyll, MkDocs or plain HTML | One script tag; for plain HTML, `init --out <dir>` | [Script tag](https://ondocs.vercel.app/docs/script-tag)     |
 
-Each answers from an endpoint you deploy as one function next to the site, rate-limited by default. `npx ondocs init` writes it for Vercel, Netlify, Cloudflare or GitHub Pages (as a Worker answering with Workers AI, no API key), and an Astro site with an SSR adapter needs none: see [Deploying](https://ondocs.vercel.app/docs/deployment).
+Each answers from an endpoint you deploy as one function next to the site, rate-limited by default. `npx ondocs init` writes it for Vercel, Netlify, Cloudflare or GitHub Pages (as a Worker answering with Workers AI, no API key): see [Deploying](https://ondocs.vercel.app/docs/deployment).
 
 **Live demos:** [Starlight](https://ondocs-starlight.vercel.app), [Docusaurus](https://ondocs-docusaurus.vercel.app), [VitePress](https://ondocs-vitepress.vercel.app).
 
@@ -81,7 +81,7 @@ export default defineConfig({
 });
 ```
 
-After `astro build`, it indexes the pages into `dist/ask-index.json`, writes `llms.txt` and the `.md` pages, and adds an "Ask AI" button with ⌘I.
+After `astro build`, it indexes the pages into `dist/ask-index.json`, writes `llms.txt` and the `.md` pages, and adds an "Ask AI" button with ⌘I. Static site? `npx ondocs init`. SSR adapter? Nothing to do.
 
 **Docusaurus.** `npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk`, then:
 
@@ -127,7 +127,7 @@ npx ondocs init --out public                               # plain HTML needs --
 On a GitHub Pages project site, at `https://user.github.io/repo`, add `--base-url /repo` to the index command.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/ondocs@0.10/dist/embed.global.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/ondocs@0.11/dist/embed.global.js" defer></script>
 ```
 
 **Try it without a key.** `npx ondocs index ./docs -e mock`, then `npx ondocs dev`, serves the ask endpoint and MCP server on localhost, with a mock model that quotes your docs. See [Try it locally](https://ondocs.vercel.app/docs/local-development).

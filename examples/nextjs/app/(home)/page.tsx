@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Fragment } from 'react';
 
 import { AskButton } from '../../components/ask';
 import { ArrowRight, GitHubIcon } from '../../components/icons';
+import { AgentStrip } from '../../components/landing/agent-strip';
 import { Flow } from '../../components/landing/flow';
+import { FrameworkPicker, type Framework } from '../../components/landing/framework-picker';
 import { HeroDemo } from '../../components/landing/hero-demo';
 import { SetupTabs, type SetupTab } from '../../components/landing/setup-tabs';
 import { McpInstall } from '../../components/mcp-install';
@@ -13,6 +16,7 @@ import { jsonLd, softwareSourceCode } from '../../lib/json-ld';
 import { mcpSample } from '../../lib/mcp-sample';
 import { sampleAnswer } from '../../lib/sample-answer';
 import {
+  DEMOS,
   demoUrl,
   GITHUB_URL,
   HOME_DESCRIPTION as description,
@@ -21,7 +25,7 @@ import {
   MCP_URL,
   SUGGESTIONS,
 } from '../../lib/site';
-import { gzippedSize } from '../../lib/sizes';
+import { gzippedSize, largestPageAddition } from '../../lib/sizes';
 
 import './landing.css';
 
@@ -32,6 +36,69 @@ export const metadata: Metadata = {
   openGraph: { type: 'website', siteName: 'ondocs', title, description, url: '/' },
   twitter: { card: 'summary_large_image', title, description },
 };
+
+/** The script tag's file on jsDelivr, at the current minor: scripts/sync-cdn-range.mjs moves it. */
+const EMBED_SRC = 'https://cdn.jsdelivr.net/npm/ondocs@0.11/dist/embed.global.js';
+
+/** The first screen's framework picker: the line that adds ondocs to each, Starlight first. */
+async function frameworks(): Promise<Framework[]> {
+  return [
+    {
+      id: 'starlight',
+      label: 'Starlight',
+      code: await codeBlock(
+        "import ondocs from 'ondocs/starlight';\nstarlight({ title: 'Acme Docs', plugins: [ondocs()] });",
+        'js',
+        'astro.config.mjs',
+      ),
+      demo: { href: demoUrl('Starlight'), label: 'See it live on Starlight' },
+      guide: { href: '/docs/astro', label: 'Starlight guide' },
+    },
+    {
+      id: 'docusaurus',
+      label: 'Docusaurus',
+      code: await codeBlock(
+        "export default {\n  plugins: ['ondocs/docusaurus'],\n};",
+        'ts',
+        'docusaurus.config.ts',
+      ),
+      demo: { href: demoUrl('Docusaurus'), label: 'See it live on Docusaurus' },
+      guide: { href: '/docs/docusaurus', label: 'Docusaurus guide' },
+    },
+    {
+      id: 'vitepress',
+      label: 'VitePress',
+      code: await codeBlock(
+        "import { defineConfig } from 'vitepress';\nimport { withOndocs } from 'ondocs/vitepress';\nexport default withOndocs(defineConfig({ title: 'Acme Docs' }));",
+        'ts',
+        '.vitepress/config.mts',
+      ),
+      demo: { href: demoUrl('VitePress'), label: 'See it live on VitePress' },
+      guide: { href: '/docs/vitepress', label: 'VitePress guide' },
+    },
+    {
+      id: 'nextjs',
+      label: 'Next.js',
+      code: await codeBlock(
+        "import { createAskHandler } from 'ondocs/server';\nexport const POST = createAskHandler({ index, model });",
+        'ts',
+        'app/api/ask/route.ts',
+      ),
+      note: 'This site is built this way.',
+      guide: { href: '/docs/nextjs', label: 'Next.js guide' },
+    },
+    {
+      id: 'script',
+      label: 'Any site',
+      code: await codeBlock(
+        `<script src="${EMBED_SRC}"\n  data-endpoint="/api/ask" defer></script>`,
+        'html',
+        'Any page',
+      ),
+      guide: { href: '/docs/script-tag', label: 'Script tag guide' },
+    },
+  ];
+}
 
 async function setupTabs(): Promise<SetupTab[]> {
   const DEPLOY_STEP = {
@@ -174,7 +241,7 @@ async function setupTabs(): Promise<SetupTab[]> {
         {
           title: 'Add the script tag',
           code: await codeBlock(
-            '<script\n  src="https://cdn.jsdelivr.net/npm/ondocs@0.10/dist/embed.global.js"\n  data-endpoint="/api/ask"\n  defer\n></script>',
+            `<script\n  src="${EMBED_SRC}"\n  data-endpoint="/api/ask"\n  defer\n></script>`,
             'html',
           ),
         },
@@ -185,6 +252,9 @@ async function setupTabs(): Promise<SetupTab[]> {
 
 /** Where the queries behind the two retrieval numbers live, checked on every pull request. */
 const QUERIES_URL = `${GITHUB_URL}/blob/main/test/corpus.test.ts`;
+
+/** The official MCP client against the endpoint, in each way clients connect, on every pull request. */
+const MCP_CLIENT_TEST_URL = `${GITHUB_URL}/blob/main/test/mcp-client.test.ts`;
 
 const NUMBERS: {
   value: string;
@@ -288,8 +358,9 @@ function CellText({ cell }: { cell: Cell }) {
 const AGENT_QUERY = 'GitHub Pages without an API key';
 
 export default async function Home() {
-  const [tabs, initial, agent, tryIt] = await Promise.all([
+  const [tabs, picker, initial, agent, tryIt] = await Promise.all([
     setupTabs(),
+    frameworks(),
     sampleAnswer(SUGGESTIONS[0] ?? ''),
     mcpSample(AGENT_QUERY),
     codeBlock(`$ ${INSTALL}\n$ npx ondocs index ./docs -e mock\n$ npx ondocs dev`, 'console'),
@@ -324,17 +395,56 @@ export default async function Home() {
               database.
             </p>
             <div className="hero-actions">
-              <AskButton className="button button-primary">Ask these docs</AskButton>
-              <a href={demoUrl('Starlight')} className="button button-secondary">
-                Try the live demo
-              </a>
-              <Link href="/docs/getting-started" className="text-link">
+              <Link href="/docs/getting-started" className="button button-primary">
                 Get started
                 <ArrowRight />
               </Link>
+              <a href={demoUrl('Starlight')} className="button button-secondary">
+                Try the live demo
+              </a>
+              <AskButton className="button button-ghost hero-ask">Ask these docs</AskButton>
             </div>
+            <FrameworkPicker frameworks={picker} />
           </div>
           <HeroDemo suggestions={SUGGESTIONS} initial={initial} mode={mode} />
+          <div className="hero-band">
+            <AgentStrip url={MCP_URL} name="ondocs" />
+            {/* Each item says where it is measured or checked. */}
+            <ul className="proof">
+              <li>
+                <Link href="/docs/benchmarks#bundle-size">
+                  Up to {largestPageAddition()} of JavaScript per page. The dialog loads on first
+                  use.
+                </Link>
+              </li>
+              <li>
+                <Link href="/docs/deployment#write-the-endpoint-with-init">
+                  Rate limit, daily budget and answer cache in every ask endpoint{' '}
+                  <code>ondocs init</code> writes.
+                </Link>
+              </li>
+              <li>
+                <Link href="/docs/mcp#keyword-only-or-hybrid-search">
+                  Agent search calls no model, by default.
+                </Link>
+              </li>
+              <li>
+                <a href={MCP_CLIENT_TEST_URL}>
+                  MCP checked in CI with the official TypeScript client.
+                </a>
+              </li>
+              <li>
+                Live on{' '}
+                {DEMOS.map(({ label, href }, i) => (
+                  <Fragment key={label}>
+                    {i === 0 ? '' : i === DEMOS.length - 1 ? ' and ' : ', '}
+                    <a href={href}>{label}</a>
+                  </Fragment>
+                ))}
+                .
+              </li>
+            </ul>
+          </div>
         </div>
       </section>
 

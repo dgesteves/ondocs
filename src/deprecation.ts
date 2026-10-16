@@ -1,8 +1,8 @@
-// Options under their names from before 0.9, which still work for one minor version and say once
-// what they are called now. Each call site keeps the old name working; this only warns.
+// Options under their names from before 0.9, which still work until 1.0 and say once what they
+// are called now. Each call site keeps the old name working; this only warns.
 
-/** The minor version that removes the old names. */
-export const REMOVED_IN = '0.10';
+/** The version that removes the old names: 1.0, so that no 0.x minor breaks a site using one. */
+export const REMOVED_IN = '1.0';
 
 const warned = new Set<string>();
 

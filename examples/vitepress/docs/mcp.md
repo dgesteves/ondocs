@@ -153,6 +153,7 @@ claude mcp add --transport http docs http://localhost:8787/api/mcp
 | `siteName`                 | `"this site"`      | Names the docs in the tools' descriptions, which the agent reads.                                                                 |
 | `siteUrl`                  | the request's      | The origin to make URLs absolute with, when the endpoint runs on another host. `false` keeps the index's URLs.                    |
 | `name`, `instructions`     | `ondocs`           | The server's name, and what it tells the agent about using the tools.                                                             |
+| `version`                  | ondocs's version   | The server's version beside its `name`, such as your docs'. A server named after your docs reports their version, not ondocs's.   |
 | `retrieval`                | keyword gate `0.3` | Retrieval settings for `search`; it keeps sections with at least 30% of the query's keyword weight, looser than the ask endpoint. |
 | `rateLimit`                | 60 a minute per IP | Any limiter, or `false`. `rateLimitFailure` works as for `createAskHandler`.                                                      |
 | `budget`                   | none               | `{ requestsPerDay, store }`: tool calls a day.                                                                                    |

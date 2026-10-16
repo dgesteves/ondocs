@@ -13,6 +13,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { StarlightPlugin, StarlightUserConfig } from '@astrojs/starlight/types';
+import type { AstroIntegration } from 'astro';
 
 import {
   createIntegration,
@@ -59,7 +60,7 @@ export type AskMySiteDialogOptions = OndocsDialogOptions;
  * ```
  */
 export default function ondocs(options: OndocsStarlightOptions = {}): StarlightPlugin {
-  return {
+  const plugin: StarlightPlugin = {
     name: 'ondocs',
     hooks: {
       'config:setup'({ config, addIntegration, updateConfig, astroConfig }) {
@@ -101,6 +102,16 @@ export default function ondocs(options: OndocsStarlightOptions = {}): StarlightP
       },
     },
   };
+  // Astro runs the astro:* hooks of anything in its integrations, where `npx astro add` puts the
+  // plugin, and there it would otherwise do nothing, silently. Starlight's plugin schema strips
+  // the hook, so in Starlight's plugins it never runs.
+  const misplaced: AstroIntegration['hooks']['astro:config:setup'] = () => {
+    throw new Error(
+      "ondocs/starlight is a Starlight plugin, so in Astro's integrations it does nothing: move ondocs() into Starlight's plugins, as in integrations: [starlight({ title: 'Docs', plugins: [ondocs()] })]. npx astro add puts it in integrations. On an Astro site without Starlight, use ondocs/astro instead. See https://ondocs.vercel.app/docs/astro#add-it-to-starlight",
+    );
+  };
+  Object.assign(plugin.hooks, { 'astro:config:setup': misplaced });
+  return plugin;
 }
 
 /** The `Search` component Starlight renders unless the site or a plugin replaces it. */

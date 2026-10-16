@@ -21,6 +21,16 @@ export default function ondocs(options) {
         checkInstalled(params.astroConfig.root);
         return setup(params);
       },
+      // Astro runs this where `npx astro add starlight-ondocs` puts the plugin, in Astro's
+      // integrations, where it would otherwise do nothing; Starlight never runs it.
+      'astro:config:setup'() {
+        throw new Error(
+          "starlight-ondocs is a Starlight plugin, so in Astro's integrations it does nothing: " +
+            "move it into Starlight's plugins, as in integrations: [starlight({ title: 'Docs', " +
+            'plugins: [starlightOndocs()] })]. npx astro add puts it in integrations: add it to ' +
+            'Starlight by hand instead. See https://ondocs.vercel.app/docs/astro#add-it-to-starlight',
+        );
+      },
     },
   };
 }
