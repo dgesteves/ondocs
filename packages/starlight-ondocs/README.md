@@ -21,6 +21,8 @@ export default defineConfig({
 });
 ```
 
-After `astro build`, the plugin indexes what Starlight's search indexes into `dist/ask-index.json` (one per locale), writes `llms.txt` and a `.md` copy of each page, and adds an "Ask AI" button with ⌘I. The answers come from an endpoint you deploy next to the site, or, with an SSR adapter, from the `/api/ask` route the plugin serves itself: see [Deploying](https://ondocs.vercel.app/docs/deployment).
+Add it to Starlight's `plugins`, as above, not to Astro's `integrations`, where `npx astro add starlight-ondocs` puts it: a Starlight plugin does nothing there, so the build stops and says to move it.
+
+After `astro build`, the plugin indexes what Starlight's search indexes into `dist/ask-index.json` (one per locale), writes `llms.txt` and a `.md` copy of each page, and adds an "Ask AI" button with ⌘I. The answers come from an endpoint you deploy next to the site, which `npx ondocs init` writes for your host (until then, a static build warns that nothing serves `/api/ask`), or, with an SSR adapter, from the `/api/ask` route the plugin serves itself: see [Deploying](https://ondocs.vercel.app/docs/deployment).
 
 MIT © Diogo Esteves

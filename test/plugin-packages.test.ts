@@ -195,6 +195,20 @@ try {
 console.log(JSON.stringify({ name: plugin.name, ...outcome }));
 `;
 
+// Runs its `astro:config:setup` as Astro runs it for each of its integrations, which is where
+// `npx astro add starlight-ondocs` puts the plugin.
+const ASTRO_SETUP = `
+const { default: ondocs } = await import(process.argv[1]);
+const plugin = ondocs({ embedding: 'mock' });
+let outcome;
+try {
+  outcome = { result: (await plugin.hooks['astro:config:setup']?.({})) ?? null };
+} catch (error) {
+  outcome = { error: error.message };
+}
+console.log(JSON.stringify({ name: plugin.name, ...outcome }));
+`;
+
 /**
  * starlight-ondocs as pnpm installs it, in a temporary project, and its `config:setup` run there
  * in Node with the NODE_PATH pnpm's `astro` command sets. The package is in pnpm's store, with the
@@ -202,7 +216,7 @@ console.log(JSON.stringify({ name: plugin.name, ...outcome }));
  * that ondocs to `.pnpm/node_modules`, on NODE_PATH, where Node finds it and Vite does not. The
  * project's own node_modules has ondocs only when it was installed there too.
  */
-function setUpAsPnpmInstallsIt(project: string, installed: boolean): Setup {
+function setUpAsPnpmInstallsIt(project: string, installed: boolean, script = SETUP): Setup {
   const store = join(project, 'node_modules/.pnpm');
   const write = (file: string, text: string) => {
     mkdirSync(dirname(join(store, file)), { recursive: true });
@@ -247,7 +261,7 @@ export default (options) => ({
     [
       '--input-type=module',
       '-e',
-      SETUP,
+      script,
       pathToFileURL(join(wrapper, 'index.js')).href,
       pathToFileURL(`${project}/`).href,
     ],
@@ -283,6 +297,25 @@ describe('starlight-ondocs in a project pnpm installed', () => {
       result: 'set up',
       calls: [[{ embedding: 'mock' }, pathToFileURL(`${project}/`).href]],
     });
+  });
+
+  it('stops in Astro’s integrations, where npx astro add puts it, and says to move it', () => {
+    expect(setUpAsPnpmInstallsIt(project, true, ASTRO_SETUP)).toEqual({
+      name: 'ondocs',
+      error:
+        "starlight-ondocs is a Starlight plugin, so in Astro's integrations it does nothing: move " +
+        "it into Starlight's plugins, as in integrations: [starlight({ title: 'Docs', plugins: " +
+        '[starlightOndocs()] })]. npx astro add puts it in integrations: add it to Starlight by ' +
+        'hand instead. See https://ondocs.vercel.app/docs/astro#add-it-to-starlight',
+    });
+  });
+
+  it('links the Astro page’s section on adding it to Starlight', () => {
+    const slug = createSlugger();
+    const headings = [
+      ...read('examples/nextjs/content/docs/astro.md').matchAll(/^#{2,6} (.+)$/gm),
+    ].map(([, heading]) => slug(heading!));
+    expect(headings).toContain('add-it-to-starlight');
   });
 
   it('links the Troubleshooting page’s section on it', () => {

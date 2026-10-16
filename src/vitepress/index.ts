@@ -186,6 +186,12 @@ const NAVBAR_SEARCH =
   /[\\/]vitepress[\\/]dist[\\/]client[\\/]theme-default[\\/]components[\\/]VPNavBarSearch\.vue$/;
 const NAVBAR_MODULE = 'virtual:ondocs/navbar-button';
 
+/** What VitePress calls a config function with: Vite's `{ command, mode }`. */
+interface ConfigEnv {
+  command: string;
+  mode: string;
+}
+
 /**
  * ```ts
  * // .vitepress/config.mts
@@ -198,12 +204,52 @@ const NAVBAR_MODULE = 'virtual:ondocs/navbar-button';
  * The config, with a Vite plugin that adds the launcher to every page, and `transformHtml` and
  * `buildEnd` hooks that index the built pages. The config's own hooks still run: `buildEnd` first,
  * then the indexing.
+ *
+ * The config can be in any shape VitePress takes: an object, a Promise of one (as wrappers such
+ * as `withPwa` from `@vite-pwa/vitepress` return), or a function of `{ command, mode }` that
+ * returns either. `withOndocs` returns it in the same shape.
  */
 export function withOndocs<Config extends VitePressConfig>(
   config: Config,
+  options?: OndocsOptions,
+): Config;
+export function withOndocs<Config extends VitePressConfig>(
+  config: Promise<Config>,
+  options?: OndocsOptions,
+): Promise<Config>;
+export function withOndocs<Config extends VitePressConfig, Env = ConfigEnv>(
+  config: (env: Env) => Config | Promise<Config>,
+  options?: OndocsOptions,
+): (env: Env) => Config | Promise<Config>;
+export function withOndocs<Config extends VitePressConfig>(
+  config: Config | Promise<Config> | ((env: unknown) => Config | Promise<Config>),
   options: OndocsOptions = {},
-): Config {
+): Config | Promise<Config> | ((env: unknown) => Config | Promise<Config>) {
   checkIndexOptions(options);
+  // A Promise or a function spread into an object would lose the whole config: wrap the object
+  // it gives, in the same shape.
+  if (typeof config === 'function') {
+    return (env: unknown) => {
+      const given = config(env);
+      return isThenable(given)
+        ? Promise.resolve(given).then((resolved) => wrap(resolved, options))
+        : wrap(given, options);
+    };
+  }
+  if (isThenable(config)) {
+    return Promise.resolve(config).then((resolved) => wrap(resolved, options));
+  }
+  return wrap(config, options);
+}
+
+export default withOndocs;
+
+function isThenable<T>(value: T | Promise<T>): value is Promise<T> {
+  return typeof (value as { then?: unknown } | null)?.then === 'function';
+}
+
+/** `withOndocs` over a config object. */
+function wrap<Config extends VitePressConfig>(config: Config, options: OndocsOptions): Config {
   const log = consoleLogger();
   warnMissingDialogPeers(log);
   const siteUrl = options.siteUrl ?? config.sitemap?.hostname;
@@ -258,8 +304,6 @@ export function withOndocs<Config extends VitePressConfig>(
     },
   };
 }
-
-export default withOndocs;
 
 /**
  * The Vite plugin that adds the launcher to every page: VitePress's client entry imports a module
