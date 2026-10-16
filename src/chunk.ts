@@ -9,10 +9,19 @@ import type { Chunk, ChunkingOptions, SourceDocument } from './types';
 
 export const DEFAULT_CHUNKING = { maxChars: 1200, overlap: 150 } as const;
 
-/** Bumped whenever chunk boundaries change for the same input, which invalidates every index. */
+/**
+ * Bumped whenever chunk boundaries change for most inputs, which invalidates every index. A change
+ * that only moves the chunks of some inputs needs no bump: the content hash covers each chunk's
+ * text, so it already changes for those indexes and no others.
+ */
 export const CHUNKER_VERSION = 2;
 
-const SENTENCE_END = /(?<=[.!?:;])\s+/;
+// A sentence ends after `.`, `!`, `?`, `:` or `;` and a space, or after `。`, `！`, `？`, `；` or `：`
+// and the closing quotes or brackets after it, with or without a space, since Chinese and Japanese
+// put none there. A run of those marks (`！？`) ends one sentence, after its last mark.
+const SENTENCE_END =
+  /(?<=[.!?:;])\s+|(?<=[。！？；：][」』）】”’]{0,3})(?![。！？；：」』）】”’])\s*/;
+const CJK_SENTENCE_END = /[。！？；：][」』）】”’]{0,3}$/;
 // Ids from `{#id}` and HTML `id` attributes: anything without whitespace or braces.
 const EXPLICIT_ID = /^[^\s{}]+$/;
 const FENCE_LINE = /^ {0,3}(?:`{3,}|~{3,})/m;
@@ -200,7 +209,9 @@ function splitBlock(block: Block, maxChars: number): string[] {
     if (line.length <= maxChars) return [line];
     return pack(
       line.split(SENTENCE_END).flatMap((s) => splitWords(s, maxChars)),
-      ' ',
+      // After a CJK sentence end (4 characters at most), the next sentence follows with no space,
+      // as it did in the text.
+      (piece) => (CJK_SENTENCE_END.test(piece.slice(-4)) ? '' : ' '),
       maxChars,
     );
   });
@@ -222,16 +233,28 @@ function splitCode(text: string, maxChars: number): string[] {
   return pack(units, '\n', budget).map((piece) => `${opener}\n${piece}\n${fence}`);
 }
 
-/** Greedily joins units with `separator` into pieces no longer than `maxChars`. */
-function pack(units: string[], separator: string, maxChars: number): string[] {
+/**
+ * Greedily joins units with `separator` into pieces no longer than `maxChars`. A function as
+ * `separator` is given the piece so far and returns what to put after it.
+ */
+function pack(
+  units: string[],
+  separator: string | ((before: string) => string),
+  maxChars: number,
+): string[] {
   const pieces: string[] = [];
   let current: string | null = null;
   for (const unit of units) {
-    if (current !== null && current.length + separator.length + unit.length > maxChars) {
+    if (current === null) {
+      current = unit;
+      continue;
+    }
+    const glue: string = typeof separator === 'string' ? separator : separator(current);
+    if (current.length + glue.length + unit.length > maxChars) {
       pieces.push(current);
       current = unit;
     } else {
-      current = current === null ? unit : `${current}${separator}${unit}`;
+      current = `${current}${glue}${unit}`;
     }
   }
   if (current !== null) pieces.push(current);
@@ -242,9 +265,20 @@ function splitWords(text: string, maxChars: number): string[] {
   const pieces: string[] = [];
   let current = '';
   for (const word of text.split(/\s+/)) {
-    // A single "word" longer than a chunk (a minified line, a data URI) is cut hard.
-    for (let start = 0; start < word.length; start += maxChars) {
-      const part = word.slice(start, start + maxChars);
+    // A single "word" longer than a chunk (a minified line, a data URI, CJK text with no
+    // punctuation) is cut hard, though never between the two halves of a surrogate pair.
+    let start = 0;
+    while (start < word.length) {
+      let end = Math.min(start + maxChars, word.length);
+      if (
+        end - 1 > start &&
+        isHighSurrogate(word.charCodeAt(end - 1)) &&
+        isLowSurrogate(word.charCodeAt(end))
+      ) {
+        end -= 1;
+      }
+      const part = word.slice(start, end);
+      start = end;
       if (current && current.length + 1 + part.length > maxChars) {
         pieces.push(current);
         current = part;
@@ -262,8 +296,16 @@ function overlapTail(text: string, size: number): string {
   if (size <= 0 || !text) return '';
   if (text.length <= size) return text;
   const window = text.slice(-size);
-  const sentence = /[.!?]\s+(?=\S)/.exec(window);
+  const sentence = /[.!?]\s+(?=\S)|[。！？][」』）】”’]{0,3}\s*(?=\S)/.exec(window);
   if (sentence) return window.slice(sentence.index + sentence[0].length);
   const space = window.search(/\s/);
   return space === -1 ? '' : window.slice(space + 1);
+}
+
+function isHighSurrogate(code: number): boolean {
+  return code >= 0xd800 && code <= 0xdbff;
+}
+
+function isLowSurrogate(code: number): boolean {
+  return code >= 0xdc00 && code <= 0xdfff;
 }

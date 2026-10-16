@@ -1,6 +1,6 @@
-// The same five-page site in Chinese, Japanese, Korean and English, and the same 8 questions its
-// pages answer, each with the page that answers it. test/docs-claims.test.ts measures keyword
-// search on them, for the counts the limits page quotes.
+// The same five-page site in Chinese, Japanese, Korean and English, the same 8 questions its pages
+// answer, each with the page that answers it, and 6 they do not. test/docs-claims.test.ts measures
+// keyword search on them, for the counts the limits page quotes.
 import type { SourceDocument } from '../src';
 
 export type SiteLanguage = 'zh' | 'ja' | 'ko' | 'en';
@@ -298,5 +298,41 @@ export const QUESTIONS: Record<SiteLanguage, (readonly [question: string, page: 
     ['How do I open the dialog?', 'dialog'],
     ['Can I translate the dialog text?', 'dialog'],
     ['Can I search without an embedding model?', 'search'],
+  ],
+};
+
+/** 6 questions none of the pages answer, which every keyword path should refuse. */
+export const OFF_TOPIC: Record<SiteLanguage, string[]> = {
+  zh: [
+    '今天北京的天气怎么样？',
+    '如何做红烧肉？',
+    '世界杯冠军是哪个国家？',
+    '怎么学习弹钢琴？',
+    '长城有多长？',
+    '推荐一部好看的电影。',
+  ],
+  ja: [
+    '今日の東京の天気は？',
+    'カレーの作り方を教えてください。',
+    '富士山の高さはどれくらいですか？',
+    'ピアノを上手に弾くには？',
+    'おすすめの映画は何ですか？',
+    '日本の首都はどこですか？',
+  ],
+  ko: [
+    '오늘 서울 날씨는 어떤가요?',
+    '김치찌개는 어떻게 만드나요?',
+    '한라산의 높이는 얼마인가요?',
+    '피아노를 잘 치려면 어떻게 하나요?',
+    '추천할 만한 영화가 있나요?',
+    '한국의 수도는 어디인가요?',
+  ],
+  en: [
+    'What is the weather in London today?',
+    'How do I cook a roast chicken?',
+    'Who won the World Cup?',
+    'How do I learn to play the piano?',
+    'How long is the Great Wall?',
+    'Recommend a good movie.',
   ],
 };
