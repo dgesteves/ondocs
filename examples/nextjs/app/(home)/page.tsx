@@ -38,7 +38,7 @@ export const metadata: Metadata = {
 };
 
 /** The script tag's file on jsDelivr, at the current minor: scripts/sync-cdn-range.mjs moves it. */
-const EMBED_SRC = 'https://cdn.jsdelivr.net/npm/ondocs@0.12/dist/embed.global.js';
+const EMBED_SRC = 'https://cdn.jsdelivr.net/npm/ondocs@0.13/dist/embed.global.js';
 
 /** The first screen's framework picker: the line that adds ondocs to each, Starlight first. */
 async function frameworks(): Promise<Framework[]> {
