@@ -60,7 +60,7 @@ export interface AskDialogProps extends Omit<UseAskOptions, 'onFinish'> {
   /**
    * `auto` (the default) follows a `data-theme="light"` or `"dark"` on `<html>`, and
    * `prefers-color-scheme` on a page without one; `light` or `dark` pins one. `system`, its name
-   * before 0.9, still works, with a warning, until 0.10.
+   * before 0.9, still works, with a warning, until 1.0.
    */
   theme?: OndocsTheme | 'system';
   /** Extra class names per part, e.g. for Tailwind. Default classes stay. */

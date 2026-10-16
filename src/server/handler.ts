@@ -112,7 +112,7 @@ export interface AskHandlerOptions {
   retrieval?: AskRetrievalOptions;
   /**
    * @deprecated Use `retrieval.maxContextChars`, next to `topK`. `maxContextChars` still works,
-   * with a warning, until 0.10.
+   * with a warning, until 1.0.
    */
   maxContextChars?: number;
   /** Longest accepted question, in characters. Default 500. */
