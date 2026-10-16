@@ -86,7 +86,7 @@ Set (init reads none of these):
 Next:
   1. npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
   2. npm i -D @types/node (the functions' types)
-  3. Add the plugin to docusaurus.config: plugins: ['ondocs/docusaurus']
+  3. Add the plugin to docusaurus.config: plugins: [['ondocs/docusaurus', { mcp: '/api/mcp' }]] (mcp points agents that read llms.txt at the MCP endpoint)
   4. Deploy as you do now. init has deployed nothing."
 `;
 
@@ -187,7 +187,7 @@ Set (init reads none of these):
 
 Next:
   1. npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
-  2. Add the plugin to docusaurus.config: plugins: ['ondocs/docusaurus']
+  2. Add the plugin to docusaurus.config: plugins: [['ondocs/docusaurus', { mcp: '/api/mcp' }]] (mcp points agents that read llms.txt at the MCP endpoint)
   3. Deploy as you do now. init has deployed nothing."
 `;
 
@@ -394,7 +394,7 @@ Set (init reads none of these):
 Next:
   1. npm i ondocs ai @radix-ui/react-dialog cmdk
   2. cd ondocs-worker && npm install && npx wrangler deploy: it prints the Worker's URL, https://acme-docs-ask.<your-subdomain>.workers.dev
-  3. Add the plugin to docusaurus.config: plugins: [['ondocs/docusaurus', { endpoint: 'https://acme-docs-ask.<your-subdomain>.workers.dev/api/ask', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' }]] (the embedding needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN as the site builds; leave it out for a keyword-only index)
+  3. Add the plugin to docusaurus.config: plugins: [['ondocs/docusaurus', { endpoint: 'https://acme-docs-ask.<your-subdomain>.workers.dev/api/ask', mcp: 'https://acme-docs-ask.<your-subdomain>.workers.dev/api/mcp', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' }]] (mcp points agents that read llms.txt at the MCP endpoint; the embedding needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN as the site builds; leave it out for a keyword-only index)
   4. Deploy as you do now. init has deployed nothing."
 `;
 
@@ -481,7 +481,7 @@ Set (init reads none of these):
 Next:
   1. npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
   2. npm i -D @types/node (the functions' types)
-  3. Add the plugin to docusaurus.config: plugins: ['ondocs/docusaurus']
+  3. Add the plugin to docusaurus.config: plugins: [['ondocs/docusaurus', { mcp: '/api/mcp' }]] (mcp points agents that read llms.txt at the MCP endpoint)
   4. Deploy as you do now. init has deployed nothing."
 `;
 
@@ -575,7 +575,7 @@ Set (init reads none of these):
 Next:
   1. npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
   2. npm i -D @types/node (the functions' types)
-  3. Add the plugin to docusaurus.config: plugins: ['ondocs/docusaurus']
+  3. Add the plugin to docusaurus.config: plugins: [['ondocs/docusaurus', { mcp: '/api/mcp' }]] (mcp points agents that read llms.txt at the MCP endpoint)
   4. Deploy as you do now. init has deployed nothing."
 `;
 
@@ -684,7 +684,7 @@ Set (init reads none of these):
 
 Next:
   1. npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
-  2. Add the plugin to docusaurus.config: plugins: ['ondocs/docusaurus']
+  2. Add the plugin to docusaurus.config: plugins: [['ondocs/docusaurus', { mcp: '/api/mcp' }]] (mcp points agents that read llms.txt at the MCP endpoint)
   3. Deploy as you do now. init has deployed nothing."
 `;
 
@@ -1083,7 +1083,7 @@ Set (init reads none of these):
 
 Next:
   1. npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
-  2. Add the plugin to Starlight in astro.config: plugins: [ondocs()], from 'ondocs/starlight'
+  2. Add the plugin to Starlight in astro.config: plugins: [ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' (mcp points agents that read llms.txt at the MCP endpoint)
   3. Deploy as you do now. init has deployed nothing."
 `;
 
@@ -1176,7 +1176,7 @@ Set (init reads none of these):
 Next:
   1. npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
   2. npm i -D @types/node (the functions' types)
-  3. Add the plugin to Starlight in astro.config: plugins: [ondocs()], from 'ondocs/starlight'
+  3. Add the plugin to Starlight in astro.config: plugins: [ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' (mcp points agents that read llms.txt at the MCP endpoint)
   4. Deploy as you do now. init has deployed nothing."
 `;
 
@@ -1274,7 +1274,7 @@ Set (init reads none of these):
 Next:
   1. npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
   2. npm i -D @types/node (the functions' types)
-  3. Wrap the config in docs/.vitepress/config.mts in withOndocs, from 'ondocs/vitepress': export default withOndocs(defineConfig({ ... }))
+  3. Wrap the config in docs/.vitepress/config.mts in withOndocs, from 'ondocs/vitepress': export default withOndocs(defineConfig({ ... }), { mcp: '/api/mcp' }) (mcp points agents that read llms.txt at the MCP endpoint)
   4. Deploy as you do now. init has deployed nothing."
 `;
 
@@ -1481,6 +1481,6 @@ Set (init reads none of these):
 Next:
   1. npm i ondocs ai react react-dom @radix-ui/react-dialog cmdk
   2. cd ondocs-worker && npm install && npx wrangler deploy: it prints the Worker's URL, https://acme-ask.<your-subdomain>.workers.dev
-  3. Wrap the config in .vitepress/config.mts in withOndocs, from 'ondocs/vitepress': export default withOndocs(defineConfig({ ... }), { endpoint: 'https://acme-ask.<your-subdomain>.workers.dev/api/ask', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' }) (the embedding needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN as the site builds; leave it out for a keyword-only index)
+  3. Wrap the config in .vitepress/config.mts in withOndocs, from 'ondocs/vitepress': export default withOndocs(defineConfig({ ... }), { endpoint: 'https://acme-ask.<your-subdomain>.workers.dev/api/ask', mcp: 'https://acme-ask.<your-subdomain>.workers.dev/api/mcp', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' }) (mcp points agents that read llms.txt at the MCP endpoint; the embedding needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN as the site builds; leave it out for a keyword-only index)
   4. Deploy as you do now. init has deployed nothing."
 `;

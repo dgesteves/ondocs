@@ -273,8 +273,12 @@ export function createIntegration(
             ? routesToInject(options, astro, routeOptions, logger)
             : null;
         let routeModule: string | null = null;
+        // The MCP route the integration serves, the default for `mcp`. Only with `site`, as
+        // llms.txt and MCP clients need an absolute URL.
+        let mcpRoute: string | undefined;
         if (routes) {
           const base = astro.base.replace(/\/+$/, '');
+          if (routes.mcp && astro.site) mcpRoute = `${base}${routes.mcp}`;
           endpoint = dialogEndpoint(options.endpoint ?? `${base}${routes.ask ?? DEFAULT_PATH}`);
           const indexFile = (options.indexFile ?? 'ask-index.json').replace(/^\/+/, '');
           injected = { ...routes, indexPath: `${base}/${indexFile}` };
@@ -322,12 +326,18 @@ export function createIntegration(
             });
           }
           const served = Object.values(routes).map((path) => `${base}${path}`);
+          // Without `site`, llms.txt cannot name the MCP route: say so, unless `mcp` names one.
+          const unnamed =
+            routes.mcp && !astro.site && options.mcp === undefined
+              ? ` Set site in astro.config so llms.txt names ${base}${routes.mcp} for agents.`
+              : '';
           logger.info(
-            `Serving ${served.join(' and ')} with the adapter, answering with ${model}; route: false turns this off.`,
+            `Serving ${served.join(' and ')} with the adapter, answering with ${model}; route: false turns this off.${unnamed}`,
           );
         }
+        // `mcp` names another endpoint, when it is set.
         const mcp = resolveMcp(
-          options.mcp,
+          options.mcp ?? mcpRoute,
           astro.site,
           preset.siteTitle ?? 'docs',
           "astro.config's site",

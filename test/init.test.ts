@@ -306,10 +306,10 @@ describe('ondocs init', () => {
     expect(asked.stderr).toContain(
       "! The site's URL, https://your-docusaurus-site.example.com, looks like a template's placeholder",
     );
-    // The plugin is in the config already: the step gives it the Worker's endpoint.
+    // The plugin is in the config already: the step gives it the Worker's endpoints.
     expect(asked.stdout).not.toContain('Add the plugin');
     expect(asked.stdout).toContain(
-      "Pass { endpoint: 'https://acme-docs-ask.<your-subdomain>.workers.dev/api/ask', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' } to the ondocs plugin in docusaurus.config.ts",
+      "Pass { endpoint: 'https://acme-docs-ask.<your-subdomain>.workers.dev/api/ask', mcp: 'https://acme-docs-ask.<your-subdomain>.workers.dev/api/mcp', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' } to the ondocs plugin in docusaurus.config.ts",
     );
 
     // Given the real URL, it uses it, and has nothing to warn about.
@@ -318,13 +318,17 @@ describe('ondocs init', () => {
     expect(await readFile(join(cwd, 'ondocs-worker/wrangler.jsonc'), 'utf8')).toContain(
       '"SITE_URL": "https://acme.github.io/docs"',
     );
-    // And on a host whose endpoint is the site's own, there is no plugin step left at all.
+    // And on a host whose endpoint is the site's own, the plugin needs only the MCP endpoint's
+    // path.
     const vercel = await run(['--host', 'vercel', '--dry-run']);
     expect(vercel.code).toBe(0);
     expect(vercel.stderr).toBe('');
     const steps = vercel.stdout.slice(vercel.stdout.lastIndexOf('\nNext:'));
     expect(steps).toContain('Deploy as you do now.');
-    expect(steps).not.toMatch(/plugin/i);
+    expect(steps).toContain(
+      "Pass { mcp: '/api/mcp' } to the ondocs plugin in docusaurus.config.ts",
+    );
+    expect(steps).not.toContain('endpoint:');
   });
 
   it('takes the gh-pages package or a script that runs it for GitHub Pages', async () => {
@@ -391,6 +395,115 @@ describe('ondocs init', () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('Astro with @astrojs/node: nothing to write.');
     expect(await files(cwd)).toEqual(before);
+    // Without `site`, llms.txt has no URL to name the MCP route by: init says what to set.
+    const hint =
+      "Set site in astro.config to the site's URL, so llms.txt names /api/mcp for agents.";
+    expect(result.stdout).toContain(hint);
+    await site({
+      'astro.config.mjs':
+        "import node from '@astrojs/node';\nexport default { site: 'https://acme.dev', adapter: node() };\n",
+    });
+    expect((await run([])).stdout).not.toContain(hint);
+  });
+
+  it('gives the plugin the MCP endpoint it writes, so llms.txt points agents at it', async () => {
+    const steps = (stdout: string) => stdout.slice(stdout.lastIndexOf('\nNext:'));
+    const config = (plugins: string) =>
+      `export default { title: 'Acme Docs', url: 'https://acme.dev', plugins: [${plugins}] };\n`;
+
+    // A path, which the plugin resolves against the config's url.
+    await site({ ...DOCUSAURUS, 'vercel.json': '{}' });
+    const added = await run(['--dry-run']);
+    expect(added.code).toBe(0);
+    expect(steps(added.stdout)).toContain(
+      "Add the plugin to docusaurus.config: plugins: [['ondocs/docusaurus', { mcp: '/api/mcp' }]] (mcp points agents that read llms.txt at the MCP endpoint)",
+    );
+    // No MCP endpoint, nothing to name.
+    const without = await run(['--dry-run', '--no-mcp']);
+    expect(steps(without.stdout)).toContain(
+      "Add the plugin to docusaurus.config: plugins: ['ondocs/docusaurus']",
+    );
+    expect(without.stdout).not.toContain('mcp:');
+
+    // The plugin is in the config: the option alone, until the config sets it.
+    await site({ 'docusaurus.config.ts': config("'ondocs/docusaurus'") });
+    expect(steps((await run(['--dry-run'])).stdout)).toContain(
+      "Pass { mcp: '/api/mcp' } to the ondocs plugin in docusaurus.config.ts (mcp points agents that read llms.txt at the MCP endpoint)",
+    );
+    await site({ 'docusaurus.config.ts': config("['ondocs/docusaurus', { mcp: '/api/mcp' }]") });
+    expect(steps((await run(['--dry-run'])).stdout)).not.toMatch(/plugin/i);
+    // `route: { mcp: false }` and a commented-out line are not the plugin's `mcp`.
+    for (const plugin of [
+      "['ondocs/docusaurus', { route: { mcp: false } }]",
+      "\n    // ['ondocs/docusaurus', { mcp: '/api/mcp' }],\n    'ondocs/docusaurus'",
+    ]) {
+      await site({ 'docusaurus.config.ts': config(plugin) });
+      expect(steps((await run(['--dry-run'])).stdout)).toContain(
+        "Pass { mcp: '/api/mcp' } to the ondocs plugin in docusaurus.config.ts",
+      );
+    }
+
+    // Astro resolves the path against `site`, VitePress against `sitemap.hostname` (or
+    // withOndocs's siteUrl), set to a literal or to an expression. Without one, the step says to
+    // set it first, so a build that skips it stops and says so; it never makes a URL up, nor
+    // takes package.json's homepage, which npm init sets to the repository's page.
+    const named = '(mcp points agents that read llms.txt at the MCP endpoint)';
+    const siteFirst =
+      "(mcp points agents that read llms.txt at the MCP endpoint; set site in astro.config to the site's URL first, which the path is resolved against)";
+    const starlight = (astroConfig: string, pkg: Record<string, unknown> = {}) => ({
+      'package.json': JSON.stringify({
+        ...pkg,
+        dependencies: { astro: '7', '@astrojs/starlight': '0.42' },
+      }),
+      'astro.config.mjs': `import starlight from '@astrojs/starlight';\nexport default { ${astroConfig}integrations: [starlight({ title: 'Acme' })] };\n`,
+      'vercel.json': '{}',
+    });
+    const vitepress = (config: string) => ({
+      'package.json': JSON.stringify({ devDependencies: { vitepress: '1.6.4' } }),
+      '.vitepress/config.mts': `export default defineConfig({ title: 'Acme'${config} });\n`,
+      'netlify.toml': '',
+    });
+    const withOndocs = "withOndocs(defineConfig({ ... }), { mcp: '/api/mcp' })";
+    const cases: [Record<string, string>, string][] = [
+      [
+        starlight("site: 'https://docs.acme.dev', "),
+        `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${named}`,
+      ],
+      [
+        starlight("site: process.env.SITE_URL ?? 'https://docs.acme.dev', "),
+        `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${named}`,
+      ],
+      [starlight(''), `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${siteFirst}`],
+      [
+        starlight('', { homepage: 'https://github.com/acme/docs#readme' }),
+        `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${siteFirst}`,
+      ],
+      [
+        starlight("\n  // site: 'https://docs.acme.dev',\n  "),
+        `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${siteFirst}`,
+      ],
+      [vitepress(", sitemap: { hostname: 'https://acme.dev' }"), `${withOndocs} ${named}`],
+      [vitepress(', sitemap: { hostname: process.env.SITE_URL }'), `${withOndocs} ${named}`],
+      [
+        vitepress(''),
+        `${withOndocs} (mcp points agents that read llms.txt at the MCP endpoint; set sitemap.hostname in .vitepress/config.mts to the site's URL first, which the path is resolved against)`,
+      ],
+      // The script tag takes no `mcp`.
+      [
+        { 'hugo.toml': 'baseURL = "/site/"\ntitle = "Acme"\n', 'vercel.json': '{}' },
+        'data-endpoint="/api/ask" defer></script>',
+      ],
+    ];
+    for (const [contents, expected] of cases) {
+      await rm(cwd, { recursive: true, force: true });
+      await mkdir(cwd, { recursive: true });
+      await site(contents);
+      const result = await run(['--dry-run']);
+      expect(result.code).toBe(0);
+      expect(steps(result.stdout)).toContain(expected);
+      // A URL init cannot know is never filled in for it.
+      expect(result.stdout).not.toMatch(/mcp: 'https?:/);
+    }
   });
 
   it('lists what a static site’s functions import, with npm init when it has no package.json', async () => {

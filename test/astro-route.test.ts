@@ -105,10 +105,14 @@ describe('ondocs/astro with an SSR adapter', () => {
       { pattern: '/api/ask', entrypoint: 'ondocs/astro/ask-route', prerender: false },
       { pattern: '/api/mcp', entrypoint: 'ondocs/astro/mcp-route', prerender: false },
     ]);
+    // With no `site`, llms.txt cannot name the MCP route, and the log says what would.
     expect(result.info).toContain(
-      'Serving /api/ask and /api/mcp with the adapter, answering with mock; route: false turns this off.',
+      'Serving /api/ask and /api/mcp with the adapter, answering with mock; route: false turns this off. Set site in astro.config so llms.txt names /api/mcp for agents.',
     );
     expect(result.script).toContain('"endpoint":"/api/ask"');
+    expect(setup(integration(), { site: 'https://acme.dev' }).info).toContain(
+      'Serving /api/ask and /api/mcp with the adapter, answering with mock; route: false turns this off.',
+    );
   });
 
   it('serves them under base, and points the dialog there', () => {

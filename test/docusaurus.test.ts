@@ -550,6 +550,10 @@ describe('ondocs/docusaurus', () => {
     );
     // A path needs the site's URL to become one a client can reach.
     expect(() => ondocs(context, { mcp: '/api/mcp' })).toThrow(/needed to make it absolute/);
+    // So does a URL with init's placeholder left in, rather than going into llms.txt as it is.
+    expect(() =>
+      ondocs(withUrl, { mcp: 'https://acme-docs-ask.<your-subdomain>.workers.dev/api/mcp' }),
+    ).toThrow(/is not a valid URL\. Replace any placeholder left in it, such as <your-subdomain>/);
   });
 
   it('hands the dialog the bot check’s site key', async () => {

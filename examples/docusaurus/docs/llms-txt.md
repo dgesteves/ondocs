@@ -6,7 +6,7 @@ description: 'Write llms.txt, llms-full.txt and a Markdown copy of every page at
 
 Agents read docs as Markdown. With the same pages it indexes, ondocs writes three files that agents look for:
 
-- **`llms.txt`**, as [llmstxt.org](https://llmstxt.org) describes it: the site's name, its summary, and a section of links per part of the site, each to the page's Markdown copy. It also names the [MCP server](./mcp.md) when there is one.
+- **`llms.txt`**, as [llmstxt.org](https://llmstxt.org) describes it: the site's name, its summary, and a section of links per part of the site, each to the page's Markdown copy. It also names the [MCP server](./mcp.md): the plugin's `mcp` option, or the route the Astro integration serves with an adapter.
 - **`llms-full.txt`**: every page in one file, for a model to read in one request.
 - **A Markdown copy of each page**, at its URL plus `.md`: `/docs/intro.md` for `/docs/intro` or `/docs/intro/`, and `/index.md` for the site's root. That is where Mintlify, GitBook, Fumadocs and the Docusaurus and Starlight llms plugins put them. Each starts with a line pointing to `llms.txt`.
 

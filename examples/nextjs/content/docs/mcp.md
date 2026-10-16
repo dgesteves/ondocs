@@ -127,12 +127,12 @@ CI runs the first row on every change, in [`test/mcp-client.test.ts`](https://gi
 Give the plugin the endpoint's URL with `mcp`, and a page can show how to add it to Cursor, VS Code, Claude, Claude Code, Codex, Gemini CLI and ChatGPT:
 
 - **Docusaurus:** `['ondocs/docusaurus', { mcp: '/api/mcp' }]`, then in an MDX page, `import OndocsMcp from '@theme/OndocsMcp'` and `<OndocsMcp />`.
-- **Astro and Starlight:** `ondocs({ mcp: '/api/mcp' })`, with `site` set, then in an MDX page, `import McpInstall from 'ondocs/astro/McpInstall.astro'` and `<McpInstall />`.
+- **Astro and Starlight:** `ondocs({ mcp: '/api/mcp' })`, with `site` set, then in an MDX page, `import McpInstall from 'ondocs/astro/McpInstall.astro'` and `<McpInstall />`. With an SSR adapter and `site` set, the MCP route the integration serves is the default.
 - **VitePress:** `withOndocs(config, { mcp: '/api/mcp' })`, with `sitemap.hostname` set, points `llms.txt` at it; for the links on a page, use `mcpInstallLinks` below.
 - **React:** `<McpInstall url="https://docs.example.com/api/mcp" name="acme-docs" />` from `ondocs/react`.
 - **Anything else:** `mcpInstallLinks({ url, name })` from `ondocs` returns the Cursor and VS Code install links, the claude.ai link, the Claude Code, Codex and Gemini CLI commands, the TOML for Codex's `config.toml`, and the JSON for other clients.
 
-A path is resolved against the site's URL. The name defaults to the site title, as `acme-docs`.
+A path is resolved against the site's URL. A URL that does not parse, such as the Worker's with `<your-subdomain>` left in, stops the build. The name defaults to the site title, as `acme-docs`. The URL also goes into [`llms.txt`](/docs/llms-txt), for agents that start there. `npx ondocs init` says which `mcp` to set for the endpoint it writes.
 
 ## Try it locally
 
