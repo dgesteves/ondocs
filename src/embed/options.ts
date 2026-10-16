@@ -23,7 +23,7 @@ export interface OndocsDialogOptions {
   launcher?: boolean | string;
   /**
    * @deprecated Use `launcher`, which takes the same values. `buttonLabel` still works, with a
-   * warning, until 0.10.
+   * warning, until 1.0.
    */
   buttonLabel?: string | false;
   /**

@@ -20,7 +20,21 @@ The index is rebuilt when you deploy. Content that changes between deploys, or d
 
 ## Language
 
-Keyword search uses an English stopword list and light plural stripping. Other languages still work through the embedding model, which handles them, but keyword matching is weaker for them. Per-language stopwords and stemming are on the roadmap.
+Keyword search splits text into words at spaces and punctuation, then applies an English stopword list and light plural stripping. Languages that put spaces between words work through the embedding model, which handles them, but keyword matching is weaker for them. Per-language stopwords and stemming are on the roadmap.
+
+In Chinese, Japanese and Korean, keyword search misses most questions asked in plain words. Chinese and Japanese put no spaces between words, so a run of text with no space or punctuation in it is one word, and it matches only a page with that exact run: `怎么安装插件？` is the single word `怎么安装插件`. The query `环境变量` finds the section headed 环境变量, not the page that says 部署时需要设置环境变量. Korean puts spaces between words, but a particle or an ending stays on the word, so `설치하나요` in a question does not match `설치합니다` on a page.
+
+On a five-page test site in each language, asked 8 questions its pages answer, each keyword path puts the right page first this often ([`test/docs-claims.test.ts`](https://github.com/dgesteves/ondocs/blob/main/test/docs-claims.test.ts) checks the counts):
+
+| Search                              | Chinese | Japanese | Korean | English |
+| ----------------------------------- | ------- | -------- | ------ | ------- |
+| Ask endpoint, `-e none` index       | 1 of 8  | 1 of 8   | 1 of 8 | 8 of 8  |
+| Ask endpoint, `-e mock` index       | 3 of 8  | 3 of 8   | 3 of 8 | 8 of 8  |
+| MCP search without `embeddingModel` | 3 of 8  | 3 of 8   | 2 of 8 | 8 of 8  |
+
+The MCP server searches by keywords alone unless you give it an `embeddingModel`, and `ondocs dev`'s MCP endpoint and the MCP route the Astro and Starlight integrations serve always do. For docs in these languages, build the index with a multilingual embedding model, and pass it as `embeddingModel` to `createMcpHandler` as well as to `createAskHandler`: a question then clears the relevance gate on similarity alone, with no word in common. Check the model's `minSimilarity` on real questions, as [Tuning per embedding model](#tuning-per-embedding-model) says. On an Astro or Starlight site, a route file of your own at `src/pages/api/mcp.ts` answers instead of the integration's; see [Astro with an adapter](/guides/deployment/#astro-with-an-adapter). Splitting these languages into words is planned.
+
+A paragraph longer than a chunk is cut at a space, at the end of a sentence where it can be, and the next chunk repeats the end of the one before. Chinese or Japanese text with no spaces is cut at 1,200 characters, mid-sentence, with no overlap: `。` does not count as the end of a sentence.
 
 ## Follow-ups and the top sources
 
