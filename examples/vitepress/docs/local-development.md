@@ -34,7 +34,7 @@ With React, render `<AskDialog endpoint="http://localhost:8787/api/ask" launcher
 
 `mockEmbeddingModel()` hashes words and word pairs into 512-dimension vectors, so similarity tracks shared vocabulary. `mockLanguageModel()` answers extractively: it picks the sentences from the retrieved sources that best match the question and cites each one, and it never writes text of its own. Everything else is the production code path: chunking, the int8 index, hybrid retrieval, the relevance gate, streaming and citations.
 
-Both models come from `ondocs/mock`. They are for demos, tests and local development. Retrieval over a mock index is lexical, so a question has to share words with the page that answers it.
+Both models come from `ondocs/mock`. They are for demos, tests and local development. Retrieval over a mock index is lexical, so a question has to share words with the page that answers it. Its "I don't know" is lexical too, and more permissive than a real model's: an off-topic question that shares two words with a page, or half of its keyword weight, gets an answer quoted from that page. On docusaurus.io's docs, 6 of 15 off-topic Stack Overflow titles about git, Bash, SQL and Java still did, as many as from a keyword-only index. To see the gate your readers get, index with the embedding model you deploy, as in [Use a real model locally](#use-a-real-model-locally).
 
 ## Use a real model locally
 
