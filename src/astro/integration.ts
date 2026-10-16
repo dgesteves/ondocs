@@ -256,6 +256,8 @@ export function createIntegration(
   // Whether this is `astro dev`, and whether a route of the site answers the endpoint.
   let dev = false;
   let served = false;
+  // Whether the site has an SSR adapter, without which the build serves no endpoint.
+  let adapter = false;
   return {
     name: 'ondocs',
     hooks: {
@@ -268,6 +270,16 @@ export function createIntegration(
         command,
       }) => {
         dev = command === 'dev';
+        adapter = Boolean(astro.adapter);
+        // With an adapter, the site serves its routes under `base`, the integration's and its own
+        // route files alike, so the dialog posts there unless `endpoint` says where.
+        if (
+          astro.adapter &&
+          options.endpoint === undefined &&
+          (routeOptions || routeFile(fileURLToPath(astro.srcDir), DEFAULT_PATH))
+        ) {
+          endpoint = dialogEndpoint(`${astro.base.replace(/\/+$/, '')}${DEFAULT_PATH}`);
+        }
         const routes =
           routeOptions && astro.adapter
             ? routesToInject(options, astro, routeOptions, logger)
@@ -279,7 +291,6 @@ export function createIntegration(
         if (routes) {
           const base = astro.base.replace(/\/+$/, '');
           if (routes.mcp && astro.site) mcpRoute = `${base}${routes.mcp}`;
-          endpoint = dialogEndpoint(options.endpoint ?? `${base}${routes.ask ?? DEFAULT_PATH}`);
           const indexFile = (options.indexFile ?? 'ask-index.json').replace(/^\/+/, '');
           injected = { ...routes, indexPath: `${base}/${indexFile}` };
           routeModule = routeModuleCode(
@@ -491,6 +502,18 @@ export function createIntegration(
             `Copied ${fallback}'s ${copied.join(', ')} → ${relative(fileURLToPath(config.root), outDir) || 'dist'}, which has no pages of its own, for the endpoints and agents that read them there.`,
           );
         }
+        // Last, as the step left to do: a static build serves no endpoint, so the dialog's /api/ask
+        // answers only once something on the host does, such as what `ondocs init` writes.
+        if (
+          !adapter &&
+          options.endpoint === undefined &&
+          endpoint === DEFAULT_PATH &&
+          !hasHostEndpoint(fileURLToPath(config.root))
+        ) {
+          logger.warn(
+            `The dialog posts to ${DEFAULT_PATH}, which this static build does not serve, so every question gets a 404 once the site is deployed. Run \`npx ondocs init\` to write the endpoint for your host, add an SSR adapter for the integration to serve it, or set \`endpoint\` to where yours answers.`,
+          );
+        }
       },
     },
   };
@@ -530,6 +553,18 @@ function routesToInject(
   }
   return served.ask || served.mcp ? served : null;
 }
+
+/**
+ * The ask endpoints `ondocs init` writes for a static site, which answer `/api/ask` on its host:
+ * Vercel's function, Netlify's, Cloudflare Pages' and the Cloudflare Worker's entry point.
+ */
+const HOST_ENDPOINTS = ['api/ask', 'netlify/functions/ask', 'functions/api/ask', 'worker/ondocs'];
+
+/** Whether the site has one of `HOST_ENDPOINTS` under its root. */
+const hasHostEndpoint = (root: string): boolean =>
+  HOST_ENDPOINTS.some((name) =>
+    ['ts', 'js', 'mts', 'mjs'].some((extension) => existsSync(join(root, `${name}.${extension}`))),
+  );
 
 /** A route file under `src/pages` that answers `pattern`, if the site has one. */
 function routeFile(srcDir: string, pattern: string): string | undefined {
