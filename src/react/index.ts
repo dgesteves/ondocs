@@ -1,5 +1,5 @@
 /**
- * ondocs/react: the ⌘I ask palette and the hook behind it.
+ * ondocs/react: the ⌘I ask palette, the button that opens it, and the hook behind it.
  *
  * Import `ondocs/react/styles.css` once for the default theme, or style the `ask-*`
  * classes yourself.
@@ -7,6 +7,8 @@
 
 export { AskDialog, loadAskDialog } from './ask-dialog';
 export type { AskDialogProps, AskDialogSlot } from './ask-dialog';
+export { AskButton } from './launcher';
+export type { AskButtonProps } from './launcher';
 export { AskAnswer, citedSourceIds, safeHref } from './answer';
 export type { AnswerLinks, AskAnswerProps, SourceUrls } from './answer';
 export { McpInstall } from './mcp-install';

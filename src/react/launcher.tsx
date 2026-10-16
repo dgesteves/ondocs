@@ -1,9 +1,11 @@
-// The dialog with its floating "Ask AI" button, and the site's color scheme: what the Docusaurus
-// theme and ondocs/embed render. Not part of the public `ondocs/react` API.
-import { useSyncExternalStore, type ReactNode } from 'react';
+// The buttons that open the dialog. `AskButton` is part of the public `ondocs/react` API. The
+// dialog with its floating "Ask AI" button, and the site's color scheme, are what the Docusaurus
+// theme and ondocs/embed render, and not part of it.
+import { useCallback, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 
+import { listenForOpen } from '../embed/open';
 import type { OndocsDialogOptions, OndocsTheme } from '../embed/options';
-import { AskDialog, type AskDialogProps } from './ask-dialog';
+import { AskDialog, loadAskDialog, type AskDialogProps } from './ask-dialog';
 import { pageScheme, subscribeToScheme } from './theme';
 
 export interface AskWithLauncherProps extends OndocsDialogOptions {
@@ -29,6 +31,101 @@ export function AskWithLauncher({
   ...props
 }: AskWithLauncherProps): ReactNode {
   return <AskDialog {...props} launcher={launcher ?? buttonLabel ?? true} />;
+}
+
+export interface AskButtonProps extends Omit<AskDialogProps, 'trigger' | 'launcher'> {
+  /** The button's label. Default `labels.launcher`, "Ask AI". */
+  children?: ReactNode;
+  /** Class names for the button, after `ondocs-button`. */
+  className?: string;
+  /**
+   * A credit line at the end of the dialog's footer, "Answers by ondocs.", whose link opens
+   * ondocs.vercel.app in a new tab. Off by default. `true`, or the line in your own words, with
+   * `{ondocs}` where the link goes. A `footer` of your own replaces it with the rest.
+   */
+  poweredBy?: boolean | string;
+}
+
+const isMac = (): boolean => /Mac|iPhone|iPad/.test(navigator.platform);
+
+/**
+ * An "Ask AI" button with the shortcut on it, and the `AskDialog` it opens, with the same props.
+ * Put it in the site's header. The shortcut (⌘I or Ctrl+I by default; `shortcut="k"` for ⌘K) opens
+ * the dialog too, also before the dialog's code has loaded, and so do `openAskDialog()` from
+ * `ondocs/embed` and any element with a `data-ondocs-open` attribute, so the page's other ways in
+ * need no code of their own. Render one per page.
+ *
+ * It is the button the plugins put in the navbar: `ondocs-button`, its label in
+ * `ondocs-button-label`, then the key in a `<kbd>` whose `data-control` is the Ctrl key's name.
+ * Import `ondocs/embed/button.css` for their look, filled with the accent and only the icon on a
+ * phone; it shows ⌘ instead of Ctrl on Apple devices, which this marks on `<html>` with
+ * `data-ondocs-mac`. Or style the classes yourself.
+ */
+export function AskButton({
+  children,
+  className,
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
+  question,
+  shortcut = 'i',
+  ...props
+}: AskButtonProps): ReactNode {
+  // Open, and with the question it was opened with from elsewhere on the page.
+  const [opened, setOpened] = useState<{ open: boolean; question?: string }>({
+    open: defaultOpen,
+  });
+  const setOpen = useCallback(
+    (open: boolean, asking?: string) => {
+      setOpened(asking ? { open, question: asking } : { open });
+      onOpenChange?.(open);
+    },
+    [onOpenChange],
+  );
+
+  useEffect(
+    () =>
+      listenForOpen(
+        (asking) => {
+          setOpen(true, asking);
+        },
+        () => void loadAskDialog(),
+      ),
+    [setOpen],
+  );
+
+  // What ondocs/embed/button.css reads to show ⌘ rather than Ctrl, as the plugins' pages set it.
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-ondocs-mac', isMac());
+  }, []);
+
+  const key = shortcut ? shortcut.toUpperCase() : '';
+  const asking = question ?? opened.question;
+  return (
+    <AskDialog
+      {...props}
+      shortcut={shortcut}
+      open={openProp ?? opened.open}
+      onOpenChange={setOpen}
+      {...(asking ? { question: asking } : {})}
+      trigger={
+        <button
+          type="button"
+          className={className ? `ondocs-button ${className}` : 'ondocs-button'}
+          aria-keyshortcuts={key ? `Meta+${key} Control+${key}` : undefined}
+        >
+          <span className="ondocs-button-label">
+            {children ?? props.labels?.launcher ?? 'Ask AI'}
+          </span>
+          {key ? (
+            <kbd aria-hidden="true" data-control={props.labels?.controlKey ?? 'Ctrl'}>
+              {key}
+            </kbd>
+          ) : null}
+        </button>
+      }
+    />
+  );
 }
 
 const noSubscription = () => () => undefined;
