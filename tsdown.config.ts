@@ -129,4 +129,30 @@ export default defineConfig([
     // The first build cleans dist/.
     clean: false,
   },
+  {
+    // dist/embed/standalone.js, `ondocs/embed/standalone`: `ondocs/embed` with production React,
+    // Radix and cmdk built into the dialog's chunk, for a site without React. The Astro, Starlight
+    // and VitePress plugins mount their launcher with it, so a site installs none of the four, and
+    // its bundler still splits the dialog off, to load the first time it is wanted.
+    entry: { 'embed/standalone': 'src/embed/index.ts' },
+    outputOptions: {
+      entryFileNames: '[name].js',
+      chunkFileNames: 'embed/standalone-[name]-[hash].js',
+    },
+    deps: { alwaysBundle: [/./], onlyBundle: false },
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2022',
+    minify: true,
+    define: { 'process.env.NODE_ENV': '"production"' },
+    inputOptions: {
+      // Radix and cmdk mark their modules "use client", which means nothing once bundled.
+      onLog: (level, log, handler) => {
+        if (log.code !== 'MODULE_LEVEL_DIRECTIVE') handler(level, log);
+      },
+    },
+    dts: false,
+    // The first build cleans dist/.
+    clean: false,
+  },
 ]);

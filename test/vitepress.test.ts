@@ -147,7 +147,7 @@ describe('the launcher', () => {
     const { resolveId, load, configResolved, config } = plugin({
       dialog: { suggestions: ['Why?'] },
     });
-    expect(config?.()).toEqual({ optimizeDeps: { include: ['ondocs/embed'] } });
+    expect(config?.()).toEqual({ optimizeDeps: { include: ['ondocs/embed/standalone'] } });
     const id = resolveId?.('virtual:ondocs/launcher');
     expect(id).toBe('\0virtual:ondocs/launcher');
     expect(resolveId?.('vue')).toBeNull();

@@ -68,7 +68,7 @@ Each answers from an endpoint you deploy as one function next to the site, rate-
 
 **Live demos:** [Starlight](https://ondocs-starlight.vercel.app), [Docusaurus](https://ondocs-docusaurus.vercel.app), [VitePress](https://ondocs-vitepress.vercel.app).
 
-**Starlight.** `npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk`, then:
+**Starlight.** `npm i ondocs ai @ai-sdk/openai`, then:
 
 ```js
 // astro.config.mjs

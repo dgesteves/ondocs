@@ -30,7 +30,10 @@ import { fileURLToPath } from 'node:url';
 import { startOpenAIStub } from './openai-stub.mjs';
 
 const MODEL = 'text-embedding-3-small';
-const PEERS = ['ai', '@ai-sdk/openai', '@radix-ui/react-dialog', 'cmdk'];
+/** What every site installs with ondocs: the AI SDK, which the index build and the endpoint use. */
+const MODELS = ['ai', '@ai-sdk/openai'];
+/** A React site's dialog renders with the site's React, and these two. */
+const PEERS = [...MODELS, '@radix-ui/react-dialog', 'cmdk'];
 /** The Nextra release whose docs starter the nextra site is, as the Nextra guide was checked on. */
 const NEXTRA = '4.6.1';
 
@@ -359,7 +362,8 @@ export const POST = createAskHandler({
           .replace(/\}\)\s*$/, '}))\n'),
       );
     },
-    install: [...PEERS, 'react', 'react-dom'],
+    // The dialog brings its own React, Radix and cmdk, so the guide installs none of them.
+    install: MODELS,
     build: [['npm', 'run', 'docs:build']],
     index: '.vitepress/dist/ask-index.json',
     llms: '.vitepress/dist',
@@ -367,7 +371,7 @@ export const POST = createAskHandler({
     linked: true,
     check: (dir, index) => {
       const out = join(dir, '.vitepress/dist');
-      const problems = [];
+      const problems = withoutReact(dir);
       // Each URL in the index is a page the build wrote, as a static host serves it.
       for (const { url } of index.documents) {
         const path = decodeURI(url).replace(/^\//, '');
@@ -522,13 +526,26 @@ function starlight(entry) {
           ),
       );
     },
-    install: [...PEERS, 'react', 'react-dom'],
+    // The dialog brings its own React, Radix and cmdk, so the guide installs none of them, and
+    // starlight-ondocs asks for none of them as peers, which npm would install.
+    install: MODELS,
     build: [['npx', 'astro', 'build']],
     index: 'dist/ask-index.json',
     llms: 'dist',
     dimensions: 512,
     linked: true,
+    check: (dir) => withoutReact(dir),
   };
+}
+
+/**
+ * What is wrong with a site that must build without React: any of the packages a React site's
+ * dialog renders with that it has installed, so its build would not show the dialog needs none.
+ */
+function withoutReact(dir) {
+  return ['react', 'react-dom', '@radix-ui/react-dialog', 'cmdk']
+    .filter((name) => existsSync(join(dir, 'node_modules', name)))
+    .map((name) => `${name} is installed, so the build does not show the dialog brings its own`);
 }
 
 /**

@@ -12,11 +12,13 @@ Live demo: [these docs as a Starlight site](https://ondocs-starlight.vercel.app)
 
 ## Install for Astro
 
-The dialog is a React component, so install React and its two dependencies along with the AI SDK:
+Install ondocs and the AI SDK. The dialog comes with its own React, so your site needs none:
 
 ```sh
-npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
+npm i ondocs ai @ai-sdk/openai
 ```
+
+With ondocs 0.11.0 or earlier, the dialog renders with the site's React: also install `react`, `react-dom`, `@radix-ui/react-dialog` and `cmdk`.
 
 ## Add it to Starlight
 
@@ -57,7 +59,9 @@ The Astro integration reads each page's `<main>`. Choose another part with `cont
 
 ## The dialog in Astro
 
-Both add a floating "Ask AI" button and open the dialog with ⌘I or Ctrl+I, so ⌘K stays with Starlight's search. In Starlight the button sits in the corner of the table of contents column, in Starlight's colors, and the dialog follows its light or dark theme. On other Astro sites the dialog follows `data-theme` on `<html>`, or the system setting. Vite bundles the dialog with your pages, so it shares React with your own islands. With `<ClientRouter />`, the dialog stays across navigations and citations navigate through the router.
+Both add a floating "Ask AI" button and open the dialog with ⌘I or Ctrl+I, so ⌘K stays with Starlight's search. In Starlight the button sits in the corner of the table of contents column, in Starlight's colors, and the dialog follows its light or dark theme. On other Astro sites the dialog follows `data-theme` on `<html>`, or the system setting. With `<ClientRouter />`, the dialog stays across navigations and citations navigate through the router.
+
+The dialog comes prebuilt with its own React, Radix and cmdk, from `ondocs/embed/standalone`, also on a site with React islands of its own. Vite splits it off into a chunk that loads the first time it is wanted: 92.6 KB of JavaScript, gzipped, on the Starlight example. Before then, a page carries only the button and the shortcut, and the dialog's stylesheet, 3.5 KB gzipped, which the plugin adds to the site's CSS. Measured on an Apple M1 Max with `node scripts/js-weight.mjs starlight`, in headless Chrome, and `gzip -9` of `ondocs/react/styles.css`.
 
 Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. `dialog: { links: 'sources' }` keeps only the answer's links to its source pages.
 

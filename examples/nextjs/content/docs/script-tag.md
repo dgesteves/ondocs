@@ -85,4 +85,6 @@ From a script, `window.Ondocs.open(question?)` opens it. With `data-manual`, the
 
 ## With a bundler
 
-In an app with a bundler, `mountAskDialog(options)` from `ondocs/embed` does the same with your own copy of React. Install `react`, `react-dom`, `@radix-ui/react-dialog` and `cmdk`, and import `ondocs/react/styles.css` and `ondocs/embed/launcher.css` with it.
+In an app with a bundler, `mountAskDialog(options)` from `ondocs/embed/standalone` does the same, with React, Radix and cmdk built into the dialog's chunk, which your bundler splits off to load on first use. Install nothing else, and import `ondocs/react/styles.css` and `ondocs/embed/launcher.css` with it. The Astro, Starlight and VitePress plugins mount it this way.
+
+`mountAskDialog(options)` from `ondocs/embed` is the same, rendered with your own copy of React instead, for an app that already loads React: install `react`, `react-dom`, `@radix-ui/react-dialog` and `cmdk` with it.

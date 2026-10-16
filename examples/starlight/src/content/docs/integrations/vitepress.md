@@ -12,11 +12,13 @@ Live demo: [these docs as a VitePress site](https://ondocs-vitepress.vercel.app)
 
 ## Install for VitePress
 
-The dialog is a React component, so install React and its two dependencies along with the AI SDK. They load with the dialog, the first time a visitor opens it, and never on the rest of your Vue pages:
+Install ondocs and the AI SDK. The dialog comes with its own React, which loads with it the first time a visitor opens it, and never on the rest of your Vue pages:
 
 ```sh
-npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
+npm i ondocs ai @ai-sdk/openai
 ```
+
+With ondocs 0.11.0 or earlier, the dialog renders with the site's React: also install `react`, `react-dom`, `@radix-ui/react-dialog` and `cmdk`.
 
 ## Add it to .vitepress/config.mts
 
@@ -49,7 +51,7 @@ The plugin reads each page's Markdown as the default theme renders it, the `.vp-
 
 ## The dialog in VitePress
 
-The plugin adds a floating "Ask AI" button and opens the dialog with ⌘I or Ctrl+I, so ⌘K stays with VitePress's search. The button takes the default theme's colors, and the button and the dialog follow VitePress's light and dark modes, as its appearance switch sets them. A page loads only the button, about 3 KB of JavaScript, and the dialog loads the first time it is wanted. The plugin adds the button through VitePress's own client entry, so there is no theme file to write. With `mpa: true`, VitePress ships no client entry, and pages get no button: add the [script tag](/integrations/script-tag/) to `head` instead.
+The plugin adds a floating "Ask AI" button and opens the dialog with ⌘I or Ctrl+I, so ⌘K stays with VitePress's search. The button takes the default theme's colors, and the button and the dialog follow VitePress's light and dark modes, as its appearance switch sets them. A page loads only the button, about 3 KB of JavaScript, and the dialog's stylesheet, 3.5 KB gzipped, which the plugin adds to the site's CSS. The dialog comes prebuilt with its own React, Radix and cmdk, from `ondocs/embed/standalone`, and loads the first time it is wanted: 95.6 KB of JavaScript, gzipped, on the VitePress example. Measured on an Apple M1 Max with `node scripts/js-weight.mjs vitepress`, in headless Chrome, and `gzip -9` of `ondocs/react/styles.css`. The plugin adds the button through VitePress's own client entry, so there is no theme file to write. With `mpa: true`, VitePress ships no client entry, and pages get no button: add the [script tag](/integrations/script-tag/) to `head` instead.
 
 Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. `dialog: { links: 'sources' }` keeps only the answer's links to its source pages.
 

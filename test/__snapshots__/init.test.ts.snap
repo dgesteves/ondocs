@@ -1082,7 +1082,7 @@ Set (init reads none of these):
   OPENAI_API_KEY, for the site’s build: a build variable; without it there, the index is keyword-only, which works too
 
 Next:
-  1. npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
+  1. npm i ondocs ai @ai-sdk/openai
   2. Add the plugin to Starlight in astro.config: plugins: [ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' (mcp points agents that read llms.txt at the MCP endpoint)
   3. Deploy as you do now. init has deployed nothing."
 `;
@@ -1174,7 +1174,7 @@ Set (init reads none of these):
   OPENAI_API_KEY, for the functions and the site’s build: in the project's Settings, Environment Variables; without it, the MCP endpoint works and off-topic questions are refused, but the Ask box cannot answer; for no key at all, init --host github-pages writes a Worker that answers with Workers AI
 
 Next:
-  1. npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
+  1. npm i ondocs ai @ai-sdk/openai
   2. npm i -D @types/node (the functions' types)
   3. Add the plugin to Starlight in astro.config: plugins: [ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' (mcp points agents that read llms.txt at the MCP endpoint)
   4. Deploy as you do now. init has deployed nothing."
@@ -1272,7 +1272,7 @@ Set (init reads none of these):
   OPENAI_API_KEY, for the functions and the site’s build: in the project's Settings, Environment Variables; without it, the MCP endpoint works and off-topic questions are refused, but the Ask box cannot answer; for no key at all, init --host github-pages writes a Worker that answers with Workers AI
 
 Next:
-  1. npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
+  1. npm i ondocs ai @ai-sdk/openai
   2. npm i -D @types/node (the functions' types)
   3. Wrap the config in docs/.vitepress/config.mts in withOndocs, from 'ondocs/vitepress': export default withOndocs(defineConfig({ ... }), { mcp: '/api/mcp' }) (mcp points agents that read llms.txt at the MCP endpoint)
   4. Deploy as you do now. init has deployed nothing."
@@ -1479,7 +1479,7 @@ Set (init reads none of these):
   CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN, for the site’s build, optional: repository secrets, to embed the pages with @cf/baai/bge-small-en-v1.5 for semantic search (a token allowed to run Workers AI); without them, nothing is embedded and questions are matched on keywords
 
 Next:
-  1. npm i ondocs ai react react-dom @radix-ui/react-dialog cmdk
+  1. npm i ondocs ai
   2. cd ondocs-worker && npm install && npx wrangler deploy: it prints the Worker's URL, https://acme-ask.<your-subdomain>.workers.dev
   3. Wrap the config in .vitepress/config.mts in withOndocs, from 'ondocs/vitepress': export default withOndocs(defineConfig({ ... }), { endpoint: 'https://acme-ask.<your-subdomain>.workers.dev/api/ask', mcp: 'https://acme-ask.<your-subdomain>.workers.dev/api/mcp', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' }) (mcp points agents that read llms.txt at the MCP endpoint; the embedding needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN as the site builds; leave it out for a keyword-only index)
   4. Deploy as you do now. init has deployed nothing."

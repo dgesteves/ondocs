@@ -1,5 +1,5 @@
-// The launcher on every page, for a framework whose pages a bundler builds (Vite, in Astro and
-// Starlight): a script that mounts it, and the stylesheets it needs.
+// The launcher on every page, for a framework whose pages a bundler builds (Vite, in Astro,
+// Starlight and VitePress): a script that mounts it, and the stylesheets it needs.
 import { warnDeprecated } from '../deprecation';
 import type { OndocsDialogOptions, OndocsTheme } from '../embed/options';
 
@@ -102,10 +102,11 @@ export interface LauncherScriptOptions {
 
 /**
  * The source of a browser module that mounts the launcher with `mountAskDialog` from
- * `ondocs/embed`: the button and the shortcut, about 1.5 KB gzipped, with the dialog loaded the
- * first time it is wanted. For a framework that bundles every page's scripts: serve it as a
- * virtual module that each page imports, so the bundler resolves `ondocs/embed` and splits the
- * dialog into a chunk of its own.
+ * `ondocs/embed/standalone`: the button and the shortcut, about 1.5 KB gzipped, with the dialog
+ * loaded the first time it is wanted. For a framework that bundles every page's scripts: serve it
+ * as a virtual module that each page imports, so the bundler resolves `ondocs/embed/standalone`
+ * and keeps the dialog in a chunk of its own. That chunk has React, Radix and cmdk built in, so
+ * the site needs none of them installed.
  */
 export function launcherScript({
   endpoint,
@@ -124,7 +125,7 @@ export function launcherScript({
   };
   if (locales.length === 0) {
     return [
-      "import { mountAskDialog } from 'ondocs/embed';",
+      "import { mountAskDialog } from 'ondocs/embed/standalone';",
       `mountAskDialog(${JSON.stringify(mount)});`,
     ].join('\n');
   }
@@ -148,7 +149,7 @@ export function launcherScript({
   );
   const pathUnderBase = `location.pathname.slice(${String(base.replace(/\/+$/, '').length)}).replace(/^\\/+/, '')`;
   const head = [
-    "import { mountAskDialog } from 'ondocs/embed';",
+    "import { mountAskDialog } from 'ondocs/embed/standalone';",
     `const options = ${JSON.stringify(mount)};`,
     `const locales = ${JSON.stringify(byLocale)};`,
   ];

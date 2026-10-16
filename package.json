@@ -70,6 +70,10 @@
       "types": "./dist/embed.d.ts",
       "default": "./dist/embed.js"
     },
+    "./embed/standalone": {
+      "types": "./dist/embed.d.ts",
+      "default": "./dist/embed/standalone.js"
+    },
     "./embed/launcher.css": "./dist/embed/launcher.css",
     "./embed/button.css": "./dist/embed/button.css",
     "./docusaurus": {

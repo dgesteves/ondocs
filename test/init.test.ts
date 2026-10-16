@@ -447,6 +447,8 @@ describe('ondocs init', () => {
     const result = await run([]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain('Astro with @astrojs/node: nothing to write.');
+    // The integration's dialog brings its own React, Radix and cmdk: the site installs none.
+    expect(result.stdout.split('\n')).toContain('Install: npm i ondocs ai @ai-sdk/openai');
     expect(await files(cwd)).toEqual(before);
     // Without `site`, llms.txt has no URL to name the MCP route by: init says what to set.
     const hint =

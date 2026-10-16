@@ -27,7 +27,6 @@ import {
   quietUseClient,
   readBuiltHtml,
   resolveMcp,
-  warnMissingDialogPeers,
   writeLlmsFiles,
   writeSiteIndex,
   type IndexOptions,
@@ -45,7 +44,7 @@ import {
 /** What the dialog shows in one locale, over the dialog's own options. */
 export type OndocsLocaleDialogOptions = LocaleDialogOptions;
 
-/** What the dialog shows; passed to `mountAskDialog` from `ondocs/embed`. */
+/** What the dialog shows; passed to `mountAskDialog` from `ondocs/embed/standalone`. */
 export interface OndocsDialogOptions extends DialogOptions {
   /** The dialog's accessible name. Default "Ask {site title}", in each locale its own. */
   title?: string;
@@ -251,7 +250,6 @@ function isThenable<T>(value: T | Promise<T>): value is Promise<T> {
 /** `withOndocs` over a config object. */
 function wrap<Config extends VitePressConfig>(config: Config, options: OndocsOptions): Config {
   const log = consoleLogger();
-  warnMissingDialogPeers(log);
   const siteUrl = options.siteUrl ?? config.sitemap?.hostname;
   const mcp = resolveMcp(
     options.mcp,
@@ -316,7 +314,7 @@ function launcherPlugin(endpoint: string, options: OndocsOptions, log: Logger) {
     name: 'ondocs',
     // Vite's dev server does not see the module this plugin adds when it scans for dependencies
     // to prebundle, and would find the dialog's on the first page load, then reload it.
-    config: () => ({ optimizeDeps: { include: ['ondocs/embed'] } }),
+    config: () => ({ optimizeDeps: { include: ['ondocs/embed/standalone'] } }),
     configResolved(resolved: { vitepress?: VitePressSiteConfig }) {
       site = resolved.vitepress;
     },
