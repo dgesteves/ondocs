@@ -6,6 +6,7 @@ import { useId, useState, type MouseEvent } from 'react';
 
 import type { SampleAnswer } from '../../lib/sample-answer';
 import { Spark } from '../icons';
+import { DemoSources } from './demo-sources';
 
 interface HeroDemoProps {
   suggestions: readonly string[];
@@ -30,8 +31,8 @@ export function HeroDemo({ suggestions, initial, mode }: HeroDemoProps) {
   const sources: readonly AskSource[] = live ? ask.sources : (initial?.sources ?? []);
   const refused = live && ask.refused;
   const busy = ask.status === 'loading' || ask.status === 'streaming';
-  // Every source shows, numbered as the answer cites them. Once the answer is complete, those it
-  // doesn't cite are dimmed, and an answer that cites none shows none.
+  // The sources the answer cites show, numbered as it cites them; the others fold into one line
+  // (DemoSources). An answer that cites none shows none.
   const complete = !live || ask.status === 'done';
   const cited = citedSourceIds(answer);
   const showSources =
@@ -51,7 +52,13 @@ export function HeroDemo({ suggestions, initial, mode }: HeroDemoProps) {
   };
 
   return (
-    <section className="demo" aria-labelledby={`${inputId}-title`}>
+    <section
+      className="demo"
+      aria-labelledby={`${inputId}-title`}
+      // On a phone the demo is a still of the answer asked at build time (landing.css). Without
+      // one, it stays a demo to type in.
+      data-still={initial ? '' : undefined}
+    >
       <h2 id={`${inputId}-title`} className="sr-only">
         Ask these docs
       </h2>
@@ -138,31 +145,14 @@ export function HeroDemo({ suggestions, initial, mode }: HeroDemoProps) {
           ) : null}
         </div>
         {showSources ? (
-          <div className="demo-sources">
-            <p className="demo-label">Sources</p>
-            <ol>
-              {sources.map((source) => (
-                <li key={source.id}>
-                  <a
-                    href={source.url}
-                    data-cited={complete ? cited.has(source.id) : undefined}
-                    onClick={(event) => {
-                      navigate(source.url, event);
-                    }}
-                  >
-                    <span className="demo-source-id" aria-hidden="true">
-                      {source.id}
-                    </span>
-                    <span className="demo-source-title">
-                      {source.title}
-                      {source.heading ? <span> › {source.heading}</span> : null}
-                    </span>
-                    <span className="demo-source-url">{source.url}</span>
-                  </a>
-                </li>
-              ))}
-            </ol>
-          </div>
+          // Keyed by the question, so the fold is closed again for each new one.
+          <DemoSources
+            key={question ?? ''}
+            sources={sources}
+            cited={cited}
+            complete={complete}
+            onNavigate={navigate}
+          />
         ) : null}
       </div>
 
