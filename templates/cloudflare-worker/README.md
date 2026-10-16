@@ -20,19 +20,19 @@ npx wrangler deploy
 
 Wrangler prints the Worker's URL. Point the dialog at it, plus `/api/ask`:
 
-- **Docusaurus:** `plugins: [['ondocs/docusaurus', { endpoint: 'https://my-docs-ask.<subdomain>.workers.dev/api/ask' }]]`
-- **Starlight:** `ondocs({ endpoint: 'https://my-docs-ask.<subdomain>.workers.dev/api/ask' })`
+- **Docusaurus:** `plugins: [['ondocs/docusaurus', { endpoint: 'https://my-docs-ask.<subdomain>.workers.dev/api/ask', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' }]]`
+- **Starlight:** `ondocs({ endpoint: 'https://my-docs-ask.<subdomain>.workers.dev/api/ask', embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5' })`
 - **Any other site:** `data-endpoint="https://my-docs-ask.<subdomain>.workers.dev/api/ask"` on the script tag
 
 `package.json` allows the install scripts of esbuild and workerd, which Wrangler needs to set up their binaries, and declines fsevents (macOS file watching, with a prebuilt fallback). npm 12 runs no install scripts unless they are allowed this way.
 
-The site must serve its index at `SITE_URL/ask-index.json`. The Docusaurus and Starlight plugins write it with every build; for another generator, run `npx ondocs index <build folder> -o <build folder>/ask-index.json -e none` after the build. For a project site, at `https://user.github.io/repo`, add `--base-url /repo` to that command: the pages' URLs in the index, which the dialog's citations and the MCP results link to, then start with `/repo`, as the site serves them.
+The site must serve its index at `SITE_URL/ask-index.json`. The Docusaurus and Starlight plugins write it with every build; for another generator, run `npx ondocs index <build folder> -o <build folder>/ask-index.json -e workers-ai:@cf/baai/bge-small-en-v1.5` after the build. For a project site, at `https://user.github.io/repo`, add `--base-url /repo` to that command: the pages' URLs in the index, which the dialog's citations and the MCP results link to, then start with `/repo`, as the site serves them. Embedding the pages with Workers AI, as `embedding` does in the plugins, needs `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, a token allowed to run Workers AI, where the site builds. Without them, leave out `embedding`, or pass `-e none`, for a keyword-only index.
 
 ## What it does
 
 - **It reads the index from the live site,** keeps it in memory, and checks it again every five minutes with a conditional request, so it follows the site's deploys without being redeployed.
 - **It answers the site's pages across origins,** with CORS headers for `SITE_URL`'s origin and no other.
-- **It searches by keywords** for an index built without an embedding model, and by meaning as well for one built with a Workers AI model: `ondocs index -e workers-ai:@cf/baai/bge-small-en-v1.5`, or `embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5'` in the plugins. That build needs `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, a token allowed to run Workers AI, where the site builds.
+- **It searches by meaning and by keywords** for an index embedded with Workers AI, as above, and by keywords only for one built without an embedding model, which needs no secret anywhere. With keywords only, the Ask box answers only questions that use enough of the docs' own words, so embed the index for it.
 - **It says "I don't know" without calling the model** when nothing in the docs is relevant.
 - **It limits each visitor** to 10 questions a minute, and the Worker to 100 questions and 300,000 model tokens a day per instance, about the free allowance with the default model. On the Workers Free plan nothing is charged past the allowance; on Workers Paid, raise the budget in `src/index.ts` to what you will spend.
 - **It serves the same index to agents** at `/api/mcp`, keyword-only, calling no model.

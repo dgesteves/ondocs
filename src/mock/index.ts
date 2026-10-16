@@ -21,9 +21,10 @@ import { tokenize } from '../text/tokenize';
  * A `minSimilarity` that suits {@link mockEmbeddingModel} at its default size. Chance similarity
  * between hashed vectors has a standard deviation of about 1/sqrt(dimensions), 0.044 at 512, so
  * 0.2 sits well clear of noise. Most relevant matches pass on keyword coverage instead. A short
- * question can still collide with a short chunk ("France" and "npm" share a bucket at 512), so
- * retrieval over a mock index only counts similarity from chunks that share a word with the
- * question (`similarityNeedsKeyword`).
+ * question can still collide with a short chunk ("France" and "npm" share a bucket at 512), and
+ * one common word, such as "git" or "file", makes a short section similar enough, so retrieval
+ * over a mock index only counts similarity from chunks that share two of the question's words
+ * (`similarityNeedsKeyword`).
  */
 export const MOCK_MIN_SIMILARITY = 0.2;
 
