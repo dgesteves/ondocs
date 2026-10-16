@@ -4,11 +4,11 @@ title: 'Upgrading'
 description: 'The options each minor version renames, old name to new, and the defaults that change with them.'
 ---
 
-Before 1.0, a minor version can rename an option. The old name keeps working until the next minor version, and says once what it is called now: in the build's output for the plugins, in the server's log for the endpoint, in the terminal for the CLI, and in the browser's console for the dialog.
+Before 1.0, a minor version can rename an option. The old name keeps working until 1.0, and says once what it is called now: in the build's output for the plugins, in the server's log for the endpoint, in the terminal for the CLI, and in the browser's console for the dialog.
 
 ## 0.9: one name per option
 
-0.9 gives each option one name across `createAskHandler`, `AskDialog`, `mountAskDialog`, the script tag, the plugins and the CLI. The old names still work in 0.9, with a warning, and 0.10 removes them.
+0.9 gives each option one name across `createAskHandler`, `AskDialog`, `mountAskDialog`, the script tag, the plugins and the CLI. The old names still work, with a warning, until 1.0 removes them.
 
 | Where                                                                                 | Before 0.9                                 | From 0.9                               |
 | ------------------------------------------------------------------------------------- | ------------------------------------------ | -------------------------------------- |
