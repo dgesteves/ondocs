@@ -2,6 +2,36 @@
 
 Until 0.6.0 this package was published as `ask-my-site`. Its entries below keep the links and names of that time.
 
+## 0.12.0
+
+### Minor Changes
+
+- [#167](https://github.com/dgesteves/ondocs/pull/167) [`a4a7fe2`](https://github.com/dgesteves/ondocs/commit/a4a7fe26b1e79d1085875f7791bdea7260008d6d) Thanks [@dgesteves](https://github.com/dgesteves)! - The Astro, Starlight and VitePress plugins no longer need React. Their dialog now comes prebuilt with its own React, Radix and cmdk, from the new `ondocs/embed/standalone`, so a site installs `ondocs`, `ai` and `@ai-sdk/openai` and nothing else. Before, a Vue or Astro site without React had to install `react`, `react-dom`, `@radix-ui/react-dialog` and `cmdk`, or its build failed. `ondocs init` no longer lists them for these sites, and `starlight-ondocs` no longer asks for them as peers, so npm no longer installs them with it. The dialog still loads only the first time it is wanted, in a chunk of its own: 92.6 KB gzipped on the Starlight example (93.6 KB before) and 95.6 KB on the VitePress one (96.8 KB before). A site that installed the four packages only for the dialog can remove them. On an Astro site with React islands, the dialog no longer shares their React.
+  
+  `ondocs/embed/standalone` has the same `mountAskDialog` and `openAskDialog` as `ondocs/embed`, for an app with a bundler and no React. On such a site, import `openAskDialog` from it: `ondocs/embed` renders the dialog with the site's React, so the build fails without React installed. `launcherScript` from `ondocs/integration` now mounts the launcher with it.
+
+### Patch Changes
+
+- [#163](https://github.com/dgesteves/ondocs/pull/163) [`4b368af`](https://github.com/dgesteves/ondocs/commit/4b368af4cc17f0c92ab4f56cde0856d839f0d1bc) Thanks [@dgesteves](https://github.com/dgesteves)! - Keyword search finds Chinese, Japanese and Korean text. A run of it with no space was one term, which a question matched only where a page had the same run, so every keyword path (MCP search without an `embeddingModel`, `-e none` and `-e mock` indexes, the keyword half of hybrid search) found almost nothing: `怎么安装插件？` was refused on a page headed 安装插件. A run is now split into overlapping pairs of characters, without question words such as 怎么, 如何, どこ and 어떻게, and kana keep their voicing marks (`デプロイ` was folded to `テフロイ`). On the docs' five-page test site, a `-e none` index now answers 7 of 8 Chinese questions with the right page first, up from 1, and 6 of 8 Japanese ones, up from 1, and still refuses all 6 off-topic questions in each language.
+  
+  A CJK paragraph longer than a chunk is now cut at `。`, `！`, `？`, `；` or `：`, and the next chunk repeats the end of the one before, as in other languages; before, it was cut mid-sentence with no overlap. A hard cut never splits a surrogate pair, so a chunk no longer ends or starts with half an emoji.
+  
+  The keyword side is built when an index loads, so an index needs no rebuild for it. One with a CJK paragraph longer than a chunk is cut differently now, so `ondocs index --check` fails on it until you rebuild it, which embeds only the changed chunks again. An `-e mock` index of CJK pages keeps the vectors of the chunks that did not change, made from the old terms: delete it (and `node_modules/.cache/ondocs` for a plugin's build) and build it again. Indexes of other languages are unchanged.
+
+- [#162](https://github.com/dgesteves/ondocs/pull/162) [`856edfd`](https://github.com/dgesteves/ondocs/commit/856edfd1abeafbdd3cd763a4bb2350225e9f57ec) Thanks [@dgesteves](https://github.com/dgesteves)! - An endpoint that cannot answer as it is set up now says so, instead of telling every reader to try again:
+  
+  - When the model has no API key, or the provider rejects the key (a 401 or a 403, or AI Gateway with no key or OIDC token), the stream's error is now `The ask endpoint is misconfigured.`, followed by a `message-metadata` part with `misconfigured: true`. The dialog shows "Answers aren’t set up on this site yet." with no Retry button, where before it showed "The answer could not be generated. Please try again." with a Retry that could not fix it. The endpoint's 500 (an index it could not load, or one embedded with another model) now shows the same words, but keeps Retry: an index that failed to load, such as a `remoteIndex` the site did not serve, is loaded again on the next request. The new `errorMisconfigured` label changes the words, and `useAsk` reports both with `reason: 'misconfigured'`: the first with `kind: 'stream'`, the 500 with `kind: 'http'`. Other model failures still say to try again.
+  - On a page served from your machine, or in a development build, the console now says the endpoint's log has the cause of these errors and of a failed answer, with a link to Troubleshooting.
+  - The console's hint for a 404 now says to start the site with `ASK_ENDPOINT=http://localhost:8787/api/ask`, as the docs do, rather than to point the dialog's `endpoint` at it, which a deployed site would then post to. It links to the deployment guide instead of the README.
+  - `ondocs init` no longer calls `OPENAI_API_KEY` optional where one variable serves the build and the functions (Vercel, Netlify, and Next.js on any host). It says that without the key the MCP endpoint works and off-topic questions are refused, but the Ask box cannot answer, and that `init --host github-pages` answers with Workers AI and no key.
+  - A plugin build with `embedding: 'mock'` now says the index is for local testing only: the Vercel, Netlify and Cloudflare endpoints `init` writes refuse it with a 500, and the GitHub Pages Worker ignores its vectors.
+
+- [#165](https://github.com/dgesteves/ondocs/pull/165) [`30843b9`](https://github.com/dgesteves/ondocs/commit/30843b955e3fd29e1ef3efb4b76616ce8b344aa5) Thanks [@dgesteves](https://github.com/dgesteves)! - `remoteIndex` no longer lets a site that stops answering hold up every question. Before, once the index was due for a check, every request waited for that check, so a hung site held them all until the platform's own fetch gave up.
+  
+  - Each fetch of the index is given up after 10 seconds, for the response and the file together, also when a custom `fetch` ignores the abort signal. The new `timeoutSeconds` option changes it, up to 2147483, the longest a timer can wait: raise it for a very large index on a slow link. A check that times out keeps the index it has. A first fetch that times out fails its request with an error that names the option, and the next request tries again.
+  - The request that finds the index due still waits for the check, now for at most `timeoutSeconds`, so it gets a redeployed index at once. This also holds on a Worker, which cancels what a request started once it has answered. Requests that arrive during the check no longer wait for it: they are answered from the index in memory.
+  - A check whose connection drops part-way through the file now keeps the index it has. Before, it failed every request waiting on it with a 500. A first fetch that drops names the index's URL in its error, as other failed fetches do.
+
 ## 0.11.0
 
 ### Minor Changes
