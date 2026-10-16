@@ -620,10 +620,12 @@ function AnswerPanel({
       {state.error ? (
         <div className="ask-error" role="alert">
           <span>{errorText(state.error, labels)}</span>
-          {/* No Retry where asking again cannot help: a rate limit, or an endpoint set up wrong. */}
+          {/* No Retry where asking again cannot help: a rate limit, or a model the endpoint cannot
+              call as it is set up, which the stream says. A 500 keeps it: a remote index that
+              failed to download is fetched again on the next request. */}
           {state.question &&
           state.error.kind !== 'rate-limited' &&
-          state.error.reason !== 'misconfigured' ? (
+          !(state.error.kind === 'stream' && state.error.reason === 'misconfigured') ? (
             <button
               type="button"
               className="ask-retry"

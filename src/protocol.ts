@@ -8,8 +8,8 @@
  * 1. `start`, with {@link AskMetadata} as `messageMetadata`
  * 2. one `source-url` part per numbered source; `sourceId` is the citation number
  * 3. `text-start` / `text-delta` / `text-end` for the answer, which cites sources as `[n]`
- * 4. `finish` (or `error`, followed by a `message-metadata` part with `misconfigured` when asking
- *    again cannot help)
+ * 4. `finish` (or `error`, followed by a `message-metadata` part with `misconfigured` when the
+ *    endpoint cannot call its model as it is set up)
  */
 
 /** A numbered source, as cited in the answer with `[id]`. */
@@ -96,8 +96,10 @@ export interface AskErrorBody {
       /** The bot check's token was bad, expired or used before. */
       | 'challenge_failed'
       /**
-       * A 500: the endpoint is misconfigured. It could not load its index, or the index does not
-       * match its embedding model. Asking again cannot help; the endpoint's log has the cause.
+       * A 500: the endpoint could not load its index, or the index does not match its embedding
+       * model. The endpoint's log has the cause. A mismatch lasts until the index or the endpoint
+       * changes, but a load can fail for a moment: a `remoteIndex` that could not download the
+       * file tries again on the next request.
        */
       | 'internal_error'
       | 'service_unavailable';

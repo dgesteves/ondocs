@@ -20,8 +20,11 @@ export interface AskError {
   /**
    * What happened, for words of your own: `unavailable` (no endpoint there, a 404), `no-body`,
    * `interrupted` (the stream broke off), `cut-off` (it ended without finishing), `server` (the
-   * server's own message, such as the model failing), or `misconfigured` (the endpoint cannot
-   * answer as it is set up, such as without a key for its model, so asking again will not help).
+   * server's own message, such as the model failing), or `misconfigured` (the endpoint says it is
+   * set up wrong). A `misconfigured` error of kind `stream` is a model the endpoint cannot call,
+   * as without a key for it, which asking again will not fix. One of kind `http` is a 500: the
+   * endpoint could not load its index, or the index does not match its embedding model. That
+   * can pass, as a remote index that failed to download is fetched again on the next request.
    */
   reason?: 'unavailable' | 'no-body' | 'interrupted' | 'cut-off' | 'server' | 'misconfigured';
 }
@@ -184,7 +187,7 @@ async function errorFrom(response: Response, endpoint: string): Promise<AskError
   }
   // What the endpoint answers when it cannot load its index, or the index does not match it.
   const misconfigured = response.status === 500 && code === 'internal_error';
-  if (misconfigured) hintServerLog(endpoint, 'misconfigured');
+  if (misconfigured) hintServerLog(endpoint, 'index');
   if (response.status === 429) {
     const retryAfter = Number(response.headers.get('retry-after'));
     return {
@@ -213,20 +216,29 @@ const TROUBLESHOOTING = 'https://ondocs.vercel.app/docs/troubleshooting';
 
 /**
  * While you develop, says in the console that the endpoint's log has the cause of an error the
- * endpoint reported, as the browser never gets it.
+ * endpoint reported, as the browser never gets it: a model it cannot call as it is set up, an
+ * index it could not load or use (its 500), or another failed answer.
  */
-function hintServerLog(endpoint: string, reason: AskError['reason']): void {
+function hintServerLog(endpoint: string, cause: 'model' | 'index' | 'answer'): void {
   if (!isDevelopment()) return;
-  if (reason === 'misconfigured') {
+  const at = `[ondocs] The ask endpoint at ${endpointUrl(endpoint)}`;
+  if (cause === 'model') {
     console.warn(
-      `[ondocs] The ask endpoint at ${endpointUrl(endpoint)} cannot answer as it is set up, ` +
-        'and asking again will not help. Its log says why, such as a missing OPENAI_API_KEY or ' +
-        `an index embedded with another model. See ${TROUBLESHOOTING}#answers-arent-set-up-on-this-site-yet.`,
+      `${at} cannot call its model as it is set up, and asking again will not help. Its log ` +
+        'says why, such as a missing OPENAI_API_KEY or a key the provider rejects. See ' +
+        `${TROUBLESHOOTING}#answers-arent-set-up-on-this-site-yet.`,
     );
-  } else if (reason === 'server') {
+  } else if (cause === 'index') {
     console.warn(
-      `[ondocs] The ask endpoint at ${endpointUrl(endpoint)} could not write the answer. Its ` +
-        `log says why. See ${TROUBLESHOOTING}#the-answer-could-not-be-generated.`,
+      `${at} returned 500: it could not load its index, or the index does not match its ` +
+        'embedding model. Its log says why, such as an index embedded with another model. A ' +
+        'remote index that failed to download is fetched again on the next request. See ' +
+        `${TROUBLESHOOTING}#the-ask-endpoint-is-misconfigured.`,
+    );
+  } else {
+    console.warn(
+      `${at} could not write the answer. Its log says why. See ` +
+        `${TROUBLESHOOTING}#the-answer-could-not-be-generated.`,
     );
   }
 }
@@ -438,7 +450,8 @@ export function useAsk(options: UseAskOptions = {}): UseAsk {
     } else if (streamError !== null && streamReason === 'server' && progress.misconfigured) {
       streamReason = 'misconfigured';
     }
-    if (streamError !== null) hintServerLog(endpoint, streamReason);
+    if (streamReason === 'misconfigured') hintServerLog(endpoint, 'model');
+    else if (streamReason === 'server' && streamError !== null) hintServerLog(endpoint, 'answer');
     commit(
       streamError === null
         ? { status: 'done', answer, truncated: progress.truncated }

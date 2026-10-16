@@ -84,8 +84,10 @@ export interface AskDialogLabels {
   /** The answer's stream ended without finishing. */
   errorCutOff: string;
   /**
-   * The endpoint cannot answer as it is set up: its model has no key, say, or its index does not
-   * match it. Asking again will not help, so the dialog offers no Retry.
+   * The endpoint says it is set up wrong. When it cannot call its model, as without a key for it,
+   * asking again will not help, so the dialog offers no Retry. For its 500 (an index it could not
+   * load, or one that does not match its embedding model) the dialog keeps Retry, as a remote
+   * index that failed to download is fetched again on the next request.
    */
   errorMisconfigured: string;
   /**
