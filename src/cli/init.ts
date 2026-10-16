@@ -695,6 +695,9 @@ function planFor(
     site.kind === 'next' || site.kind === 'static'
       ? 'without it there, add -e none to the index command for a keyword-only index, which works too'
       : 'without it there, the index is keyword-only, which works too';
+  // Where one variable serves the build and the endpoint: the build can do without the key, but
+  // the endpoint cannot, as a model writes every answer.
+  const answersNeedIt = `without it, ${mcp ? 'the MCP endpoint works and ' : ''}off-topic questions are refused, but the Ask box cannot answer; for no key at all, init --host github-pages writes a Worker that answers with Workers AI`;
   // A site whose Worker answers with Workers AI embeds with it too, or not at all.
   const needed = sitePackages(
     site,
@@ -724,7 +727,7 @@ function planFor(
     env.push({
       name: key,
       when: `for the app and ${build}`,
-      how: `in ${HOST_LABELS[host]}'s environment variables; ${keyless}`,
+      how: `in ${HOST_LABELS[host]}'s environment variables; ${answersNeedIt}`,
     });
     next.push(
       `Build the index before the app, as a "prebuild" script: ${String(site.indexCommand)}${WITHOUT_KEY}`,
@@ -792,7 +795,7 @@ function planFor(
     env.push({
       name: key,
       when: `for the functions and ${build}`,
-      how: `in the project's Settings, Environment Variables; ${keyless}`,
+      how: `in the project's Settings, Environment Variables; ${answersNeedIt}`,
     });
     if (p.pkg && !p.deps.has('@types/node')) {
       const types = install(p, ['@types/node'], true);
@@ -808,7 +811,7 @@ function planFor(
     env.push({
       name: key,
       when: `for the functions and ${build}`,
-      how: `in the site's Environment variables, or netlify env:set ${key}; ${keyless}`,
+      how: `in the site's Environment variables, or netlify env:set ${key}; ${answersNeedIt}`,
     });
     if (p.pkg && !p.deps.has('@types/node')) {
       const types = install(p, ['@types/node'], true);

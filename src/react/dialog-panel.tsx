@@ -240,6 +240,8 @@ export function errorText(error: AskError | null, labels: ResolvedLabels): strin
       return labels.errorInterrupted;
     case 'cut-off':
       return labels.errorCutOff;
+    case 'misconfigured':
+      return labels.errorMisconfigured;
     case 'server':
       return labels.answerFailed ?? error.message;
     case undefined:
@@ -618,7 +620,10 @@ function AnswerPanel({
       {state.error ? (
         <div className="ask-error" role="alert">
           <span>{errorText(state.error, labels)}</span>
-          {state.question && state.error.kind !== 'rate-limited' ? (
+          {/* No Retry where asking again cannot help: a rate limit, or an endpoint set up wrong. */}
+          {state.question &&
+          state.error.kind !== 'rate-limited' &&
+          state.error.reason !== 'misconfigured' ? (
             <button
               type="button"
               className="ask-retry"

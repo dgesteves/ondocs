@@ -219,6 +219,7 @@ The endpoint's own words, its "I don't know" answer, its rate limit and budget m
 | `errorNoBody`        | The response had no body.                                                                    |
 | `errorInterrupted`   | The answer was interrupted. Please try again.                                                |
 | `errorCutOff`        | The answer was cut off. Please try again.                                                    |
+| `errorMisconfigured` | Answers aren’t set up on this site yet.                                                      |
 | `challengeRequired`  | The check that you’re not a bot didn’t load. Reload the page and try again.                  |
 | `challengeFailed`    | The check that you’re not a bot failed. Please try again.                                    |
 | `errorUnknown`       | Something went wrong.                                                                        |
@@ -242,6 +243,6 @@ Sources arrive before the first word, and the answer renders as it streams, batc
 
 ## The useAsk hook
 
-`useAsk({ endpoint })` is the hook behind the dialog, for building your own interface. It returns `ask`, `stop` and `reset`, plus `status` (`idle`, `loading`, `streaming`, `done` or `error`), `question`, `answer`, `sources`, `refused`, `truncated`, `retrieval`, `error` and `turns`, the thread's earlier questions with their answers and sources. `ask` adds the answer on screen to `turns` and sends the thread with the next question, and `reset` starts a new thread; `followUps: false` keeps no thread. `error.kind` is `rate-limited`, `http`, `network` or `stream`, with `retryAfter` for rate limits. `stop()` keeps the partial answer.
+`useAsk({ endpoint })` is the hook behind the dialog, for building your own interface. It returns `ask`, `stop` and `reset`, plus `status` (`idle`, `loading`, `streaming`, `done` or `error`), `question`, `answer`, `sources`, `refused`, `truncated`, `retrieval`, `error` and `turns`, the thread's earlier questions with their answers and sources. `ask` adds the answer on screen to `turns` and sends the thread with the next question, and `reset` starts a new thread; `followUps: false` keeps no thread. `error.kind` is `rate-limited`, `http`, `network` or `stream`, with `retryAfter` for rate limits, and `error.reason` is `misconfigured` when the endpoint cannot answer as it is set up, such as without a key for its model, which asking again will not fix. `stop()` keeps the partial answer.
 
 `AskAnswer` renders an answer with clickable citations from `answer` and `sources`. It renders a small Markdown subset, never HTML, and only turns `[n]` into a link when source `n` exists.

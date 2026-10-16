@@ -75,7 +75,7 @@ The plugins print this as the site builds:
 No embedding model: building a keyword-only index. Set OPENAI_API_KEY or AI_GATEWAY_API_KEY at build time, or pass `embedding`, for semantic search.
 ```
 
-The build had no model key, so the index has no vectors and search matches words only. The site builds, and the MCP endpoint `init` writes searches by keywords anyway. The Ask box answers questions that use the docs' own words, but refuses more of the ones put in other words. It still needs a model key where the endpoint runs: see [The answer could not be generated](#the-answer-could-not-be-generated).
+The build had no model key, so the index has no vectors and search matches words only. The site builds, and the MCP endpoint `init` writes searches by keywords anyway. The Ask box answers questions that use the docs' own words, but refuses more of the ones put in other words. It still needs a model key where the endpoint runs: see [Answers aren't set up on this site yet](#answers-arent-set-up-on-this-site-yet).
 
 - To search by meaning too, set `OPENAI_API_KEY` where the site builds. The plugins then embed the pages with OpenAI's `text-embedding-3-small`, the model the endpoints `init` writes embed questions with. On Vercel and Netlify, one variable serves the build and the functions.
 - With the [Workers AI Worker](/docs/workers-ai), pass `embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5'` and set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` where the site builds.
@@ -99,27 +99,31 @@ The plugins and the script tag add the dialog, not the endpoint. The endpoint is
 
 A host that turns the question away with another status, such as a 405, shows `Something went wrong (405). Please try again.` with that status instead. The cause and the fix are the same.
 
-## The answer could not be generated
+## Answers aren't set up on this site yet
 
-The sources appear, then `The answer could not be generated. Please try again.` and a Retry button. The endpoint found the sources, and then the call to the model that writes the answer failed.
+The sources appear, then `Answers aren’t set up on this site yet.`, with no Retry button. The endpoint found the sources, and then it could not call the model that writes the answer, as it is set up: asking again cannot fix that. On a page served from your machine, or in a development build, the browser console points at the endpoint's log, which has the cause.
 
-Most often, the endpoint has no key for the model, and the log has an `AI_LoadAPIKeyError`: `OpenAI API key is missing`. Retrying cannot fix that.
+Most often, the endpoint has no key for the model, and the log has an `AI_LoadAPIKeyError`: `OpenAI API key is missing`. A key the provider rejects, with a 401 or a 403, or AI Gateway with no key or OIDC token, shows the same message.
 
 - Set the key, such as `OPENAI_API_KEY`, where the endpoint runs: the project's environment variables on Vercel and Netlify, `npx wrangler pages secret put OPENAI_API_KEY` on Cloudflare Pages, or `npx wrangler secret put OPENAI_API_KEY` for a Worker. On Vercel and Netlify, deploy again: a new variable reaches only the deployments made after it. `init` prints where the key goes on your host.
 - A keyword-only index does not make the key optional. Built without a key, the index is searched by keywords, which works, but a model still writes every answer. Without a key, only the MCP endpoint, whose search calls no model, and the questions the endpoint refuses before it would call one, work.
 - To answer with no key at all, use Workers AI: `npx ondocs init --host github-pages` writes a Cloudflare Worker that answers for any static site with it. See [Workers AI](/docs/workers-ai).
 
-Any other failed model call shows the same message, such as a key the provider rejects, a model it does not know or an account out of credit. The log says which.
+The dialog shows the same message, without the sources, when the endpoint answers with a 500: see [The ask endpoint is misconfigured](#the-ask-endpoint-is-misconfigured). Other clients, such as `useChat`, get `The ask endpoint is misconfigured.` instead: as the stream's error here, and as the 500's message there.
 
 ## The ask endpoint is misconfigured
 
-The endpoint answers with a 500, code `internal_error`, and the dialog shows `The ask endpoint is misconfigured.` It could not load its index, or the index and the endpoint do not match. The log says which:
+The endpoint answers with a 500, code `internal_error`, and the message `The ask endpoint is misconfigured.`, and the dialog shows `Answers aren’t set up on this site yet.` It could not load its index, or the index and the endpoint do not match. The log says which:
 
 | The log says                                                                                                                                                   | What to do                                                                                                                                                                                                                                                                                                                                                                    |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `The index was embedded with "mock-hash-512" but the handler embeds queries with "text-embedding-3-small". Rebuild the index or pass the same embeddingModel.` | The index was built with `embedding: 'mock'` or `-e mock`, which is for local testing. Remove it and build again: with `OPENAI_API_KEY` set the plugins embed with `text-embedding-3-small`, and without it they build a keyword-only index. If the log names two other models, build the index with the endpoint's `embeddingModel`, or set `embeddingModel` to the index's. |
 | `ENOENT: no such file or directory`, with the index's path                                                                                                     | The function's bundle does not include the index. `init` adds it with `includeFiles` in `vercel.json` or `included_files` in `netlify.toml`: check that the path is your build's output folder.                                                                                                                                                                               |
 | `Index is not valid JSON`                                                                                                                                      | `index` takes the index, not its path: `import index from './ask-index.json'`, or `index: () => readFile(path, 'utf8')`.                                                                                                                                                                                                                                                      |
+
+## The answer could not be generated
+
+The sources appear, then `The answer could not be generated. Please try again.` and a Retry button. The endpoint found the sources, and then the call to the model that writes the answer failed for another reason, such as the provider's rate limit, an outage, a timeout, a model the provider does not know or an account out of credit. Some of these pass, so the dialog offers Retry. The log says which; on a page served from your machine, or in a development build, the browser console points at it.
 
 ## It says "I don't know" when the docs have the answer
 

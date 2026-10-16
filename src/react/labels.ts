@@ -84,6 +84,11 @@ export interface AskDialogLabels {
   /** The answer's stream ended without finishing. */
   errorCutOff: string;
   /**
+   * The endpoint cannot answer as it is set up: its model has no key, say, or its index does not
+   * match it. Asking again will not help, so the dialog offers no Retry.
+   */
+  errorMisconfigured: string;
+  /**
    * The endpoint checks for bots, and the question went without a token: the check could not
    * run, as when the page blocks Turnstile's script.
    */
@@ -154,6 +159,7 @@ export const DEFAULT_LABELS: Readonly<DefaultLabels> = {
   errorNoBody: 'The response had no body.',
   errorInterrupted: 'The answer was interrupted. Please try again.',
   errorCutOff: 'The answer was cut off. Please try again.',
+  errorMisconfigured: 'Answers aren’t set up on this site yet.',
   challengeRequired: 'The check that you’re not a bot didn’t load. Reload the page and try again.',
   challengeFailed: 'The check that you’re not a bot failed. Please try again.',
   errorUnknown: 'Something went wrong.',

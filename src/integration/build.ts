@@ -160,6 +160,14 @@ export async function buildEmbedding(
         : '';
     throw new Error(`ondocs: ${message}${hint}`, { cause: error });
   }
+  // The plugins call this in a production build, which a mock index is not for.
+  if (/^mock(?::\d+)?$/.test(spec)) {
+    log.info(
+      `embedding: '${spec}' is for local testing only: the endpoints init writes embed ` +
+        "questions with OpenAI's text-embedding-3-small, so they refuse this index and answer " +
+        'every question with a 500. Remove it before you deploy.',
+    );
+  }
   const providerOptions = mergeProviderOptions(given, choice.providerOptions);
   return { model: choice.model, ...(providerOptions ? { providerOptions } : {}) };
 }
