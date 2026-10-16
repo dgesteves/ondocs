@@ -21,7 +21,6 @@ import {
   quietUseClient,
   readBuiltHtml,
   resolveMcp,
-  warnMissingDialogPeers,
   writeLlmsFiles,
   writeSiteIndex,
   type IndexOptions,
@@ -354,7 +353,6 @@ export function createIntegration(
           "astro.config's site",
         );
         mcpUrl = mcp?.url;
-        warnMissingDialogPeers(logger);
         // The stylesheets go into every page's CSS: a `page` script's CSS is built but not linked.
         injectScript(
           'page-ssr',
@@ -362,7 +360,8 @@ export function createIntegration(
             .map((stylesheet) => `import ${JSON.stringify(stylesheet)};`)
             .join('\n'),
         );
-        // Bundled by Vite with each page's scripts, so React is the site's own copy, if it has one.
+        // Bundled by Vite with each page's scripts. The dialog's chunk brings its own React, Radix
+        // and cmdk, so the site installs none of them.
         injectScript(
           'page',
           launcherScript({
@@ -387,7 +386,7 @@ export function createIntegration(
             ],
             // Vite's dev server does not see injected scripts when it scans for dependencies to
             // prebundle, and would find the dialog's on the first page load, then reload it.
-            optimizeDeps: { include: ['ondocs/embed'] },
+            optimizeDeps: { include: ['ondocs/embed/standalone'] },
           },
         });
       },

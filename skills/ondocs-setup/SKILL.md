@@ -30,10 +30,10 @@ Before you install, check two things:
 
 Use the project's package manager: `pnpm add` where there is a `pnpm-lock.yaml`, `yarn add` with a `yarn.lock`, `bun add` with a `bun.lock`, and `npm i` otherwise. The packages are the same.
 
-Starlight, Astro and VitePress, whose dialog brings React with it:
+Starlight, Astro and VitePress, whose dialog comes with its own React:
 
 ```sh
-npm i ondocs ai @ai-sdk/openai react react-dom @radix-ui/react-dialog cmdk
+npm i ondocs ai @ai-sdk/openai
 ```
 
 Docusaurus, Next.js, Fumadocs and Nextra:

@@ -349,7 +349,7 @@ describe('ondocs/starlight', () => {
     ]);
     expect(script?.[0]).toBe('page');
     expect(script?.[1]).toBe(
-      `import { mountAskDialog } from 'ondocs/embed';\nmountAskDialog(${JSON.stringify({
+      `import { mountAskDialog } from 'ondocs/embed/standalone';\nmountAskDialog(${JSON.stringify({
         endpoint: 'https://api.example.com/ask',
         shortcut: 'j',
         theme: 'light',
@@ -362,7 +362,7 @@ describe('ondocs/starlight', () => {
           expect.objectContaining({ name: 'ondocs:quiet-use-client' }),
           expect.objectContaining({ name: 'ondocs:virtual-module' }),
         ],
-        optimizeDeps: { include: ['ondocs/embed'] },
+        optimizeDeps: { include: ['ondocs/embed/standalone'] },
       },
     });
   });

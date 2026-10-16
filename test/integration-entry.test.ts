@@ -229,7 +229,7 @@ describe('launcherScript', () => {
       }),
     ).toBe(
       [
-        "import { mountAskDialog } from 'ondocs/embed';",
+        "import { mountAskDialog } from 'ondocs/embed/standalone';",
         'mountAskDialog({"endpoint":"/api/ask","suggestions":["Why?"],"title":"Ask Acme"});',
       ].join('\n'),
     );

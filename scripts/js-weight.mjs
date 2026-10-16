@@ -1,6 +1,6 @@
 // Measures the JavaScript a docs page of each example loads in headless Chrome, gzipped: before
 // any interaction, and after the visitor opens the dialog. With --check, fails when a page loads
-// more before interaction than its budget.
+// more than its budget for either.
 //
 //   pnpm build && pnpm --filter <example> build
 //   node scripts/js-weight.mjs [docusaurus|starlight|vitepress|next|embed ...] [--check] [--json]
@@ -27,6 +27,11 @@ const root = fileURLToPath(new URL('..', import.meta.url));
  * little room; the dialog itself loads on first use and is not counted. A framework update, or
  * the demo's own growth, such as its banner or more pages, can need a budget raised: measure
  * the site built without ondocs, keeping its theme and pages (`docusaurus=<another build>`).
+ *
+ * `open` is the budget for what the dialog adds when it opens, with a few KB of room. On a React
+ * site (Docusaurus, Next.js) that is the dialog, Radix and cmdk; on the others, it brings its own
+ * React too: the Starlight and VitePress plugins' `ondocs/embed/standalone`, and the script tag's
+ * `embed-dialog.global.js`.
  */
 const SITES = {
   docusaurus: {
@@ -39,6 +44,8 @@ const SITES = {
     // site loads its shared code in one chunk, not two, and 173.8 KB, the benchmarks page's
     // figure. The budget leaves about 4 KB of room, as Starlight's does.
     budget: 182,
+    // The dialog, Radix and cmdk, on the site's React: 27.2 KB.
+    open: 31,
   },
   starlight: {
     dir: 'examples/starlight/dist',
@@ -47,6 +54,8 @@ const SITES = {
     // Starlight's own 33.7 KB, with the demo's banner and question box, and ondocs's 2.4 KB:
     // 36.1 KB.
     budget: 40,
+    // ondocs/embed/standalone's dialog, with its own React: 92.6 KB.
+    open: 97,
   },
   vitepress: {
     dir: 'examples/vitepress/.vitepress/dist',
@@ -55,6 +64,8 @@ const SITES = {
     // VitePress's own 58.7 KB, with the demo's notice and question box, and ondocs's 2.9 KB:
     // 61.6 KB.
     budget: 64,
+    // ondocs/embed/standalone's dialog, with its own React: 95.6 KB.
+    open: 100,
   },
   next: {
     next: 'examples/nextjs',
@@ -66,6 +77,8 @@ const SITES = {
     // package.json, which client code reached through the site's constants, left the bundle.
     launcher: false,
     budget: 180,
+    // The dialog, Radix and cmdk, on the site's React: 27.3 KB.
+    open: 31,
   },
   embed: {
     dir: null,
@@ -73,6 +86,8 @@ const SITES = {
     key: 'i',
     // dist/embed.global.js alone: the button, the shortcut and their styles.
     budget: 4,
+    // dist/embed-dialog.global.js: the dialog, React and the dialog's styles, 97.8 KB.
+    open: 102,
   },
 };
 
@@ -276,6 +291,7 @@ async function measure(name, dir, baseline) {
       focusReturned,
       launcherFocusReturned,
       budgetKB: site.budget,
+      openBudgetKB: site.open,
     };
   } finally {
     await browser.close();
@@ -306,7 +322,7 @@ else {
       continue;
     }
     console.log(
-      `${result.site.padEnd(11)} ${String(result.initialKB).padStart(6)} KB before interaction (budget ${String(result.budgetKB)}), +${String(result.onOpenKB)} KB on open; button ${result.launcher ? 'shown' : 'missing'}; shortcut while loading: input ${result.dialogFocused ? 'focused' : 'NOT focused'}, focus ${result.focusReturned ? 'back on the page' : 'NOT back'} after Escape${result.launcher ? `, ${result.launcherFocusReturned ? 'and back on the button' : 'NOT back on the button'} after a click` : ''}`,
+      `${result.site.padEnd(11)} ${String(result.initialKB).padStart(6)} KB before interaction (budget ${String(result.budgetKB)}), +${String(result.onOpenKB)} KB on open (budget ${String(result.openBudgetKB)}); button ${result.launcher ? 'shown' : 'missing'}; shortcut while loading: input ${result.dialogFocused ? 'focused' : 'NOT focused'}, focus ${result.focusReturned ? 'back on the page' : 'NOT back'} after Escape${result.launcher ? `, ${result.launcherFocusReturned ? 'and back on the button' : 'NOT back on the button'} after a click` : ''}`,
     );
   }
 }
@@ -314,6 +330,7 @@ const failures = results.filter(
   (result) =>
     !result.baseline &&
     (result.initialKB > result.budgetKB ||
+      result.onOpenKB > result.openBudgetKB ||
       (SITES[result.site].launcher !== false && !result.launcher) ||
       !result.dialogFocused ||
       !result.focusReturned ||
@@ -322,7 +339,7 @@ const failures = results.filter(
 if (check && failures.length > 0) {
   for (const failure of failures) {
     console.error(
-      `✗ ${failure.site}: ${String(failure.initialKB)} KB of JavaScript before interaction (budget ${String(failure.budgetKB)} KB)${failure.launcher || SITES[failure.site].launcher === false ? '' : ', no button'}${failure.dialogFocused ? '' : ', the dialog input did not get focus'}${failure.focusReturned ? '' : ', focus did not come back after Escape'}${failure.launcherFocusReturned === false ? ', focus did not come back to the button' : ''}`,
+      `✗ ${failure.site}: ${String(failure.initialKB)} KB of JavaScript before interaction (budget ${String(failure.budgetKB)} KB), +${String(failure.onOpenKB)} KB on open (budget ${String(failure.openBudgetKB)} KB)${failure.launcher || SITES[failure.site].launcher === false ? '' : ', no button'}${failure.dialogFocused ? '' : ', the dialog input did not get focus'}${failure.focusReturned ? '' : ', focus did not come back after Escape'}${failure.launcherFocusReturned === false ? ', focus did not come back to the button' : ''}`,
     );
   }
   process.exit(1);
