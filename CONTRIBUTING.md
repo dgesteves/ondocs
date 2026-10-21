@@ -64,12 +64,6 @@ The packages in `packages/` are in a fixed group with `ondocs`, so each release 
 
 By contributing, you agree that your work is released under the [MIT license](./LICENSE) and that you follow the [code of conduct](./CODE_OF_CONDUCT.md).
 
-## Retiring the old name (one-off, after ondocs 0.7.0 is on npm)
+## The old name
 
-The package was `ask-my-site` until 0.6.0. Once `ondocs@0.7.0` is published, the maintainer points the old package at the new one, from a machine logged in to npm:
-
-```sh
-npm deprecate ask-my-site "Renamed to ondocs: npm install ondocs. See https://ask-my-site-demo.vercel.app/docs/migrating"
-```
-
-It is not in a workflow: it runs once. A version installed before keeps working; npm prints the message on each install.
+ondocs was published as `ask-my-site` until 0.6.0 ([what changed](https://ondocs.vercel.app/docs/migrating)). The code keeps the old name in a few places so that sites that moved over keep working: the index format id, the store key prefixes, the old cache directory and the deprecated `AskMySite` names. Leave them as they are.
