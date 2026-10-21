@@ -59,13 +59,13 @@ jobs:
         run: |
           # Re-link the workspace now that dist/cli.js exists, so the example gets its bin.
           pnpm install --frozen-lockfile --offline
-          pnpm --filter ask-my-site-example-nextjs build
+          pnpm --filter ondocs-example-nextjs build
           test -s examples/nextjs/public/docs/mcp.md
           grep -Eq '<link rel="alternate" type="text/markdown" href="[^"]*/docs/mcp\.md"' examples/nextjs/.next/server/app/docs/mcp.html
       - name: Score the website's retrieval with ondocs eval
         run: node dist/cli.js eval examples/nextjs/ask-eval.yaml
       - name: Lint the example app
-        run: pnpm --filter ask-my-site-example-nextjs lint
+        run: pnpm --filter ondocs-example-nextjs lint
       # The three examples are the live demos on Vercel: each is built as its vercel.json says,
       # after the install from the repository root that this job ran, and with no key.
       - name: Build the Docusaurus example as Vercel builds its live demo; the plugin must write its index and llms files, and link each page's .md copy

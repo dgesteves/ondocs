@@ -17,10 +17,10 @@
     "tag": false
   },
   "ignore": [
-    "ask-my-site-example-docusaurus",
-    "ask-my-site-example-nextjs",
-    "ask-my-site-example-starlight",
-    "ask-my-site-example-vitepress"
+    "ondocs-example-docusaurus",
+    "ondocs-example-nextjs",
+    "ondocs-example-starlight",
+    "ondocs-example-vitepress"
   ],
   "changedFilePatterns": ["src/**", "package.json", "README.md"]
 }

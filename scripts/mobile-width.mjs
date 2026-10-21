@@ -2,7 +2,7 @@
 // the sitemap, and the 404 page, in headless Chrome at 390 by 844, after the example's build, and
 // fails on a page wider than the screen, naming the widest elements that stick out.
 //
-//   pnpm --filter ask-my-site-example-nextjs build && node scripts/mobile-width.mjs
+//   pnpm --filter ondocs-example-nextjs build && node scripts/mobile-width.mjs
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
