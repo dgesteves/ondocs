@@ -333,19 +333,24 @@ function matchesCompound(
   });
 }
 
+interface Tag {
+  /** Lowercase. */
+  name: string;
+  close: boolean;
+  /** Where the tag starts and where it ends. */
+  start: number;
+  end: number;
+  /** What follows the name, as written. */
+  attributes: string;
+}
+
 /**
- * The outermost elements `selector` matches, left to right, each up to its own closing tag; an
- * element that is never closed is not matched. Linear: every tag is found in one scan, paired
- * with its closing tag through a stack per tag name, and matched once.
+ * Every tag in `html`, left to right, and for each opening tag the index of the closing tag that
+ * pairs with it, through a stack per tag name; none for one that is never closed. One scan.
  */
-function* select(
-  html: string,
-  selector: string,
-): Generator<{ start: number; end: number; inner: string }> {
-  const compounds = parseSelector(selector);
+function pairedTags(html: string): { tags: Tag[]; closer: (number | undefined)[] } {
   const pattern = /<(\/?)([a-z][a-z\d-]*)(?=[\s/>])([^<>]*)>/gi;
-  const tags: { name: string; close: boolean; start: number; end: number; attributes: string }[] =
-    [];
+  const tags: Tag[] = [];
   for (let match = pattern.exec(html); match !== null; match = pattern.exec(html)) {
     tags.push({
       name: (match[2] ?? '').toLowerCase(),
@@ -370,6 +375,20 @@ function* select(
     const opened = stack.pop();
     if (opened !== undefined) closer[opened] = i;
   });
+  return { tags, closer };
+}
+
+/**
+ * The outermost elements `selector` matches, left to right, each up to its own closing tag; an
+ * element that is never closed is not matched. Linear: every tag is found in one scan, paired
+ * with its closing tag through a stack per tag name, and matched once.
+ */
+function* select(
+  html: string,
+  selector: string,
+): Generator<{ start: number; end: number; inner: string }> {
+  const compounds = parseSelector(selector);
+  const { tags, closer } = pairedTags(html);
   let after = 0;
   for (let i = 0; i < tags.length; i++) {
     const tag = tags[i];
@@ -603,6 +622,9 @@ function linkBase({ id, url }: HtmlMeta): string {
   return folderPage && !/(?:\/|\.html?)$/i.test(url) ? `${url}/` : url;
 }
 
+/** How many levels of quotes a Markdown copy writes. */
+const MAX_QUOTE_DEPTH = 4;
+
 /**
  * Permalink anchors (`#`, `¶`, an invisible character or entity, such as the zero-width space
  * Docusaurus writes, or an emptied icon) are not heading text.
@@ -616,11 +638,18 @@ const PERMALINK =
  * relative links against), it is Markdown to read: links, emphasis, images, numbered and nested
  * lists, tables and quotes are kept, and headings have no `{#id}`. Without it, the text an index
  * holds, which those would only add noise to.
+ *
+ * A quote's content is read as `quoted`: with the blocks already swapped out of the page around
+ * it, so the code blocks in it are written into it, and how deep in quotes it is.
  */
-function htmlToText(html: string, markdown?: { url: string }): string {
+function htmlToText(
+  html: string,
+  markdown?: { url: string },
+  quoted?: { blocks: string[]; depth: number },
+): string {
   // Code blocks (and, for Markdown, tables and quotes) are swapped out first so whitespace
   // normalization never touches them.
-  const blocks: string[] = [];
+  const blocks: string[] = quoted?.blocks ?? [];
   const keep = (block: string): string => {
     blocks.push(block);
     return `\n\n\uE000${String(blocks.length - 1)}\uE000\n\n`;
@@ -642,18 +671,25 @@ function htmlToText(html: string, markdown?: { url: string }): string {
       return keep(`${fence}${language}\n${body}\n${fence}`);
     },
   );
+  // A quote's content was read with the page around it.
+  if (!quoted) withoutCode = structure(withoutCode, blocks, markdown !== undefined);
   if (markdown) {
     withoutCode = replaceEach(withoutCode, outermost(withoutCode, 'table'), ({ inner }) =>
       keep(markdownTable(inner, markdown.url)),
     );
-    withoutCode = replaceEach(withoutCode, outermost(withoutCode, 'blockquote'), ({ inner }) =>
-      keep(
-        htmlToText(inner, markdown)
-          .split('\n')
-          .map((line) => (line ? `> ${line}` : '>'))
-          .join('\n'),
-      ),
-    );
+    // Each level of quotes reads its content again, so only a few levels are quotes: deeper ones
+    // (no page has them) are text in the innermost, and the work stays linear.
+    const depth = quoted?.depth ?? 0;
+    if (depth < MAX_QUOTE_DEPTH) {
+      withoutCode = replaceEach(withoutCode, outermost(withoutCode, 'blockquote'), ({ inner }) =>
+        keep(
+          htmlToText(inner, markdown, { blocks, depth: depth + 1 })
+            .split('\n')
+            .map((line) => (line ? `> ${line}` : '>'))
+            .join('\n'),
+        ),
+      );
+    }
     withoutCode = markdownLists(withoutCode).replace(/<hr(?=[\s/>])[^<>]*>/gi, '\n\n---\n\n');
   }
   const withHeadings = replaceElements(
@@ -661,8 +697,9 @@ function htmlToText(html: string, markdown?: { url: string }): string {
     /<h([1-6])(?=[\s>])([^<>]*)>/gi,
     (open) => `</h${open[1] ?? ''}>`,
     ({ open, inner }) => {
-      // Entities are decoded once, at the end, for everything outside code blocks.
-      const heading = inner
+      // Entities are decoded once, at the end, for everything outside code blocks. Markdown
+      // keeps a heading's code: "## The `ask` option".
+      const heading = (markdown ? codeSpans(inner) : inner)
         .replace(PERMALINK, '')
         .replace(/<[^<>]*>/g, '')
         .replace(/\s+/g, ' ')
@@ -673,18 +710,17 @@ function htmlToText(html: string, markdown?: { url: string }): string {
       return `\n\n${'#'.repeat(Number(open[1]))} ${heading}${id ? ` {#${id}}` : ''}\n\n`;
     },
   );
-  let text = replaceElements(
-    (markdown ? withHeadings : withHeadings.replace(/<li(?=[\s>])[^<>]*>/gi, '\n- '))
+  let text = codeSpans(
+    (markdown ? withHeadings : withHeadings.replace(LIST_ITEM, '\n- '))
       .replace(
         /<\/(?:p|div|section|article|header|ul|ol|table|blockquote|dl|figure|details|summary)>/gi,
         '\n\n',
       )
+      // They close a paragraph left open, as minified HTML leaves it: "plugins.<details>".
+      .replace(/<(?:details|summary)(?=[\s>])[^<>]*>/gi, '\n\n')
       .replace(/<tr(?=[\s>])[^<>]*>/gi, '\n| ')
       .replace(/<(?:p|div|section|br|dt|dd|hr|blockquote|figcaption)(?=[\s/>])[^<>]*>/gi, '\n')
       .replace(/<\/t[dh]>/gi, ' | '),
-    /<code(?=[\s>])[^<>]*>/gi,
-    () => '</code>',
-    ({ inner }) => `\`${inner.replace(/<[^<>]*>/g, '')}\``,
   );
   if (markdown) text = markdownInline(text, markdown.url);
 
@@ -713,6 +749,275 @@ function codeLanguage(pre: string, inner: string): string {
     if (language) return language;
   }
   return '';
+}
+
+/** The markup `structure` reads; a page without any of it is left as it is. */
+const STRUCTURE_HINT =
+  /role|vp-code-group|admonition|starlight-aside|custom-block|code-block|frame/i;
+
+/** The types VitePress writes as a custom block's class, beside `custom-block`. */
+const CUSTOM_BLOCK_TYPES = new Set([
+  'note',
+  'tip',
+  'info',
+  'important',
+  'warning',
+  'caution',
+  'danger',
+]);
+
+const classesOf = (attributes: Map<string, string>): string[] =>
+  (attributes.get('class') ?? '').split(/\s+/);
+
+/** An admonition's type: a Docusaurus admonition's, a Starlight aside's or a VitePress block's. */
+function admonitionType(tag: Tag, classes: readonly string[]): string | undefined {
+  for (const word of classes) {
+    const type = /^(?:theme-admonition-|starlight-aside--)([a-z][a-z-]*)$/.exec(word)?.[1];
+    if (type) return type;
+  }
+  return tag.name !== 'details' && classes.includes('custom-block')
+    ? classes.find((word) => CUSTOM_BLOCK_TYPES.has(word))
+    : undefined;
+}
+
+const isAdmonitionTitle = (classes: readonly string[]): boolean =>
+  classes.some(
+    (word) =>
+      /^admonitionHeading(?:_|$)/.test(word) ||
+      word === 'starlight-aside__title' ||
+      word === 'custom-block-title',
+  );
+
+/**
+ * What an admonition is called: its type ("Tip"), and its title when that says something else
+ * ("Tip: My tip"). The index keeps a title that is only the type as the page writes it.
+ */
+function admonitionLabel(type: string, title: string, markdown: boolean): string {
+  const name = `${type.charAt(0).toUpperCase()}${type.slice(1)}`;
+  if (!title) return name;
+  if (title.toLowerCase() === type.toLowerCase()) return markdown ? name : title;
+  return `${name}: ${title}`;
+}
+
+/**
+ * `text` as Markdown that reads as the text itself: a backslash, `*` and `` ` `` escaped, and a
+ * `_` that is not inside a word (one inside a word, as in `my_file`, is never emphasis).
+ */
+const markdownText = (text: string): string =>
+  text.replace(/[\\`*]|(?<![\p{L}\p{N}])_|_(?![\p{L}\p{N}])/gu, '\\$&');
+
+/**
+ * A code block's title as the value of a fence's `title=`, quoted as Docusaurus, Expressive Code
+ * and rehype-pretty-code read it: in double quotes, or in single quotes when it holds a double
+ * quote and no single one (with both, its double quotes are escaped). A backtick fence's info
+ * string cannot hold a backtick, so those go. Empty for a title with no text.
+ */
+function fenceTitle(text: string): string {
+  const title = text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
+  if (!title) return '';
+  if (!title.includes('"')) return `"${title}"`;
+  if (!title.includes("'")) return `'${title}'`;
+  return `"${title.replace(/"/g, '\\"')}"`;
+}
+
+/** The labels of a list of tabs, for its panels: by the tab a panel names, else in order. */
+interface Tabs {
+  labels: string[];
+  ids: Map<string, number>;
+  used: Set<number>;
+  next: number;
+}
+
+function takeLabel(tabs: Tabs, id: string | undefined): string | undefined {
+  let n = id === undefined ? undefined : tabs.ids.get(id);
+  if (n === undefined || tabs.used.has(n)) {
+    while (tabs.used.has(tabs.next)) tabs.next += 1;
+    n = tabs.next;
+  }
+  tabs.used.add(n);
+  return tabs.labels[n];
+}
+
+/**
+ * What a page's markup says that its text would lose, written into it before the rest is read:
+ *
+ * - Each tab panel starts with its tab's label, so a command says which package manager it is
+ *   for: Docusaurus's and Starlight's tabs, by their ARIA roles, and VitePress's code groups. The
+ *   list of tabs itself goes.
+ * - An admonition (a Docusaurus admonition, a Starlight aside, a VitePress custom block) is a
+ *   quote that starts with its type and title: "Danger: Take care".
+ * - In Markdown, a code block's title (Docusaurus's, or Expressive Code's) goes on its fence, as
+ *   `title="…"`, instead of a line of its own.
+ *
+ * `blocks` are the code blocks already swapped out of `html`. Linear: one scan over the tags, and
+ * what an element holds is read again only for one the scan then skips (a list of tabs, a code
+ * group, an admonition's or a code block's title, each replaced as a whole), or for the first
+ * two tags in it. So no text is read twice, however deep elements nest in each other's titles.
+ */
+function structure(html: string, blocks: string[], markdown: boolean): string {
+  if (!STRUCTURE_HINT.test(html)) return html;
+  const { tags, closer } = pairedTags(html);
+  const code = Array.from(html.matchAll(/\uE000(\d+)\uE000/g), (match) => ({
+    at: match.index,
+    block: Number(match[1]),
+  }));
+  let nextCode = 0;
+  // By tag: the text that replaces it, or the element it opens (up to tag `to`), and the text
+  // that goes after it.
+  const replaced = new Map<number, { to: number; text: string }>();
+  const after = new Map<number, string>();
+  const textOf = (from: number, to: number): string =>
+    html
+      .slice(from, to)
+      .replace(/<[^<>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  // A label is the page's text, which Markdown must not read as emphasis or code.
+  const label = (text: string): string =>
+    text ? `<p><strong>${markdown ? markdownText(text) : text}</strong></p>` : '';
+  // The tabs whose panels come next, and while in a panel, those of the lists around it.
+  let tabs: Tabs | undefined;
+  const around: { until: number; tabs: Tabs | undefined }[] = [];
+  for (let i = 0; i < tags.length; i++) {
+    while (around.length > 0 && i >= (around.at(-1)?.until ?? 0)) tabs = around.pop()?.tabs;
+    const tag = tags[i];
+    const j = closer[i];
+    const end = j === undefined ? undefined : tags[j];
+    if (!tag || tag.close || j === undefined || !end) continue;
+    if (!STRUCTURE_HINT.test(tag.attributes)) continue;
+    const attributes = attributesOf(tag.attributes);
+    const classes = classesOf(attributes);
+    const role = attributes.get('role');
+
+    if (role === 'tablist') {
+      // A tab's label runs to the next tab, as minified HTML leaves out its `</li>`.
+      const found: { id: string | undefined; start: number; end: number }[] = [];
+      for (let k = i + 1; k < j; k++) {
+        const tab = tags[k];
+        if (!tab || tab.close || !/role\s*=/i.test(tab.attributes)) continue;
+        const own = attributesOf(tab.attributes);
+        if (own.get('role') !== 'tab') continue;
+        found.push({ id: own.get('id'), start: tab.start, end: tab.end });
+      }
+      const labels = found.map((tab, n) => textOf(tab.end, found[n + 1]?.start ?? end.start));
+      const ids = new Map<string, number>();
+      found.forEach((tab, n) => {
+        if (tab.id !== undefined && !ids.has(tab.id)) ids.set(tab.id, n);
+      });
+      tabs = { labels, ids, used: new Set(), next: 0 };
+      replaced.set(i, { to: j, text: ' ' });
+      i = j;
+      continue;
+    }
+
+    if (role === 'tabpanel' && tabs) {
+      const text = takeLabel(tabs, attributes.get('aria-labelledby'));
+      if (text) after.set(i, label(text));
+      around.push({ until: j, tabs });
+      tabs = undefined;
+      continue;
+    }
+
+    if (classes.includes('vp-code-group')) {
+      while (nextCode < code.length && (code[nextCode]?.at ?? 0) < tag.end) nextCode += 1;
+      const inGroup: string[] = [];
+      for (let c = nextCode; c < code.length && (code[c]?.at ?? 0) < end.start; c++) {
+        inGroup.push(`\uE000${String(code[c]?.block)}\uE000`);
+      }
+      if (inGroup.length > 0) {
+        const labels: string[] = [];
+        for (let k = i + 1; k < j; k++) {
+          const tab = tags[k];
+          if (tab?.name !== 'label' || tab.close) continue;
+          const close = closer[k];
+          const to = close !== undefined && close < j ? tags[close] : tags[k + 1];
+          labels.push(textOf(tab.end, to?.start ?? end.start));
+          // A label in a label is part of its text, not one to read again.
+          if (close !== undefined && close < j) k = close;
+        }
+        const text = inGroup.map((block, n) => `${label(labels[n] ?? '')}\n\n${block}\n\n`);
+        replaced.set(i, { to: j, text: text.join('') });
+        i = j;
+        continue;
+      }
+    }
+
+    const type = admonitionType(tag, classes);
+    if (type) {
+      // The title is the admonition's first element in each.
+      const t = closer[i + 1];
+      const first = tags[i + 1];
+      const firstEnd = t === undefined ? undefined : tags[t];
+      let title = '';
+      let read = i;
+      if (t !== undefined && first && firstEnd && !first.close && t < j) {
+        if (isAdmonitionTitle(classesOf(attributesOf(first.attributes)))) {
+          title = textOf(first.end, firstEnd.start);
+          replaced.set(i + 1, { to: t, text: ' ' });
+          read = t;
+        }
+      }
+      const text = label(admonitionLabel(type, title, markdown));
+      replaced.set(i, { to: i, text: `<blockquote>${text}` });
+      replaced.set(j, { to: j, text: '</blockquote>' });
+      // The title was read, and is replaced as a whole: the scan goes on after it.
+      i = read;
+      continue;
+    }
+
+    if (
+      markdown &&
+      (classes.includes('theme-code-block') || (tag.name === 'figure' && classes.includes('frame')))
+    ) {
+      // Docusaurus's title is the container's first element; Expressive Code's, in the frame's
+      // `<figcaption>`, its second.
+      for (const k of [i + 1, i + 2]) {
+        const t = closer[k];
+        const title = tags[k];
+        const titleEnd = t === undefined ? undefined : tags[t];
+        if (t === undefined || !title || !titleEnd || title.close || t >= j) continue;
+        const own = classesOf(attributesOf(title.attributes));
+        if (!own.some((word) => /^codeBlockTitle(?:_|$)/.test(word) || word === 'title')) continue;
+        // The block the title is for, before the title is read: the blocks are passed in order,
+        // so a block in a title is behind the scan, and of a chain of titles in titles, only the
+        // outermost has one.
+        while (nextCode < code.length && (code[nextCode]?.at ?? 0) < titleEnd.end) nextCode += 1;
+        const block = code[nextCode];
+        if (!block || block.at >= end.start) break;
+        const text = fenceTitle(decodeEntities(textOf(title.end, titleEnd.start)));
+        if (!text) break;
+        blocks[block.block] = (blocks[block.block] ?? '').replace(
+          /^(`+)(.*)/,
+          (_, fence: string, info: string) => `${fence}${info || 'text'} title=${text}`,
+        );
+        replaced.set(k, { to: t, text: ' ' });
+        // The title is replaced as a whole: the scan goes on after it.
+        i = t;
+        break;
+      }
+    }
+  }
+  if (replaced.size === 0 && after.size === 0) return html;
+  // In order: what an element replaced holds (a title's own markup) is replaced with it.
+  let out = '';
+  let last = 0;
+  for (let i = 0; i < tags.length; i++) {
+    const edit = replaced.get(i);
+    const tag = tags[i];
+    const to = edit ? tags[edit.to] : undefined;
+    if (edit && tag && to) {
+      out += html.slice(last, tag.start) + edit.text;
+      last = to.end;
+      i = edit.to;
+    }
+    const text = after.get(i);
+    const at = tags[i];
+    if (text !== undefined && at) {
+      out += html.slice(last, at.end) + text;
+      last = at.end;
+    }
+  }
+  return out + html.slice(last);
 }
 
 /**
@@ -777,28 +1082,68 @@ function markdownInline(html: string, page: string): string {
 }
 
 /**
- * Lists as Markdown: each `<li>` starts a line with `- `, or `1. ` in an `<ol>`, indented two
- * spaces per level of nesting (written as a marker that survives the trimming of lines). One scan
- * over the list tags, with a stack of the lists open.
+ * An `<li>` tag, with the `<p>` that opens a loose list's item, whose text goes on the item's
+ * line: `- First item`, not `-` and then the text as a paragraph of its own.
+ */
+const LIST_ITEM = /<li(?=[\s>])[^<>]*>(?:\s*<p(?=[\s>])[^<>]*>)?/gi;
+
+/**
+ * Lists as Markdown: each `<li>` starts a line with `- `, or its number in an `<ol>`, counted from
+ * the list's `start`, indented two spaces per level of nesting (written as a marker that survives
+ * the trimming of lines). A loose list's `<li><p>` is one line too. One scan over the list tags,
+ * with a stack of the lists open.
  */
 function markdownLists(html: string): string {
-  const open: ('ul' | 'ol')[] = [];
+  const open: { ordered: boolean; next: number }[] = [];
   // The whitespace before a list tag goes with it, so items are not a blank line apart.
   return html.replace(
-    /\s*<(\/?)(ul|ol|li)(?=[\s/>])[^<>]*>/gi,
-    (_, close: string, name: string) => {
+    /\s*<(\/?)(ul|ol|li)(?=[\s/>])([^<>]*)>(\s*<p(?=[\s>])[^<>]*>)?/gi,
+    (_, close: string, name: string, attributes: string, item: string | undefined) => {
       const tag = name.toLowerCase();
+      const paragraph = item ?? '';
       if (tag === 'li') {
-        if (close) return '';
+        if (close) return paragraph;
+        const list = open.at(-1);
         const depth = Math.max(0, open.length - 1);
-        return `\n\uE002${String(depth)}\uE002${open.at(-1) === 'ol' ? '1.' : '-'} `;
+        const marker = list?.ordered ? `${String(list.next++)}.` : '-';
+        return `\n\uE002${String(depth)}\uE002${marker} `;
       }
       // A list nested in an item continues it; one at the top stands apart.
       if (close) open.pop();
-      else open.push(tag as 'ul' | 'ol');
-      return open.length > (close ? 0 : 1) ? '' : '\n\n';
+      else {
+        const start = Number.parseInt(attribute(` ${attributes}`, 'start') ?? '', 10);
+        open.push({ ordered: tag === 'ol', next: start >= 0 ? start : 1 });
+      }
+      return (open.length > (close ? 0 : 1) ? '' : '\n\n') + paragraph;
     },
   );
+}
+
+const CODE = /<code(?=[\s>])[^<>]*>/gi;
+
+/** `html` with each `<code>` element written as a Markdown code span. */
+function codeSpans(html: string): string {
+  return replaceElements(
+    html,
+    CODE,
+    () => '</code>',
+    ({ inner }) => codeSpan(inner.replace(/<[^<>]*>/g, '')),
+  );
+}
+
+/**
+ * `code` (HTML text, decoded later) as a code span: between backtick runs longer than any in it,
+ * with a space inside each when it holds a backtick, so `` a`b `` is one span, or when it starts
+ * and ends with a space, which a span would otherwise lose.
+ */
+function codeSpan(code: string): string {
+  const text = decodeEntities(code);
+  let longest = 0;
+  for (const run of text.match(/`+/g) ?? []) longest = Math.max(longest, run.length);
+  const ticks = '`'.repeat(longest + 1);
+  const spaced = text.startsWith(' ') && text.endsWith(' ') && text.trim() !== '';
+  const pad = longest > 0 || spaced ? ' ' : '';
+  return `${ticks}${pad}${code}${pad}${ticks}`;
 }
 
 /**
@@ -809,15 +1154,10 @@ function markdownLists(html: string): string {
 function markdownTable(html: string, page: string): string {
   const cell = (inner: string): string =>
     decodeEntities(
-      markdownInline(
-        replaceElements(
-          inner.replace(/<\/t[hd]>[\s\S]*$/i, ''),
-          /<code(?=[\s>])[^<>]*>/gi,
-          () => '</code>',
-          ({ inner: code }) => `\`${code.replace(/<[^<>]*>/g, '')}\``,
-        ),
-        page,
-      ).replace(/<[^<>]*>/g, ' '),
+      markdownInline(codeSpans(inner.replace(/<\/t[hd]>[\s\S]*$/i, '')), page).replace(
+        /<[^<>]*>/g,
+        ' ',
+      ),
     )
       .replace(/\s+/g, ' ')
       .trim()

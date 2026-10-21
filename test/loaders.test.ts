@@ -389,6 +389,39 @@ describe('fromHtml on highlighted code', () => {
   });
 });
 
+describe('fromHtml on lists, tabs and admonitions', () => {
+  const read = (main: string) => fromHtml(`<main>${main}</main>`, { id: 'a', url: '/a' });
+
+  it('writes a loose list’s items on their own lines', () => {
+    expect(
+      read('<ul>\n<li>\n<p>First item</p>\n</li>\n<li><p>Second item</p></li>\n</ul>')?.content,
+    ).toBe('- First item\n\n- Second item');
+  });
+
+  it('says which tab each panel is, and leaves out the list of tabs', () => {
+    const doc = read(
+      '<h2 id=install>Install</h2><ul role=tablist><li role=tab>npm<li role=tab>pnpm</ul><div role=tabpanel><pre><code>npm i acme</code></pre></div><div role=tabpanel hidden><pre><code>pnpm add acme</code></pre></div>',
+    );
+    expect(doc?.content).toBe(
+      '## Install {#install}\n\nnpm\n\n```\nnpm i acme\n```\n\npnpm\n\n```\npnpm add acme\n```',
+    );
+    // What the MCP server's search and fetch return.
+    expect(chunkDocument(doc!).map((chunk) => chunk.text)).toEqual([
+      'npm\n\n```\nnpm i acme\n```\n\npnpm\n\n```\npnpm add acme\n```',
+    ]);
+  });
+
+  it('names an admonition’s type when its title is another', () => {
+    const admonition = (type: string, title: string) =>
+      `<div class="theme-admonition theme-admonition-${type} alert"><div class=admonitionHeading_FzoX>${title}</div><div class=admonitionContent_Knsx><p>Body.</p></div></div>`;
+    expect(read(admonition('danger', 'Take care') + admonition('note', 'note'))?.content).toBe(
+      'Danger: Take care\n\nBody.\n\nnote\n\nBody.',
+    );
+    // The index keeps a title as it reads: only Markdown escapes it.
+    expect(read(admonition('tip', 'Use *globs*'))?.content).toBe('Tip: Use *globs*\n\nBody.');
+  });
+});
+
 describe('fromDocuments', () => {
   it('validates records and rejects duplicates', () => {
     const docs = fromDocuments([{ id: 'a', url: '/a', title: 'A', content: 'x\r\ny' }]);
