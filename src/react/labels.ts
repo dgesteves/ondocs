@@ -28,6 +28,8 @@ export interface AskDialogLabels {
   stop: string;
   /** The Escape key, on its hints. */
   escapeKey: string;
+  /** The button that closes the dialog, shown on touch screens in place of the esc hint. */
+  close: string;
   /** The footer's disclaimer. */
   footer: string;
   /**
@@ -60,6 +62,12 @@ export interface AskDialogLabels {
   sources: string;
   /** A citation's accessible name: `{n}` its number, `{title}` its page. */
   citation: string;
+  /** For screen readers, before a source's title while the answer is written: `{n}` its number. */
+  source: string;
+  /** The same, once the answer is complete, for a source it cites. */
+  sourceCited: string;
+  /** The same, for a source it does not cite. */
+  sourceNotCited: string;
   /** The button that starts a new thread. */
   newQuestion: string;
   helpfulQuestion: string;
@@ -130,6 +138,7 @@ export const DEFAULT_LABELS: Readonly<DefaultLabels> = {
   list: 'Suggestions',
   stop: 'Stop',
   escapeKey: 'esc',
+  close: 'Close',
   footer: 'Answers come from this site and can be wrong. Check the sources.',
   footerNoSources: 'Answers come from this site and can be wrong.',
   footerAsk: 'ask',
@@ -145,6 +154,9 @@ export const DEFAULT_LABELS: Readonly<DefaultLabels> = {
   retry: 'Retry',
   sources: 'Sources',
   citation: 'Source {n}: {title}',
+  source: 'Source {n}:',
+  sourceCited: 'Source {n}, cited:',
+  sourceNotCited: 'Source {n}, not cited:',
   newQuestion: 'New question',
   helpfulQuestion: 'Was this helpful?',
   helpful: 'Yes, it helped',

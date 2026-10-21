@@ -79,7 +79,7 @@ afterEach(() => {
 });
 
 /** The dialog with an answer on screen: the panel, its live region and what was navigated to. */
-async function answered(onFeedback?: () => void) {
+async function answered(onFeedback?: () => void | Promise<void>) {
   const user = userEvent.setup();
   const onNavigate = vi.fn((_url: string, event: { preventDefault: () => void }) => {
     event.preventDefault();
@@ -213,5 +213,130 @@ describe('other keys in the answer', () => {
       .focus();
     await user.keyboard('{Escape}');
     await closed();
+  });
+});
+
+// A control that unmounts when pressed took focus with it, and Radix dropped it on the dialog's
+// container: a screen reader read the dialog out again, and the keyboard lost its place.
+describe('focus after a control goes away', () => {
+  it('goes from a thumb to "Add a comment"', async () => {
+    const { user, dialog } = await answered(vi.fn());
+    within(dialog).getByRole('button', { name: 'Yes, it helped' }).focus();
+    await user.keyboard('{Enter}');
+    const more = await within(dialog).findByRole('button', { name: 'Add a comment' });
+    expect(document.activeElement).toBe(more);
+  });
+
+  it('stays where the visitor moved it while the rating was being sent', async () => {
+    let release = (): void => undefined;
+    const sent = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { user, dialog } = await answered(() => sent);
+    within(dialog).getByRole('button', { name: 'Yes, it helped' }).focus();
+    await user.keyboard('{Enter}');
+    const next = within(dialog).getByRole('button', { name: 'New question' });
+    next.focus();
+    release();
+    await within(dialog).findByRole('button', { name: 'Add a comment' });
+    expect(document.activeElement).toBe(next);
+  });
+
+  it('goes from a sent comment to "New question"', async () => {
+    const { user, dialog } = await answered(vi.fn());
+    within(dialog).getByRole('button', { name: 'No, it did not help' }).focus();
+    await user.keyboard('{Enter}');
+    (await within(dialog).findByRole('button', { name: 'Add a comment' })).focus();
+    await user.keyboard('{Enter}');
+    await user.keyboard('Too short{Enter}');
+    await within(dialog).findByText('Thanks for the comment.');
+    expect(document.activeElement).toBe(
+      within(dialog).getByRole('button', { name: 'New question' }),
+    );
+  });
+
+  it('goes from Stop to the input', async () => {
+    const user = userEvent.setup();
+    const slow = mockLanguageModel({ initialDelayMs: 0, wordDelayMs: 5_000 });
+    render(<AskDialog fetch={handlerFetch({ model: slow })} defaultOpen />);
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByRole('combobox');
+    await user.type(input, 'How is an int8 vector scaled?{Enter}');
+    (await within(dialog).findByRole('button', { name: 'Stop' })).focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(within(dialog).queryByRole('button', { name: 'Stop' })).toBeNull();
+    });
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('goes from Retry to the input', async () => {
+    const user = userEvent.setup();
+    const fetch = vi.fn(() => Promise.reject(new TypeError('Failed to fetch')));
+    render(<AskDialog fetch={fetch} defaultOpen />);
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByRole('combobox');
+    await user.type(input, 'How is an int8 vector scaled?{Enter}');
+    within(dialog).getByRole('button', { name: 'Retry' }).focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('stays off the input after a tap on Stop, so a phone keeps its keyboard down', async () => {
+    const user = userEvent.setup();
+    const slow = mockLanguageModel({ initialDelayMs: 0, wordDelayMs: 5_000 });
+    render(<AskDialog fetch={handlerFetch({ model: slow })} defaultOpen />);
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByRole('combobox');
+    await user.type(input, 'How is an int8 vector scaled?{Enter}');
+    await user.click(await within(dialog).findByRole('button', { name: 'Stop' }));
+    await waitFor(() => {
+      expect(within(dialog).queryByRole('button', { name: 'Stop' })).toBeNull();
+    });
+    expect(document.activeElement).not.toBe(input);
+  });
+});
+
+// A phone has no Escape key, and with an answer on screen the dialog leaves only an 8 px strip of
+// the page to tap: the dialog needs a control that closes it.
+describe('the Close button', () => {
+  it('closes the dialog, with an answer on screen', async () => {
+    const { user, dialog } = await answered();
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await closed();
+  });
+
+  // The command palette around it takes Enter for its list: on Close, Enter asked the selected
+  // suggestion, or did nothing with an answer on screen. A phone or tablet with a keyboard uses it.
+  it('closes on Enter, rather than asking the selected suggestion', async () => {
+    const user = userEvent.setup();
+    const fetch = handlerFetch();
+    render(<AskDialog fetch={fetch} defaultOpen suggestions={['How do I install with pnpm?']} />);
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog)
+        .getByRole('option', { name: 'How do I install with pnpm?' })
+        .getAttribute('aria-selected'),
+    ).toBe('true');
+    within(dialog).getByRole('button', { name: 'Close' }).focus();
+    await user.keyboard('{Enter}');
+    await closed();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('closes on Enter, with an answer on screen', async () => {
+    const { user, dialog } = await answered();
+    within(dialog).getByRole('button', { name: 'Close' }).focus();
+    await user.keyboard('{Enter}');
+    await closed();
+  });
+
+  it('takes its name from labels.close', async () => {
+    render(<AskDialog fetch={handlerFetch()} defaultOpen labels={{ close: 'Fermer' }} />);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Fermer' })).toBeTruthy();
   });
 });

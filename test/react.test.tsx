@@ -279,6 +279,18 @@ describe('AskAnswer', () => {
     expect(screen.getByRole('link', { name: 'a login page' })).toBeTruthy();
   });
 
+  // On a touch screen, a citation right after another keeps its distance from it (styles.css).
+  it('marks a citation that comes right after another', () => {
+    const two = [...sources, { id: 2, url: '/docs/b', title: 'B', heading: '' }];
+    render(
+      <AskAnswer text="One [1][2]. Two [1, 2]. Spaced [1] [2]. Apart [1] and [2]." sources={two} />,
+    );
+    const marked = screen
+      .getAllByRole('link')
+      .map((link) => `${link.textContent}${link.hasAttribute('data-after-citation') ? '+' : ''}`);
+    expect(marked).toEqual(['1', '2+', '1', '2+', '1', '2+', '1', '2']);
+  });
+
   it('extracts cited source numbers', () => {
     expect([...citedSourceIds('A [1]. B [2][3]. C [1, 4]. Not [x].')]).toEqual([1, 2, 3, 4]);
   });
@@ -294,6 +306,23 @@ describe('AskAnswer', () => {
     expect(document.querySelector('code')?.textContent).toBe('ondocs');
     expect(document.querySelector('strong')?.textContent).toBe('index');
     expect(document.querySelector('pre code')?.textContent).toBe('pnpm build');
+  });
+
+  it('keeps numbered steps numbered when code or a blank line sits between them', () => {
+    const steps =
+      '1. Install it:\n\n```sh\nnpm i ondocs\n```\n\n2. Build the index:\n\n```sh\nnpx ondocs index docs\n```\n\n3. Deploy.';
+    const { container, unmount } = render(<AskAnswer text={steps} sources={[]} />);
+    const starts = () => [...container.querySelectorAll('ol')].map((ol) => ol.start);
+    expect(starts()).toEqual([1, 2, 3]);
+    unmount();
+
+    // A loose list, and a list the model starts past 1.
+    const loose = render(<AskAnswer text={'1. a\n\n2. b\n\n3. c'} sources={[]} />);
+    expect([...loose.container.querySelectorAll('ol')].map((ol) => ol.start)).toEqual([1, 2, 3]);
+    loose.unmount();
+    const later = render(<AskAnswer text={'3. Deploy\n4. Check it'} sources={[]} />);
+    expect([...later.container.querySelectorAll('ol')].map((ol) => ol.start)).toEqual([3]);
+    expect(later.container.querySelectorAll('li')).toHaveLength(2);
   });
 
   it('lets the keyboard reach a code block, which can scroll sideways', async () => {
@@ -549,8 +578,83 @@ describe('AskDialog', () => {
     await user.type(within(dialog).getByRole('combobox'), 'How is an int8 vector scaled?{Enter}');
     const alert = await within(dialog).findByRole('alert');
     expect(alert.textContent).toContain('Could not reach the server.');
-    const question = within(dialog).getByText('How is an int8 vector scaled?', { selector: 'p' });
+    const question = within(dialog).getByRole('heading', { name: 'How is an int8 vector scaled?' });
     expect(question.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('announces an error once, in its alert, and not again in the status', async () => {
+    const user = userEvent.setup();
+    render(
+      <AskDialog fetch={() => Promise.reject(new TypeError('Failed to fetch'))} defaultOpen />,
+    );
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByRole('combobox'), 'How is an int8 vector scaled?{Enter}');
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert.textContent).toContain('Could not reach the server.');
+    expect(within(dialog).getByRole('status').textContent).toBe('');
+  });
+
+  it('names each source by its number, and says whether the answer cites it', async () => {
+    const user = userEvent.setup();
+    render(
+      <AskDialog fetch={handlerFetch({ model: answering('Scaled to 127. [2]') })} defaultOpen />,
+    );
+    const dialog = await screen.findByRole('dialog');
+    const input = within(dialog).getByRole('combobox');
+    await user.type(input, 'How is an int8 vector scaled?{Enter}');
+    await waitFor(() => {
+      expect(dialog.querySelector('[data-status="done"]')).not.toBeNull();
+    });
+    const sources = within(dialog).getByRole('navigation', { name: 'Sources' });
+    const links = within(sources).getAllByRole('link');
+    expect(links.length).toBeGreaterThan(1);
+    // The number a citation names ("Source 2: …") finds its source, and the URL is not read out.
+    const names = links.map((link) => link.querySelector('.ask-sr-only')?.textContent);
+    expect(names).toEqual(
+      links.map((_, i) => (i === 1 ? 'Source 2, cited:' : `Source ${String(i + 1)}, not cited:`)),
+    );
+    expect(within(sources).getByRole('link', { name: /^Source 2, cited: / })).toBe(links[1]);
+    for (const link of links) {
+      expect(link.querySelector('.ask-source-url')?.getAttribute('aria-hidden')).toBe('true');
+    }
+  });
+
+  it('exposes its state to screen readers: no stale popup, no glyphs, one name, headings', async () => {
+    const user = userEvent.setup();
+    render(<AskDialog fetch={handlerFetch()} defaultOpen suggestions={['How do I install it?']} />);
+    const dialog = await screen.findByRole('dialog');
+    // The input is named once, by the dialog's title, rather than by a second copy of it.
+    const input = within(dialog).getByRole('combobox', { name: 'Ask this site' });
+    expect(dialog.querySelector('[cmdk-label]')?.textContent ?? '').toBe('');
+    expect(input.getAttribute('aria-expanded')).toBe('true');
+    // The key hints are for the eye.
+    expect(dialog.querySelector('.ask-input-row .ask-kbd')?.getAttribute('aria-hidden')).toBe(
+      'true',
+    );
+    await user.type(input, 'How is an int8 vector scaled?');
+    expect(within(dialog).getByRole('option', { name: /int8/ }).textContent).toContain('↵');
+    expect(within(dialog).queryByRole('option', { name: /↵/ })).toBeNull();
+
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(dialog.querySelector('[data-status="done"]')).not.toBeNull();
+    });
+    // With the answer on screen, the list is hidden and empty: the combobox is not expanded.
+    expect(input.getAttribute('aria-expanded')).toBe('false');
+    await user.clear(input);
+    await user.type(input, 'And why int8?');
+    expect(input.getAttribute('aria-expanded')).toBe('true');
+    await user.keyboard('{Enter}');
+    await waitFor(() => {
+      expect(dialog.querySelectorAll('.ask-turn')).toHaveLength(1);
+      expect(dialog.querySelector('[data-status="done"]')).not.toBeNull();
+    });
+    // Each question in the thread is a heading, under the dialog's title, as is Sources.
+    expect(
+      within(dialog)
+        .getAllByRole('heading', { level: 3 })
+        .map((heading) => heading.textContent),
+    ).toEqual(['How is an int8 vector scaled?', 'And why int8?', 'Sources']);
   });
 
   it('shows the question just asked from its start, typed or picked', async () => {
