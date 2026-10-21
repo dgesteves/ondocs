@@ -34,7 +34,7 @@ The top 6 chunks are numbered as sources, and chunks from the same section share
 
 ## Keyword fallback
 
-If the embedding provider fails while embedding a question, that request falls back to keyword retrieval instead of failing, and the error goes to `onError`. An index built without embeddings (`-e none`) always retrieves by keywords alone.
+If the embedding provider fails while embedding a question, that request falls back to keyword retrieval instead of failing, and the error goes to `onError`. An index built without embeddings (`-e none`, or a plugin's build without a model key) always retrieves by keywords alone. That is how the MCP endpoint `init` writes searches anyway, so agents lose nothing, but the Ask box then has only the keyword threshold: embed the index for it, with OpenAI's `text-embedding-3-small` when the endpoint answers with OpenAI, or Workers AI's BGE-small for the [Workers AI Worker](/guides/workers-ai/#keywords-or-meaning-too).
 
 ## Tuning
 
@@ -79,4 +79,4 @@ Whatever the hooks return, each hit's chunk is measured again against the questi
 
 ## Retrieval in mock mode
 
-The mock embedder's similarity comes from shared words, so a mock index uses `minSimilarity: 0.2` (`MOCK_MIN_SIMILARITY`) and counts similarity only from chunks that share a word with the question. Without that rule, a short question could match a short chunk through a hash collision. The `similarityNeedsKeyword` option turns the rule on or off; it is off for real embeddings, which match meaning without shared words.
+The mock embedder's similarity comes from shared words, so a mock index uses `minSimilarity: 0.2` (`MOCK_MIN_SIMILARITY`) and counts similarity only from chunks that share two of the question's words. With none, a short question could match a short chunk through a hash collision. With one, a single common word in a short section was enough: on docusaurus.io's docs, a mock index answered 10 of 15 off-topic Stack Overflow titles about git, Bash, SQL and Java, and with two it answers 6, as many as a keyword-only index of the same docs. Those 6 cover half of their keyword weight on one page, or share two words with it, such as "git" and "branch". Of the 22 questions about those docs in the 2026-10-10 audit, two words refuse one, which one word had answered from a page that does not answer it. `similarityNeedsKeyword` sets the number of words: `true` for one, `false` for none. It is off for real embeddings, which match meaning without shared words.

@@ -33,7 +33,7 @@ The Worker fetches the index from the live site and checks it again every five m
 
 ## Keywords, or meaning too
 
-An index built without an embedding model, the default when the build has no model key, is searched by keywords, and needs no secret anywhere. To search by meaning as well, embed the index with Workers AI as the site builds:
+For the Ask box, embed the index with Workers AI as the site builds, as `init --host github-pages` sets it up: the Worker then searches by meaning as well as by keywords. An index built without an embedding model, as the plugins build one with no `embedding` option and no model key, or `ondocs index` with `-e none`, is searched by keywords only and needs no secret anywhere. That is how the Worker's MCP endpoint searches either way, but the Ask box then answers only questions that use enough of the docs' own words.
 
 ```js
 // The Docusaurus or Starlight plugin

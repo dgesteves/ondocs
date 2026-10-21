@@ -11,6 +11,7 @@ import { DEFAULT_CHUNKING } from '../chunk';
 import type { AskIndexFile } from '../index-file';
 import { embeddingFromSpec, EmbeddingSpecError } from '../node/embedding';
 import { nextRouting, type NextRouting } from '../node/next';
+import { DEFAULT_DIMENSIONS } from '../integration/build';
 import { llmsOutputs, writeLlmsFiles } from '../integration/llms';
 import { markdownCopies, resolveMarkdownLinks, rootedPath, type LlmsPage } from '../llms';
 import { dev } from './dev';
@@ -55,8 +56,10 @@ Options:
                                <provider>/<model> AI Gateway, needs AI_GATEWAY_API_KEY
                                mock[:<dims>]     deterministic, offline
                                none              keyword-only index
-                               (default: openai:text-embedding-3-small if OPENAI_API_KEY is set)
-      --dimensions <n>         Vector size, for models that support it (e.g. 512).
+                               (default: openai:text-embedding-3-small at 512 dimensions,
+                               if OPENAI_API_KEY is set)
+      --dimensions <n>         Vector size, for models that support it (default: 512 for
+                               the default model, the model's own for one you name).
                                With --check, the size the index must have.
       --chunk-size <chars>     Max characters per chunk (default: ${String(DEFAULT_CHUNKING.maxChars)})
       --chunk-overlap <chars>  Characters shared by consecutive chunks (default: ${String(DEFAULT_CHUNKING.overlap)})
@@ -186,9 +189,12 @@ async function chooseEmbedding(
       };
     }
     if (mode === 'check') return { model: undefined };
-    if (io.env.OPENAI_API_KEY) return resolveSpec('openai:text-embedding-3-small', dims, io, mode);
+    // The default model at the plugins' default size, a third of its own, unless --dimensions
+    // gives one. A model named with --embedding keeps its own size, as in the plugins.
+    const size = dims ?? DEFAULT_DIMENSIONS;
+    if (io.env.OPENAI_API_KEY) return resolveSpec('openai:text-embedding-3-small', size, io, mode);
     if (io.env.AI_GATEWAY_API_KEY)
-      return resolveSpec('openai/text-embedding-3-small', dims, io, mode);
+      return resolveSpec('openai/text-embedding-3-small', size, io, mode);
     throw new UsageError(
       'No embedding model. Set OPENAI_API_KEY or pass --embedding <spec>. To try it without a ' +
         'key, use --embedding mock (offline, deterministic); --embedding none builds a ' +

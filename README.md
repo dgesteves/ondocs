@@ -120,8 +120,10 @@ import 'ondocs/embed/launcher.css';
 **Any other site.** Index the HTML it builds, write the endpoint with `npx ondocs init`, and add the script tag:
 
 ```sh
-npx ondocs index public -o public/ask-index.json -e none   # keyword-only; leave out -e none to embed with OPENAI_API_KEY
-npx ondocs init --out public                               # plain HTML needs --out; Hugo, Jekyll, MkDocs and Eleventy are detected
+npx ondocs index public -o public/ask-index.json   # embeds with OPENAI_API_KEY, best for the Ask box; -e none for keyword-only
+npx ondocs init --out public                       # plain HTML needs --out; Hugo, Jekyll, MkDocs and Eleventy are detected
+# For the Workers AI Worker (init --host github-pages), index with -e workers-ai:@cf/baai/bge-small-en-v1.5
+# and CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN set, or -e none: it can't embed questions for an OpenAI index
 ```
 
 On a GitHub Pages project site, at `https://user.github.io/repo`, add `--base-url /repo` to the index command.
