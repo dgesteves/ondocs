@@ -60,12 +60,13 @@ export interface RetrievalOptions {
    */
   minKeywordCoverage?: number;
   /**
-   * Whether a chunk that clears `minSimilarity` must also share a word with the question to
-   * count. Default: `true` for an index built with `mockEmbeddingModel`, whose similarity comes
-   * from shared words, so without one it is a hash collision; `false` otherwise, since real
-   * embeddings match meaning without shared words.
+   * How many of the question's words a chunk that clears `minSimilarity` must also contain to
+   * count: `true` for one, a number for that many, `false` for none. Default: 2 for an index built
+   * with `mockEmbeddingModel`, whose similarity comes from shared words, so that without one it
+   * is a hash collision, and with one it can be a single common word in a short section; `false`
+   * otherwise, since real embeddings match meaning without shared words.
    */
-  similarityNeedsKeyword?: boolean;
+  similarityNeedsKeyword?: boolean | number;
   /**
    * Whether copies of a section count once. A chunk with the same title, heading and text as
    * another, such as the same section in two versions of versioned docs, or a page a site serves
@@ -109,6 +110,14 @@ export const DEFAULT_RETRIEVAL = {
 
 /** The model id `mockEmbeddingModel` records in an index. */
 const MOCK_EMBEDDING = /^mock-hash-\d+$/;
+
+/**
+ * The question's words a chunk of a mock index must contain for its similarity to count. With
+ * one, a single common word in a short section clears `MOCK_MIN_SIMILARITY`: on docusaurus.io's
+ * docs, a mock index answered 10 of 15 off-topic Stack Overflow titles (git, Bash, SQL, Java)
+ * with one, and 6 with two, as many as a keyword-only index of the same docs.
+ */
+const MOCK_SHARED_WORDS = 2;
 
 /**
  * `minSimilarity` for embedding models whose similarity scale differs from OpenAI's, as measured:
@@ -251,12 +260,16 @@ function measure(
   const similarities =
     index.vectors && query.vector ? index.vectors.similarities(query.vector) : null;
 
-  const needsKeyword =
-    opts.similarityNeedsKeyword ?? MOCK_EMBEDDING.test(index.embedding?.model ?? '');
+  // The question's distinct words a chunk must contain for its similarity to count, as BM25
+  // counted them while it scored the chunk.
+  const sharedWords = Number(
+    opts.similarityNeedsKeyword ??
+      (MOCK_EMBEDDING.test(index.embedding?.model ?? '') ? MOCK_SHARED_WORDS : 0),
+  );
   const relevant = (i: number): boolean =>
     (similarities !== null &&
       (similarities[i] ?? 0) >= opts.minSimilarity &&
-      (!needsKeyword || (keyword.coverage[i] ?? 0) > 0)) ||
+      (keyword.matchedTerms[i] ?? 0) >= sharedWords) ||
     (keyword.coverage[i] ?? 0) >= opts.minKeywordCoverage;
 
   let bestCoverage = 0;

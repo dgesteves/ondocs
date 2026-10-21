@@ -124,6 +124,14 @@ export async function buildEmbedding(
         'No embedding model: building a keyword-only index. Set OPENAI_API_KEY or ' +
           'AI_GATEWAY_API_KEY at build time, or pass `embedding`, for semantic search.',
       );
+      // What that means for the Ask box: an endpoint with the key embeds questions, not pages.
+      log.warn(
+        'The Ask box then answers only questions that use enough of the docs’ own words, and ' +
+          'refuses more of those asked in other words; the MCP endpoint `ondocs init` writes ' +
+          'searches by keywords either way. Set the key where the site builds, not only where ' +
+          "the endpoint runs, or pass `embedding: 'none'` to build a keyword-only index without " +
+          'this warning.',
+      );
       return { model: null };
     }
     spec = OPENAI_API_KEY ? `openai:${DEFAULT_MODEL}` : `openai/${DEFAULT_MODEL}`;

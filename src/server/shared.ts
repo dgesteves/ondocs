@@ -1,5 +1,7 @@
-// What the ask handler and the MCP handler share: reading a capped body, loading the index once,
-// embedding a query as the index was embedded, and the default rate limit. Web APIs only.
+// What the ask handler and the MCP handler share: the request guard (method, content type, rate
+// limit, a capped body, JSON, the daily budget), CORS for the origins they allow, loading the
+// index once, embedding a query as the index was embedded, and the default rate limit. Web APIs
+// only.
 import { embed, type EmbeddingModel } from 'ai';
 
 import { embeddingModelId, sameEmbeddingModel, type EmbeddingProviderOptions } from '../build';
@@ -59,6 +61,216 @@ export function rateLimitHeaders(limit: RateLimitResult): Record<string, string>
   if (limit.limit !== undefined) headers['ratelimit-limit'] = String(limit.limit);
   if (limit.remaining !== undefined) headers['ratelimit-remaining'] = String(limit.remaining);
   return headers;
+}
+
+/** Why the request guard turned a request away. */
+export type RefusalReason =
+  /** Not a POST: a 405, with `Allow`. */
+  | 'method'
+  /** Not `application/json`: a 415. */
+  | 'media_type'
+  /** Over `maxBodyBytes`, by its `Content-Length` or while it was read: a 413. */
+  | 'too_large'
+  /** The body could not be read: a 400. */
+  | 'unreadable'
+  /** The body is not JSON: a 400. */
+  | 'not_json'
+  /** Over the rate limit: a 429, with `Retry-After` when the limiter says when. */
+  | 'rate_limited'
+  /** The day's budget is spent: a 429, with `Retry-After`. */
+  | 'budget'
+  /** The rate limiter or the budget store failed, and fails closed: a 503. */
+  | 'unavailable';
+
+/**
+ * A request the guard turned away, before the handler did any work on it. Each handler words it
+ * in its own format: the ask endpoint as `{ error: { code, message } }`, the MCP endpoint as a
+ * JSON-RPC error.
+ */
+export interface Refusal {
+  reason: RefusalReason;
+  status: number;
+  headers?: Record<string, string>;
+}
+
+const REFUSAL_STATUS: Record<RefusalReason, number> = {
+  method: 405,
+  media_type: 415,
+  too_large: 413,
+  unreadable: 400,
+  not_json: 400,
+  rate_limited: 429,
+  budget: 429,
+  unavailable: 503,
+};
+
+const refuse = (reason: RefusalReason, headers?: Record<string, string>): Refusal => ({
+  reason,
+  status: REFUSAL_STATUS[reason],
+  ...(headers ? { headers } : {}),
+});
+
+export interface RequestGuardOptions {
+  /** The limiter, or `null` for none. */
+  rateLimit: RateLimiter | null;
+  /**
+   * When the limiter or the budget store fails: `"closed"` (the default) turns the request away
+   * with a 503, and `"open"` lets it through. Either way the error is reported.
+   */
+  failure: 'closed' | 'open' | undefined;
+  maxBodyBytes: number;
+  report: (error: unknown) => void;
+  /** The budget's clock, for when a spent budget resets. Default `Date.now`. */
+  now?: (() => number) | undefined;
+}
+
+/** The checks both handlers run on a request, each in its own order. */
+export interface RequestGuard {
+  /**
+   * What a request must be before a handler reads it, in this order: a POST, with an
+   * `application/json` body (which a browser on another site cannot send without a CORS
+   * preflight), within the rate limit unless `limit` is `false`, no larger than `maxBodyBytes`,
+   * and JSON. `{ body }` is the parsed body.
+   */
+  read(
+    request: Request,
+    options?: { limit?: boolean },
+  ): Promise<{ body: unknown } | { refusal: Refusal }>;
+  /** The rate limit alone, for a handler that counts only some requests: `null` lets it through. */
+  limit(request: Request): Promise<Refusal | null>;
+  /**
+   * A budget check: `{ result }` lets the request through (`result` is `null` when the store
+   * failed and `failure` is `"open"`); `{ refusal }` turns it away, once the day's budget is spent
+   * or when the store fails.
+   */
+  admit<T extends { allowed: boolean; resetAt?: number }>(
+    check: () => Promise<T>,
+  ): Promise<{ refusal: Refusal } | { result: T | null }>;
+}
+
+/**
+ * The request guard behind both handlers, so a fix to one check reaches both. The rate limit and
+ * the budget fail closed by default: they stand between the endpoint and an unbounded bill, and
+ * their outage can be provoked (a flood can exhaust a Redis plan's request quota), so an error
+ * should not quietly switch them off.
+ */
+export function requestGuard(options: RequestGuardOptions): RequestGuard {
+  const { rateLimit, maxBodyBytes, report } = options;
+  const failOpen = options.failure === 'open';
+
+  const limit = async (request: Request): Promise<Refusal | null> => {
+    if (!rateLimit) return null;
+    let result: RateLimitResult;
+    try {
+      result = await rateLimit(request);
+    } catch (error) {
+      report(error);
+      if (!failOpen) return refuse('unavailable');
+      return null;
+    }
+    return result.success ? null : refuse('rate_limited', rateLimitHeaders(result));
+  };
+
+  return {
+    limit,
+    async read(request, { limit: limited = true } = {}) {
+      if (request.method !== 'POST')
+        return { refusal: refuse('method', { allow: 'POST, OPTIONS' }) };
+      if (!isJson(request.headers.get('content-type'))) return { refusal: refuse('media_type') };
+      if (limited) {
+        const refusal = await limit(request);
+        if (refusal) return { refusal };
+      }
+      if (Number(request.headers.get('content-length') ?? 0) > maxBodyBytes) {
+        return { refusal: refuse('too_large') };
+      }
+      let raw: string | null;
+      try {
+        raw = await readBody(request, maxBodyBytes);
+      } catch {
+        return { refusal: refuse('unreadable') };
+      }
+      if (raw === null) return { refusal: refuse('too_large') };
+      try {
+        return { body: JSON.parse(raw) as unknown };
+      } catch {
+        return { refusal: refuse('not_json') };
+      }
+    },
+    async admit(check) {
+      let result;
+      try {
+        result = await check();
+      } catch (error) {
+        report(error);
+        return failOpen ? { result: null } : { refusal: refuse('unavailable') };
+      }
+      if (result.allowed) return { result };
+      const now = options.now ?? Date.now;
+      const seconds = Math.max(1, Math.ceil(((result.resetAt ?? 0) - now()) / 1000));
+      return { refusal: refuse('budget', { 'retry-after': String(seconds) }) };
+    },
+  };
+}
+
+/** The origins a handler sends CORS headers to: a list, or `'*'` for any. */
+export type AllowedOrigins = readonly string[] | '*';
+
+export interface CorsPolicy {
+  /**
+   * Whether a request from `origin` may be answered: any without a list, the endpoint's own
+   * origin, and the listed ones.
+   */
+  allows(origin: string, request: Request): boolean;
+  /**
+   * The CORS headers of the response to `request`: for an allowed origin other than the
+   * endpoint's own, and none without a list.
+   */
+  headers(request: Request): Record<string, string>;
+  /** The CORS headers of a preflight's 204: `headers`, and what the request may send. */
+  preflight(request: Request): Record<string, string>;
+}
+
+/**
+ * CORS for the `allowed` origins: each gets `Access-Control-Allow-Origin` with its own origin
+ * (and `Vary: Origin`), or `*` for `'*'`, and may read `exposeHeaders`; a preflight from one is
+ * told it may send `methods` and `allowHeaders`, for a day. Any other origin gets no CORS
+ * headers, so a browser on it can neither read the answer nor get past the preflight.
+ */
+export function corsPolicy(
+  allowed: AllowedOrigins | undefined,
+  cors: { methods: string; allowHeaders: string; exposeHeaders: string },
+): CorsPolicy {
+  const ownOrigin = (request: Request): string => new URL(request.url).origin;
+  const allows = (origin: string, request: Request): boolean =>
+    allowed === undefined ||
+    allowed === '*' ||
+    allowed.includes(origin) ||
+    origin === ownOrigin(request);
+  const headers = (request: Request): Record<string, string> => {
+    const origin = request.headers.get('origin');
+    if (!origin || allowed === undefined || origin === ownOrigin(request)) return {};
+    if (!allows(origin, request)) return {};
+    return {
+      'access-control-allow-origin': allowed === '*' ? '*' : origin,
+      'access-control-expose-headers': cors.exposeHeaders,
+      ...(allowed === '*' ? {} : { vary: 'origin' }),
+    };
+  };
+  return {
+    allows,
+    headers,
+    preflight(request) {
+      const given = headers(request);
+      if (!('access-control-allow-origin' in given)) return {};
+      return {
+        ...given,
+        'access-control-allow-methods': cors.methods,
+        'access-control-allow-headers': cors.allowHeaders,
+        'access-control-max-age': '86400',
+      };
+    },
+  };
 }
 
 /**
@@ -135,6 +347,25 @@ export function indexLoader(
       throw error;
     });
     return promise;
+  };
+}
+
+/**
+ * `source`, for two handlers to load once between them: an object already is (by the cache
+ * above), and a function is called once, and what it returns loaded once, until a load fails. A
+ * `remoteIndex` is passed on as it is, as the handlers ask it on every request.
+ */
+export function sharedIndexSource(
+  source: IndexSource | (() => IndexSource | Promise<IndexSource>),
+): IndexSource | (() => IndexSource | Promise<IndexSource>) {
+  if (typeof source !== 'function' || isLiveIndex(source)) return source;
+  let loading: Promise<LoadedIndex> | null = null;
+  return () => {
+    loading ??= (async () => load(await source()))().catch((error: unknown) => {
+      loading = null;
+      throw error;
+    });
+    return loading;
   };
 }
 

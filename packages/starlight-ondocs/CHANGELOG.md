@@ -1,5 +1,18 @@
 # starlight-ondocs
 
+## 0.12.0
+
+### Minor Changes
+
+- [#167](https://github.com/dgesteves/ondocs/pull/167) [`a4a7fe2`](https://github.com/dgesteves/ondocs/commit/a4a7fe26b1e79d1085875f7791bdea7260008d6d) Thanks [@dgesteves](https://github.com/dgesteves)! - The Astro, Starlight and VitePress plugins no longer need React. Their dialog now comes prebuilt with its own React, Radix and cmdk, from the new `ondocs/embed/standalone`, so a site installs `ondocs`, `ai` and `@ai-sdk/openai` and nothing else. Before, a Vue or Astro site without React had to install `react`, `react-dom`, `@radix-ui/react-dialog` and `cmdk`, or its build failed. `ondocs init` no longer lists them for these sites, and `starlight-ondocs` no longer asks for them as peers, so npm no longer installs them with it. The dialog still loads only the first time it is wanted, in a chunk of its own: 92.6 KB gzipped on the Starlight example (93.6 KB before) and 95.6 KB on the VitePress one (96.8 KB before). A site that installed the four packages only for the dialog can remove them. On an Astro site with React islands, the dialog no longer shares their React.
+  
+  `ondocs/embed/standalone` has the same `mountAskDialog` and `openAskDialog` as `ondocs/embed`, for an app with a bundler and no React. On such a site, import `openAskDialog` from it: `ondocs/embed` renders the dialog with the site's React, so the build fails without React installed. `launcherScript` from `ondocs/integration` now mounts the launcher with it.
+
+### Patch Changes
+
+- Updated dependencies [[`4b368af`](https://github.com/dgesteves/ondocs/commit/4b368af4cc17f0c92ab4f56cde0856d839f0d1bc), [`856edfd`](https://github.com/dgesteves/ondocs/commit/856edfd1abeafbdd3cd763a4bb2350225e9f57ec), [`30843b9`](https://github.com/dgesteves/ondocs/commit/30843b955e3fd29e1ef3efb4b76616ce8b344aa5), [`a4a7fe2`](https://github.com/dgesteves/ondocs/commit/a4a7fe26b1e79d1085875f7791bdea7260008d6d)]:
+  - ondocs@0.12.0
+
 ## 0.11.0
 
 ### Patch Changes
