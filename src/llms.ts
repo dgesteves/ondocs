@@ -12,6 +12,8 @@
  *   Docusaurus and Starlight llms plugins write them. It starts with a pointer to `llms.txt`.
  */
 import { mapLinkDestinations } from './text/links';
+import { parseAtxHeading } from './text/markdown';
+import { plainHeading } from './text/slug';
 
 /** A page to write: what the index was built from, with its content as Markdown. */
 export interface LlmsPage {
@@ -168,23 +170,39 @@ export function rootedPath(path: string, base = '/'): string {
   return `${prefix}${path}`;
 }
 
-/** `path` (relative to `base`) as a URL on the site: absolute with `site.url`, else root-relative. */
+/** `href` with what would end a Markdown link early, spaces and parentheses, encoded. */
+const linkSafe = (href: string): string =>
+  href.replace(/[\s()]/g, (c) => (c === '(' ? '%28' : c === ')' ? '%29' : encodeURIComponent(c)));
+
+/**
+ * `path` (relative to `base`, a file's path as `markdownPath` has it) as a URL on the site:
+ * absolute with `site.url`, else root-relative, and encoded either way, so `getting started.md`
+ * is a link that works.
+ */
 function siteHref(path: string, site: LlmsSite): string {
-  const rooted = rootedPath(path, site.base);
-  return site.url ? new URL(rooted, site.url).href : rooted;
+  const rooted = rootedPath(path.split('/').map(encodeURIComponent).join('/'), site.base);
+  return linkSafe(site.url ? new URL(rooted, site.url).href : rooted);
 }
 
 /** A page's HTML URL, absolute with `site.url`. */
 function pageHref(url: string, site: LlmsSite): string {
-  if (/^https?:\/\//i.test(url) || !site.url) return url;
-  return new URL(url, site.url).href;
+  if (/^https?:\/\//i.test(url) || !site.url) return linkSafe(url);
+  return linkSafe(new URL(url, site.url).href);
 }
 
-/** The page's content without a leading H1 that repeats its title, and that H1's text. */
+/**
+ * The page's content without a leading H1 that repeats its title, which the copy writes as its
+ * H1. An H1 that says something else, as a Markdown file's under a frontmatter `title`, stays.
+ */
 function splitTitle(page: LlmsPage): string {
   const content = page.content.replace(/^\s+/, '');
-  const first = /^#[ \t]+(.+?)[ \t]*#*[ \t]*(?:\n|$)/.exec(content);
-  return first ? content.slice(first[0].length).replace(/^\s+/, '') : content;
+  const line = content.split('\n', 1)[0] ?? '';
+  const heading = parseAtxHeading(line);
+  if (heading?.level !== 1) return content;
+  // Without a `{#id}`, which is not part of the text.
+  const text = heading.text.replace(/\s*\{#[^\s{}]+\}$/, '');
+  const same = plainHeading(text).toLowerCase() === oneLine(page.title).toLowerCase();
+  return same ? content.slice(line.length).replace(/^\s+/, '') : content;
 }
 
 /**
@@ -201,7 +219,8 @@ function humanize(segment: string): string {
 /**
  * The `llms.txt` sections, in order of first appearance: a page's own `section`, else the first
  * segment of its path below what every page's path shares, named after the page at that segment
- * when there is one. Pages at the top go first, under "Docs".
+ * when there is one. Pages at the top go first, under "Docs", or under "Pages" when another
+ * section is called "Docs": a Docusaurus site's own pages, beside its `/docs/`.
  */
 function sections(pages: readonly LlmsPage[], site: LlmsSite): [string, LlmsPage[]][] {
   const paths = pages.map((page) =>
@@ -225,21 +244,25 @@ function sections(pages: readonly LlmsPage[], site: LlmsSite): [string, LlmsPage
     if (parts.length === shared + 1) titleAt.set(parts.join('/'), page.title);
   });
   const groups = new Map<string, LlmsPage[]>();
+  // The pages at the top, which no section name can be.
+  const TOP = '\u0000';
   pages.forEach((page, i) => {
     const parts = paths[i] ?? [];
     let name = page.section;
     if (!name) {
       const key = parts.slice(0, shared + 1).join('/');
-      name =
-        parts.length <= shared + 1 ? 'Docs' : (titleAt.get(key) ?? humanize(parts[shared] ?? ''));
+      name = parts.length <= shared + 1 ? TOP : (titleAt.get(key) ?? humanize(parts[shared] ?? ''));
     }
     const group = groups.get(name) ?? [];
     group.push(page);
     groups.set(name, group);
   });
-  const entries = [...groups];
+  const top = groups.get(TOP);
+  groups.delete(TOP);
+  const atTop = top && groups.has('Docs') ? 'Pages' : 'Docs';
+  if (top) groups.set(atTop, [...top, ...(groups.get(atTop) ?? [])]);
   // Top-level pages first, then the rest as they come.
-  return entries.sort(([a], [b]) => Number(b === 'Docs') - Number(a === 'Docs'));
+  return [...groups].sort(([a], [b]) => Number(b === atTop) - Number(a === atTop));
 }
 
 /** One line of Markdown: newlines and runs of spaces collapsed. */

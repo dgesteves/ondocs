@@ -147,6 +147,62 @@ describe('buildLlmsFiles', () => {
     expect(llmsOutputs(false)).toEqual({ index: false, full: false, markdown: false });
     expect(llmsOutputs({ full: false })).toEqual({ index: true, full: false, markdown: true });
   });
+
+  it('keeps a leading H1 that is not the title, and writes one that is once', () => {
+    const pages: LlmsPage[] = [
+      // A Markdown file whose frontmatter title is not its H1.
+      { url: '/setup', title: 'Setup', content: '# Installing Acme on Linux\n\nRun it.' },
+      { url: '/ask', title: 'The ask option', content: '# The `ask` option {#ask}\n\nText.' },
+    ];
+    const copies = files(pages, {}, { index: false });
+    expect(copies.get('setup.md')).toBe('# Setup\n\n# Installing Acme on Linux\n\nRun it.\n');
+    expect(copies.get('ask.md')).toBe('# The ask option\n\nText.\n');
+    expect(copies.get('llms-full.txt')).toContain(
+      '# Setup\n\nSource: /setup\n\n# Installing Acme on Linux\n\nRun it.',
+    );
+  });
+
+  it('writes links that work without a site URL, whatever the path holds', () => {
+    const pages: LlmsPage[] = [
+      { url: '/guides/getting%20started', title: 'Getting started', content: 'Go.' },
+      { url: '/api/foo(bar', title: 'Foo', content: 'Bar.' },
+    ];
+    const index = files(pages).get('llms.txt') ?? '';
+    expect(index).toContain('- [Getting started](/guides/getting%20started.md)');
+    expect(index).toContain('- [Foo](/api/foo%28bar.md)');
+    expect(files(pages, { url: 'https://acme.dev' }).get('llms.txt')).toContain(
+      '- [Foo](https://acme.dev/api/foo%28bar.md)',
+    );
+    // Without copies, the links go to the pages.
+    expect(files(pages, {}, { markdown: false }).get('llms.txt')).toContain(
+      '- [Foo](/api/foo%28bar)',
+    );
+  });
+
+  it('lists a site’s own pages under "Pages" when its docs are a section called "Docs"', () => {
+    // A Docusaurus site: its home and src/pages beside the docs at /docs/.
+    const pages: LlmsPage[] = [
+      { url: '/docs/intro', title: 'Intro', content: 'Hi.' },
+      { url: '/docs/guides/deploy', title: 'Deploy', content: 'Ship.' },
+      { url: '/', title: 'Acme', content: 'Home.' },
+      { url: '/markdown-page', title: 'Markdown page example', content: 'A page.' },
+    ];
+    const index = files(pages, {}, { full: false, markdown: false }).get('llms.txt') ?? '';
+    expect(index.slice(index.indexOf('## '))).toBe(
+      [
+        '## Pages',
+        '',
+        '- [Acme](/)',
+        '- [Markdown page example](/markdown-page)',
+        '',
+        '## Docs',
+        '',
+        '- [Intro](/docs/intro)',
+        '- [Deploy](/docs/guides/deploy)',
+        '',
+      ].join('\n'),
+    );
+  });
 });
 
 describe('fromHtml with markdown', () => {
@@ -171,7 +227,108 @@ describe('fromHtml with markdown', () => {
         '<p><strong>Bold</strong> and <em>soft</em>.</p><img src="/img/a.png" alt="A chart"><ol><li>One</li><li>Two<ul><li>Two a</li></ul></li></ol><blockquote><p>Quoted <em>text</em>.</p></blockquote><hr><p>After.</p>',
       ),
     ).toBe(
-      '**Bold** and *soft*.\n\n![A chart](/img/a.png)\n\n1. One\n1. Two\n  - Two a\n\n> Quoted *text*.\n\n---\n\nAfter.',
+      '**Bold** and *soft*.\n\n![A chart](/img/a.png)\n\n1. One\n2. Two\n  - Two a\n\n> Quoted *text*.\n\n---\n\nAfter.',
+    );
+  });
+
+  it('writes a loose list’s items on their own lines, and numbers a list from its start', () => {
+    // remark and markdown-it write a list with blank lines between its items as <li><p>.
+    expect(
+      md(
+        '<ul>\n<li>\n<p><strong>First</strong> item</p>\n</li>\n<li><p>Second item</p></li>\n</ul>',
+      ),
+    ).toBe('- **First** item\n\n- Second item');
+    // Steps a code block splits in two: the second list goes on from 3.
+    expect(
+      md(
+        '<ol><li>One</li><li>Two</li></ol><pre><code>x</code></pre><ol start="3"><li>Third</li><li>Fourth</li></ol>',
+      ),
+    ).toBe('1. One\n2. Two\n\n```\nx\n```\n\n3. Third\n4. Fourth');
+  });
+
+  it('keeps backticks in code, and code in headings', () => {
+    expect(md('<p>Use <code>a`b</code>, <code>``</code> and <code>x</code>.</p>')).toBe(
+      'Use `` a`b ``, ``` `` ``` and `x`.',
+    );
+    expect(md('<h2 id="ask">The <code>ask</code> option</h2><p>Text.</p>')).toBe(
+      '## The `ask` option\n\nText.',
+    );
+  });
+
+  it('labels each tab’s panel, as Docusaurus, Starlight and VitePress write tabs', () => {
+    const sh = (code: string) =>
+      `<pre class="language-sh"><code><span class="token-line">${code}</span></code></pre>`;
+    const expected = '**npm**\n\n```sh\nnpm i acme\n```\n\n**pnpm**\n\n```sh\npnpm add acme\n```';
+    // Docusaurus, minified: its tabs have no </li>, and only the first panel shows.
+    const docusaurus = `<div class="theme-tabs-container tabList_Qoir"><ul role="tablist" aria-orientation="horizontal" class="tabs"><li role="tab" tabindex="0" aria-selected="true" class="tabs__item tabItem_AQgk tabs__item--active">npm<li role="tab" tabindex="-1" aria-selected="false" class="tabs__item tabItem_AQgk">pnpm</ul><div class="margin-top--md"><div role="tabpanel" class="tabItem_pnkT">${sh('npm i acme')}</div><div role="tabpanel" class="tabItem_pnkT" hidden>${sh('pnpm add acme')}</div></div></div>`;
+    expect(md(docusaurus)).toBe(expected);
+    // Starlight: each panel names its tab.
+    const starlight = `<starlight-tabs><div class="tablist-wrapper not-content"><ul role="tablist"><li role="presentation" class="tab"><a role="tab" href="#tab-panel-0" id="tab-0" aria-selected="true">npm</a></li><li role="presentation" class="tab"><a role="tab" href="#tab-panel-1" id="tab-1" tabindex="-1">pnpm</a></li></ul></div><div id="tab-panel-1" aria-labelledby="tab-1" role="tabpanel" hidden>${sh('pnpm add acme')}</div><div id="tab-panel-0" aria-labelledby="tab-0" role="tabpanel">${sh('npm i acme')}</div></starlight-tabs>`;
+    expect(md(starlight)).toBe(
+      '**pnpm**\n\n```sh\npnpm add acme\n```\n\n**npm**\n\n```sh\nnpm i acme\n```',
+    );
+    // VitePress's code group: a label per block.
+    const vitepress = `<div class="vp-code-group vp-adaptive-theme"><div class="tabs"><input type="radio" name="group-a" id="tab-b" checked><label data-title="npm" for="tab-b">npm</label><input type="radio" name="group-a" id="tab-c"><label data-title="pnpm" for="tab-c">pnpm</label></div><div class="blocks"><div class="language-sh vp-adaptive-theme active">${sh('npm i acme')}</div><div class="language-sh vp-adaptive-theme">${sh('pnpm add acme')}</div></div></div>`;
+    expect(md(vitepress)).toBe(expected);
+  });
+
+  it('writes an admonition as a quote that starts with its type, and its title', () => {
+    const icon =
+      '<span class="admonitionIcon_rXq6"><svg viewBox="0 0 12 16"><path d="M6"></path></svg></span>';
+    const docusaurus = (type: string, title: string, content: string) =>
+      `<div class="theme-admonition theme-admonition-${type} admonition_o5H7 alert alert--success"><div class="admonitionHeading_FzoX">${icon}${title}</div><div class="admonitionContent_Knsx">${content}</div></div>`;
+    expect(
+      md(
+        docusaurus('tip', 'My tip', '<p>Use this awesome feature option</p>') +
+          docusaurus('danger', 'Take care', '<p>This action is dangerous</p>') +
+          docusaurus(
+            'note',
+            'note',
+            '<p>Run it:</p><pre class="language-sh"><code>npx acme</code></pre>',
+          ),
+      ),
+    ).toBe(
+      [
+        '> **Tip: My tip**\n>\n> Use this awesome feature option',
+        '> **Danger: Take care**\n>\n> This action is dangerous',
+        '> **Note**\n>\n> Run it:\n>\n> ```sh\n> npx acme\n> ```',
+      ].join('\n\n'),
+    );
+    // Starlight's asides, in its region, and VitePress's custom blocks.
+    const starlight =
+      '<main data-pagefind-body><aside aria-label="Take care" class="starlight-aside starlight-aside--danger"><p class="starlight-aside__title" aria-hidden="true"><svg><path d="M1"></path></svg>Take care</p><div class="starlight-aside__content"><p>Back up first.</p></div></aside></main>';
+    expect(
+      fromHtml(starlight, { id: 'x', url: '/x', root: '[data-pagefind-body]', markdown: true })
+        ?.content,
+    ).toBe('> **Danger: Take care**\n>\n> Back up first.');
+    expect(
+      md(
+        '<div class="tip custom-block"><p class="custom-block-title">TIP</p><p>A tip.</p></div><details class="details custom-block"><summary>Details</summary><p>More.</p></details>',
+      ),
+    ).toBe('> **Tip**\n>\n> A tip.\n\nDetails\n\nMore.');
+  });
+
+  it('puts a code block’s title on its fence', () => {
+    const docusaurus =
+      '<div class="language-js codeBlockContainer_jDV4 theme-code-block"><div class="codeBlockTitle_U6Q0">docusaurus.config.js</div><div class="codeBlockContent_cKMj"><pre tabindex="0" class="prism-code language-js codeBlock_Gebt"><code>export default {};</code></pre></div></div>';
+    const expressiveCode =
+      '<div class="expressive-code"><figure class="frame has-title not-content"><figcaption class="header"><span class="title">astro.config.mjs</span></figcaption><pre data-language="js"><code><div class="ec-line"><div class="code">export default {};</div></div></code></pre></figure></div>';
+    expect(md(docusaurus)).toBe('```js title="docusaurus.config.js"\nexport default {};\n```');
+    expect(md(expressiveCode)).toBe('```js title="astro.config.mjs"\nexport default {};\n```');
+  });
+
+  it('starts a paragraph at <details> when minified HTML leaves the one before it open', () => {
+    // ondocs's own MCP install block, as Docusaurus minifies it.
+    expect(
+      md(
+        '<div class=ask-mcp><p>ChatGPT: add it at chatgpt.com/plugins.<details><summary>Other clients</summary><pre><code>{}</code></pre></details></div>',
+      ),
+    ).toBe('ChatGPT: add it at chatgpt.com/plugins.\n\nOther clients\n\n```\n{}\n```');
+  });
+
+  it('keeps the code blocks in a quote', () => {
+    expect(md('<blockquote><p>Run:</p><pre><code>npm i</code></pre></blockquote>')).toBe(
+      '> Run:\n>\n> ```\n> npm i\n> ```',
     );
   });
 

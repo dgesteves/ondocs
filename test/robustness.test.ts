@@ -128,6 +128,52 @@ describe('linear-time loaders on unclosed constructs', () => {
       markdown(`<main><table>${'<tr><td>x<td>y'.repeat(n / 4)}</table></main>`),
     ],
     ['Markdown: unclosed quotes', markdown(`<main>${'<blockquote>x '.repeat(n / 4)}</main>`)],
+    [
+      'Markdown: nested quotes',
+      markdown(`<main>${'<blockquote>x '.repeat(n / 4)}${'</blockquote>'.repeat(n / 4)}</main>`),
+    ],
+    [
+      'Markdown: nested admonitions',
+      markdown(
+        `<main>${'<div class="custom-block tip"><p class=custom-block-title>T</p>x '.repeat(n / 4)}${'</div>'.repeat(n / 4)}</main>`,
+      ),
+    ],
+    // Tabs and admonitions are read before the rest, a scan of their own: a quarter as many too.
+    [
+      'nested admonitions',
+      html(
+        `<main>${'<div class="theme-admonition-tip"><div class=admonitionHeading>T</div>x '.repeat(n / 4)}${'</div></div>'.repeat(n / 4)}</main>`,
+      ),
+    ],
+    [
+      'Markdown: many tabs, and panels that name them',
+      markdown(
+        `<main><ul role=tablist>${'<li role=tab id=t>x'.repeat(n / 4)}</ul>${'<div role=tabpanel aria-labelledby=t>y</div>'.repeat(n / 4)}</main>`,
+      ),
+    ],
+    [
+      'nested tab panels',
+      html(
+        `<main><ul role=tablist><li role=tab>a</ul>${'<div role=tabpanel><ul role=tablist><li role=tab>b</ul>'.repeat(n / 4)}${'</div>'.repeat(n / 4)}</main>`,
+      ),
+    ],
+    [
+      'Markdown: nested code groups',
+      markdown(
+        `<main>${'<div class=vp-code-group><label>a</label><pre>x</pre>'.repeat(n / 4)}${'</div>'.repeat(n / 4)}</main>`,
+      ),
+    ],
+    [
+      'Markdown: nested code blocks with titles',
+      markdown(
+        `<main>${'<div class=theme-code-block><div class=codeBlockTitle>t</div>'.repeat(n / 4)}${'</div>'.repeat(n / 4)}<pre>x</pre></main>`,
+      ),
+    ],
+    ['Markdown: loose list items', markdown(`<main><ul>${'<li> <p>x'.repeat(n / 4)}</ul></main>`)],
+    [
+      'Markdown: code spans with backticks',
+      markdown(`<main><p>${'<code>a`b</code>'.repeat(n)}</main>`),
+    ],
     ['Markdown: unclosed links', markdown(`<main>${'<a href=/x>y '.repeat(n)}</main>`)],
     [
       'Markdown: many links and images',
