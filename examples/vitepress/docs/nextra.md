@@ -6,7 +6,9 @@ description: "Index Nextra's content folder with the CLI, write llms.txt with it
 
 # Nextra
 
-A Nextra site is a Next.js app, so ondocs is the same three pieces as in [Next.js](/nextjs): an index built by the CLI from your content folder, route handlers for the ask and MCP endpoints, and the `<AskDialog />` component. Nextra has no `llms.txt` of its own, so the CLI writes it, with a Markdown copy of each page. This page follows Nextra 4 with the docs theme and a `content` folder served under `/docs` (`contentDirBasePath: '/docs'`). In a project with a `src` folder, the folders are `src/content` and `src/app`.
+Nextra has no `llms.txt` or MCP server of its own, and for Ask AI its docs point to [Inkeep](https://nextra.site/docs/guide/search/ai), a hosted service. ondocs adds all three, self-hosted, from one index built from your content: the Ask box answers on your own model key, agents search the same index over [MCP](/mcp) with no model call, and the CLI writes `llms.txt` with a Markdown copy of each page.
+
+A Nextra site is a Next.js app, so ondocs is the same three pieces as in [Next.js](/nextjs): an index built by the CLI from your content folder, route handlers for the ask and MCP endpoints, and the `<AskDialog />` component. This page follows Nextra 4 with the docs theme and a `content` folder served under `/docs` (`contentDirBasePath: '/docs'`). In a project with a `src` folder, the folders are `src/content` and `src/app`.
 
 ## Install for Nextra
 

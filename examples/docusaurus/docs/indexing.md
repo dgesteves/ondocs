@@ -4,7 +4,7 @@ title: 'Indexing content'
 description: 'What gets indexed, how files become URLs, chunking, excluding pages and the --check mode.'
 ---
 
-Indexing turns your pages into chunks, embeds each chunk and writes everything to one JSON file. The CLI does it for any folder; the Docusaurus, Astro and Starlight plugins do it after every build.
+Indexing turns your pages into chunks, embeds each chunk and writes everything to one JSON file. The CLI does it for any folder; the Docusaurus, Astro, Starlight and VitePress plugins do it after every build.
 
 ## Supported content
 
