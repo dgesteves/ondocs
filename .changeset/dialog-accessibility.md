@@ -1,5 +1,0 @@
----
-'ondocs': patch
----
-
-The dialog works better on a phone and with assistive technology. On a touch screen, which has no Escape key, a Close button takes the place of the esc hint, buttons are 44 px tall, and citations have a larger area to tap. When a thumb, a sent comment, Stop or Retry goes away as it is pressed, focus moves on to "Add a comment", "New question" or the input, rather than falling to the dialog. Each source's name now starts with its number and whether the answer cites it, and the cited sources have their number filled. An error is announced once, the input is named once and is expanded only while its list shows, and the questions in a thread are headings. Numbered steps with code or a blank line between them keep their numbers: 1, 2, 3 rather than 1, 1, 1. In forced colors (Windows High Contrast), the selected suggestion is outlined, the cited sources keep their filled number, and the navbar button keeps a border. New labels: `close`, `source`, `sourceCited` and `sourceNotCited`.

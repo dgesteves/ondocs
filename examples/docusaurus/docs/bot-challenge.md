@@ -63,7 +63,7 @@ export default withOndocs(defineConfig({ … }), { dialog: { challenge: { turnst
 ```html
 <!-- The script tag -->
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.12/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.13/dist/embed.global.js"
   data-endpoint="/api/ask"
   data-turnstile-site-key="0x4AAAAAAA…"
   defer
