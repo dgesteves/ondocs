@@ -417,6 +417,8 @@ describe('fromHtml on lists, tabs and admonitions', () => {
     expect(read(admonition('danger', 'Take care') + admonition('note', 'note'))?.content).toBe(
       'Danger: Take care\n\nBody.\n\nnote\n\nBody.',
     );
+    // The index keeps a title as it reads: only Markdown escapes it.
+    expect(read(admonition('tip', 'Use *globs*'))?.content).toBe('Tip: Use *globs*\n\nBody.');
   });
 });
 

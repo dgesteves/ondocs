@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import GithubSlugger from 'github-slugger';
 
-import { chunkDocument, createSlugger, fromHtml, fromMarkdown, slugify } from '../src';
+import {
+  buildLlmsFiles,
+  chunkDocument,
+  createSlugger,
+  fromHtml,
+  fromMarkdown,
+  slugify,
+} from '../src';
 import { nextHeadingIds } from '../src/node/next';
 import { dropHeadingFootnotes } from '../src/text/markdown';
 import type { SourceDocument } from '../src';
@@ -57,6 +64,16 @@ describe('linear-time parsing of hostile input', () => {
     for (const unit of ['。', '」', '。」', '！？ ', '。」」」」a', '😀']) {
       const line = unit.repeat(Math.ceil(100_000 / unit.length));
       expect(timed(() => chunkDocument(doc(line)))).toBeLessThan(250);
+    }
+  });
+
+  it('compares a page’s H1 with a long title quickly, whatever runs it holds', () => {
+    // A heading line is at most 1,000 characters; a title, as an <h1>'s text, can be any length.
+    for (const run of [' ', '#', '¶ ', '\u200B', '*', '`', '<a ']) {
+      const title = `a${run.repeat(Math.ceil(100_000 / run.length))}b`;
+      const page = { url: '/p', title, content: '# a\n\nBody.' };
+      const copy = () => buildLlmsFiles([page], { title: 'S' }, { index: false, full: false });
+      expect(timed(copy)).toBeLessThan(250);
     }
   });
 
@@ -167,6 +184,43 @@ describe('linear-time loaders on unclosed constructs', () => {
       'Markdown: nested code blocks with titles',
       markdown(
         `<main>${'<div class=theme-code-block><div class=codeBlockTitle>t</div>'.repeat(n / 4)}${'</div>'.repeat(n / 4)}<pre>x</pre></main>`,
+      ),
+    ],
+    // An element in an open title is part of the title: none of it is read twice.
+    [
+      'admonitions in their titles',
+      html(
+        `<main>${'<div class="theme-admonition-tip"><div class=admonitionHeading>x '.repeat(n / 4)}${'</div></div>'.repeat(n / 4)}</main>`,
+      ),
+    ],
+    [
+      'Markdown: admonitions in their titles',
+      markdown(
+        `<main>${'<div class="theme-admonition-tip"><div class=admonitionHeading>x '.repeat(n / 4)}${'</div></div>'.repeat(n / 4)}</main>`,
+      ),
+    ],
+    [
+      'Markdown: code blocks in their titles, and their code after them',
+      markdown(
+        `<main>${'<div class=theme-code-block><div class=codeBlockTitle>t '.repeat(n / 4)}${'</div></div>'.repeat(n / 4)}<pre>x</pre></main>`,
+      ),
+    ],
+    [
+      'Markdown: code blocks in their titles, and their code in them',
+      markdown(
+        `<main>${'<div class=theme-code-block><div class=codeBlockTitle>t '.repeat(n / 4)}<pre>x</pre>${'</div></div>'.repeat(n / 4)}</main>`,
+      ),
+    ],
+    [
+      'Markdown: Expressive Code frames in their titles',
+      markdown(
+        `<main>${'<figure class=frame><figcaption class=header><span class=title>t '.repeat(n / 4)}<pre>x</pre>${'</span></figcaption></figure>'.repeat(n / 4)}</main>`,
+      ),
+    ],
+    [
+      'Markdown: labels in labels in a code group',
+      markdown(
+        `<main><div class=vp-code-group>${'<label>a '.repeat(n / 4)}${'</label>'.repeat(n / 4)}<pre>x</pre></div></main>`,
       ),
     ],
     ['Markdown: loose list items', markdown(`<main><ul>${'<li> <p>x'.repeat(n / 4)}</ul></main>`)],

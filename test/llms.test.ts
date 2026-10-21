@@ -162,6 +162,47 @@ describe('buildLlmsFiles', () => {
     );
   });
 
+  it('writes an H1 once when the title has a permalink or reads as Markdown', () => {
+    // Built pages: the title is the <h1>'s text, permalink and all, and the content's H1 has none.
+    const built = (h1: string, path: string) => {
+      const page = fromHtml(`<main><h1>${h1}</h1><p>Run it.</p></main>`, {
+        id: path,
+        url: `/${path}`,
+        markdown: true,
+      });
+      if (!page) throw new Error(`no page for ${h1}`);
+      return {
+        path: `${path}.md`,
+        page: { url: page.url, title: page.title, content: page.content },
+      };
+    };
+    const cases = [
+      // Sphinx and MkDocs.
+      built('Installation<a class="headerlink" href="#installation">¶</a>', 'sphinx'),
+      // rehype-autolink-headings, after the text and before it.
+      built('Installation <a href="#installation">#</a>', 'after'),
+      built('<a href="#installation">#</a> Installation', 'before'),
+      // Text that reads as Markdown: an HTML tag, emphasis.
+      built('The &lt;Ask&gt; component', 'ask'),
+      built('Use <code>&lt;Ask /&gt;</code>', 'code'),
+      built('__init__', 'init'),
+      // A Markdown file whose frontmatter title is its H1, code and all.
+      {
+        path: 'hook.md',
+        page: { url: '/hook', title: 'Using `useAsk`', content: '# Using `useAsk`\n\nRun it.' },
+      },
+    ];
+    const copies = files(
+      cases.map((c) => c.page),
+      {},
+      { index: false },
+    );
+    for (const { path, page } of cases) {
+      expect(copies.get(path)).toBe(`# ${page.title}\n\nRun it.\n`);
+    }
+    expect(copies.get('sphinx.md')).toBe('# Installation¶\n\nRun it.\n');
+  });
+
   it('writes links that work without a site URL, whatever the path holds', () => {
     const pages: LlmsPage[] = [
       { url: '/guides/getting%20started', title: 'Getting started', content: 'Go.' },
@@ -294,6 +335,10 @@ describe('fromHtml with markdown', () => {
         '> **Note**\n>\n> Run it:\n>\n> ```sh\n> npx acme\n> ```',
       ].join('\n\n'),
     );
+    // A title is text, not emphasis or code. A `_` inside a word is never emphasis, and stays.
+    expect(md(docusaurus('tip', 'Use *globs*, _x_, `y` and my_file', '<p>Text.</p>'))).toBe(
+      '> **Tip: Use \\*globs\\*, \\_x\\_, \\`y\\` and my_file**\n>\n> Text.',
+    );
     // Starlight's asides, in its region, and VitePress's custom blocks.
     const starlight =
       '<main data-pagefind-body><aside aria-label="Take care" class="starlight-aside starlight-aside--danger"><p class="starlight-aside__title" aria-hidden="true"><svg><path d="M1"></path></svg>Take care</p><div class="starlight-aside__content"><p>Back up first.</p></div></aside></main>';
@@ -315,6 +360,15 @@ describe('fromHtml with markdown', () => {
       '<div class="expressive-code"><figure class="frame has-title not-content"><figcaption class="header"><span class="title">astro.config.mjs</span></figcaption><pre data-language="js"><code><div class="ec-line"><div class="code">export default {};</div></div></code></pre></figure></div>';
     expect(md(docusaurus)).toBe('```js title="docusaurus.config.js"\nexport default {};\n```');
     expect(md(expressiveCode)).toBe('```js title="astro.config.mjs"\nexport default {};\n```');
+    // A title's quotes are kept, in the other quotes, or escaped when it holds both. A backtick
+    // fence's info string cannot hold a backtick.
+    const titled = (title: string) =>
+      `<div class="theme-code-block"><div class="codeBlockTitle_U6Q0">${title}</div><pre class="language-js"><code>x</code></pre></div>`;
+    expect(md(titled('my &quot;file&quot;.js'))).toBe('```js title=\'my "file".js\'\nx\n```');
+    expect(md(titled("it’s &quot;a&quot; file's"))).toBe(
+      '```js title="it’s \\"a\\" file\'s"\nx\n```',
+    );
+    expect(md(titled('a `b` c'))).toBe('```js title="a b c"\nx\n```');
   });
 
   it('starts a paragraph at <details> when minified HTML leaves the one before it open', () => {

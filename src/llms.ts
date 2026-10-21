@@ -190,9 +190,29 @@ function pageHref(url: string, site: LlmsSite): string {
   return linkSafe(new URL(url, site.url).href);
 }
 
+/** Whitespace, and the glyphs a permalink in a heading is written as. */
+const GLYPH = /[\s#¶§\u200B-\u200D\u2060\uFEFF]/;
+
+/**
+ * Heading text to compare, without the permalink glyphs a page's title can keep from its `<h1>`
+ * ("Installation¶", "Installation #") and the content's heading has not, and in lowercase. A
+ * loop, not `[…]+$`, which backtracks over a long run of them inside the text.
+ */
+function bareHeading(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && GLYPH.test(text.charAt(start))) start += 1;
+  while (end > start && GLYPH.test(text.charAt(end - 1))) end -= 1;
+  return text.slice(start, end).replace(/\s+/g, ' ').toLowerCase();
+}
+
 /**
  * The page's content without a leading H1 that repeats its title, which the copy writes as its
  * H1. An H1 that says something else, as a Markdown file's under a frontmatter `title`, stays.
+ *
+ * The H1 is Markdown, and is compared as the text it renders. The title is text that can read as
+ * Markdown ("The <Ask> component", "__init__"), or be Markdown (a frontmatter "Using `useAsk`"),
+ * so either reading of it matches.
  */
 function splitTitle(page: LlmsPage): string {
   const content = page.content.replace(/^\s+/, '');
@@ -201,7 +221,11 @@ function splitTitle(page: LlmsPage): string {
   if (heading?.level !== 1) return content;
   // Without a `{#id}`, which is not part of the text.
   const text = heading.text.replace(/\s*\{#[^\s{}]+\}$/, '');
-  const same = plainHeading(text).toLowerCase() === oneLine(page.title).toLowerCase();
+  const plain = bareHeading(plainHeading(text));
+  const same =
+    plain === bareHeading(page.title) ||
+    plain === bareHeading(plainHeading(page.title)) ||
+    bareHeading(text) === bareHeading(page.title);
   return same ? content.slice(line.length).replace(/^\s+/, '') : content;
 }
 

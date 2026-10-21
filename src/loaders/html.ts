@@ -799,6 +799,27 @@ function admonitionLabel(type: string, title: string, markdown: boolean): string
   return `${name}: ${title}`;
 }
 
+/**
+ * `text` as Markdown that reads as the text itself: a backslash, `*` and `` ` `` escaped, and a
+ * `_` that is not inside a word (one inside a word, as in `my_file`, is never emphasis).
+ */
+const markdownText = (text: string): string =>
+  text.replace(/[\\`*]|(?<![\p{L}\p{N}])_|_(?![\p{L}\p{N}])/gu, '\\$&');
+
+/**
+ * A code block's title as the value of a fence's `title=`, quoted as Docusaurus, Expressive Code
+ * and rehype-pretty-code read it: in double quotes, or in single quotes when it holds a double
+ * quote and no single one (with both, its double quotes are escaped). A backtick fence's info
+ * string cannot hold a backtick, so those go. Empty for a title with no text.
+ */
+function fenceTitle(text: string): string {
+  const title = text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
+  if (!title) return '';
+  if (!title.includes('"')) return `"${title}"`;
+  if (!title.includes("'")) return `'${title}'`;
+  return `"${title.replace(/"/g, '\\"')}"`;
+}
+
 /** The labels of a list of tabs, for its panels: by the tab a panel names, else in order. */
 interface Tabs {
   labels: string[];
@@ -829,8 +850,9 @@ function takeLabel(tabs: Tabs, id: string | undefined): string | undefined {
  *   `title="…"`, instead of a line of its own.
  *
  * `blocks` are the code blocks already swapped out of `html`. Linear: one scan over the tags, and
- * an element's own tags are read again only for one the scan then skips (a list of tabs, a code
- * group), or for the first two in it.
+ * what an element holds is read again only for one the scan then skips (a list of tabs, a code
+ * group, an admonition's or a code block's title, each replaced as a whole), or for the first
+ * two tags in it. So no text is read twice, however deep elements nest in each other's titles.
  */
 function structure(html: string, blocks: string[], markdown: boolean): string {
   if (!STRUCTURE_HINT.test(html)) return html;
@@ -850,7 +872,9 @@ function structure(html: string, blocks: string[], markdown: boolean): string {
       .replace(/<[^<>]*>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-  const label = (text: string): string => (text ? `<p><strong>${text}</strong></p>` : '');
+  // A label is the page's text, which Markdown must not read as emphasis or code.
+  const label = (text: string): string =>
+    text ? `<p><strong>${markdown ? markdownText(text) : text}</strong></p>` : '';
   // The tabs whose panels come next, and while in a panel, those of the lists around it.
   let tabs: Tabs | undefined;
   const around: { until: number; tabs: Tabs | undefined }[] = [];
@@ -908,6 +932,8 @@ function structure(html: string, blocks: string[], markdown: boolean): string {
           const close = closer[k];
           const to = close !== undefined && close < j ? tags[close] : tags[k + 1];
           labels.push(textOf(tab.end, to?.start ?? end.start));
+          // A label in a label is part of its text, not one to read again.
+          if (close !== undefined && close < j) k = close;
         }
         const text = inGroup.map((block, n) => `${label(labels[n] ?? '')}\n\n${block}\n\n`);
         replaced.set(i, { to: j, text: text.join('') });
@@ -923,15 +949,19 @@ function structure(html: string, blocks: string[], markdown: boolean): string {
       const first = tags[i + 1];
       const firstEnd = t === undefined ? undefined : tags[t];
       let title = '';
+      let read = i;
       if (t !== undefined && first && firstEnd && !first.close && t < j) {
         if (isAdmonitionTitle(classesOf(attributesOf(first.attributes)))) {
           title = textOf(first.end, firstEnd.start);
           replaced.set(i + 1, { to: t, text: ' ' });
+          read = t;
         }
       }
       const text = label(admonitionLabel(type, title, markdown));
       replaced.set(i, { to: i, text: `<blockquote>${text}` });
       replaced.set(j, { to: j, text: '</blockquote>' });
+      // The title was read, and is replaced as a whole: the scan goes on after it.
+      i = read;
       continue;
     }
 
@@ -948,15 +978,21 @@ function structure(html: string, blocks: string[], markdown: boolean): string {
         if (t === undefined || !title || !titleEnd || title.close || t >= j) continue;
         const own = classesOf(attributesOf(title.attributes));
         if (!own.some((word) => /^codeBlockTitle(?:_|$)/.test(word) || word === 'title')) continue;
+        // The block the title is for, before the title is read: the blocks are passed in order,
+        // so a block in a title is behind the scan, and of a chain of titles in titles, only the
+        // outermost has one.
         while (nextCode < code.length && (code[nextCode]?.at ?? 0) < titleEnd.end) nextCode += 1;
         const block = code[nextCode];
-        const text = decodeEntities(textOf(title.end, titleEnd.start)).replace(/["`]/g, '');
-        if (!block || block.at >= end.start || !text) break;
+        if (!block || block.at >= end.start) break;
+        const text = fenceTitle(decodeEntities(textOf(title.end, titleEnd.start)));
+        if (!text) break;
         blocks[block.block] = (blocks[block.block] ?? '').replace(
           /^(`+)(.*)/,
-          (_, fence: string, info: string) => `${fence}${info || 'text'} title="${text}"`,
+          (_, fence: string, info: string) => `${fence}${info || 'text'} title=${text}`,
         );
         replaced.set(k, { to: t, text: ' ' });
+        // The title is replaced as a whole: the scan goes on after it.
+        i = t;
         break;
       }
     }
