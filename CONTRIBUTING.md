@@ -2,6 +2,14 @@
 
 Issues and pull requests are welcome. For a larger change, open an issue first so we can agree on the shape before you write it.
 
+## New integrations
+
+ondocs already works with more site frameworks, hosts, model providers and agents than one maintainer can keep checked. [Support tiers](https://ondocs.vercel.app/docs/limits#support-tiers) lists each one, with the CI job or the dated check behind it, or says that it is only documented.
+
+So for the first four weeks after the public launch, no new integration lands: no new site framework, deploy target or model provider, and no new surface, such as an entry point or a plugin package, unless an issue asks for it. To ask, open a [feature request](https://github.com/dgesteves/ondocs/issues/new?template=feature_request.yml) that names the framework, host, provider or client, what you would use it for, and what you do today instead. A pull request that adds an integration links that issue.
+
+Fixes to the integrations ondocs has are welcome all along, and so is moving one from Tier 2 to Tier 1: add the CI job that runs it, or check it by hand and give the date and the version in the pull request.
+
 ## Setup
 
 Node 22.12 or later (CI uses 24) and pnpm (the version in `package.json`'s `packageManager`; `corepack enable` picks it up).
