@@ -22,9 +22,9 @@ minimumReleaseAgeExclude:
   - next@16.4.1
 # CI's audit job fails on a high or critical advisory in a production dependency (`pnpm audit --prod
 # --audit-level=high`), and pnpm counts the examples' dependencies and the peers it installs as
-# production. Both packages below come in through @docusaurus/core 3.10, which asks for a major that has
-# no fixed release. Only this repository's install takes the overrides: a site that installs ondocs
-# resolves its own Docusaurus.
+# production. tinypool and serialize-javascript come in through @docusaurus/core 3.10, and vite through
+# VitePress 1: each asks for a major that has no fixed release. Only this repository's install takes
+# the overrides: a site that installs ondocs resolves its own Docusaurus and VitePress.
 overrides:
   # Critical GHSA-5gmw-xhrv-c9v3 and GHSA-85c8-ppgw-ccpr. Docusaurus builds a site of more than 100
   # pages in a tinypool worker pool.
@@ -32,6 +32,10 @@ overrides:
   # High GHSA-5c6j-r48x-rmvq and moderate GHSA-qj8w-gfj5-8c6v, through copy-webpack-plugin 11 and
   # css-minimizer-webpack-plugin 5. Their current majors ask for ^7.0.3.
   serialize-javascript@<7.0.5: ^7.0.5
+  # High GHSA-587h-7wmj-h5pm and GHSA-fx2h-pf6j-xcff, in the dev server on Windows. VitePress 1.6.4,
+  # its latest release, asks for vite ^5.4.14, no vite 5 release fixes them, and VitePress 2 is still
+  # an alpha. Its @vitejs/plugin-vue 5 accepts vite 6, and the VitePress example builds with it.
+  vitepress>vite: ^6.4.4
 # Advisories the audit skips, because no release this repository can take fixes them. Take an entry
 # out once one does.
 auditConfig:
@@ -39,6 +43,3 @@ auditConfig:
     # braces 3.0.3 and older: stack exhaustion on deeply nested brace patterns, with no fixed release.
     # Through micromatch, Docusaurus and webpack expand the build's own glob patterns with it.
     - GHSA-vfj7-8cjw-p6xm
-    # vite 6.4.2 and older: a server.fs.deny bypass in the dev server, on Windows. VitePress 1 needs
-    # vite 5, and no vite 5 release fixes it. CI and Vercel only build the VitePress example, on Linux.
-    - GHSA-fx2h-pf6j-xcff

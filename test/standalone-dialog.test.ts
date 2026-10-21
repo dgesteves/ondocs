@@ -166,6 +166,11 @@ describe('ondocs/embed/standalone', () => {
     start.textContent = 'Start';
     document.body.append(start);
     start.focus();
+    // React schedules its renders with setImmediate. A busy CI runner reaches them late, as this
+    // does: the dialog has focus before the render that lets it take pointer events.
+    vi.stubGlobal('setImmediate', (callback: (...args: unknown[]) => void, ...args: unknown[]) =>
+      setTimeout(callback, 30, ...args),
+    );
     const ask = mountAskDialog({ suggestions: ['How do I install it?'] });
     try {
       const user = userEvent.setup();
@@ -173,6 +178,9 @@ describe('ondocs/embed/standalone', () => {
       const input = await screen.findByRole('combobox');
       await waitFor(() => {
         expect(document.activeElement).toBe(input);
+        // Radix turns pointer events off for the page as the dialog opens, and back on for the
+        // dialog a render later. Until then user-event refuses to click into it.
+        expect(getComputedStyle(input).pointerEvents).not.toBe('none');
       });
       await user.type(input, 'How do I install it?{Enter}');
       const citation = await screen.findByRole('link', { name: /^Source 1:/ });
