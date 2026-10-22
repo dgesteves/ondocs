@@ -2,11 +2,15 @@
 
 ondocs is built in the open, and this page is the plan: what is in review, what comes next, and what waits until a site needs it. To weigh in, add a reaction or a comment on an item's issue, or start a thread in [Discussions](https://github.com/dgesteves/ondocs/discussions) for something that has no issue yet.
 
-## In review
+## Merged, in the next release
 
 - Keys typed right after ⌘I are kept while the dialog loads, so the start of a question is no longer lost. [#183](https://github.com/dgesteves/ondocs/pull/183)
-- Evals on real Stack Overflow questions in CI, and `ondocs eval -c` with hit@5 and MRR. [#184](https://github.com/dgesteves/ondocs/pull/184)
 - A 1.0 contract: an API report in CI, one meaning per option name (the old names work until 1.0), options checked when the handler is made, and a policy for the index format. [#185](https://github.com/dgesteves/ondocs/pull/185)
+- `ondocs index` skips a static site's 404 page. [#200](https://github.com/dgesteves/ondocs/issues/200)
+
+## In review
+
+- Evals on real Stack Overflow questions in CI, and `ondocs eval -c` with hit@5 and MRR. [#184](https://github.com/dgesteves/ondocs/pull/184)
 - Each plugin guide opens with a no-key try-out, VitePress is named wherever the other plugins are, and the Fumadocs and Nextra guides say why to use ondocs there. [#186](https://github.com/dgesteves/ondocs/pull/186)
 - Support tiers on the Limits page (tested in CI, or documented only), and new integrations wait four weeks after launch unless someone asks for one. [#187](https://github.com/dgesteves/ondocs/pull/187)
 
@@ -40,7 +44,6 @@ ondocs is built in the open, and this page is the plan: what is in review, what 
 - Try ondocs on your own docs in the browser with `ondocs dev`, and see the closest pages after "I don't know". [#197](https://github.com/dgesteves/ondocs/issues/197)
 - `ondocs init` in monorepos: locales from the build, host config at the workspace root, pnpm and Yarn commands. [#198](https://github.com/dgesteves/ondocs/issues/198)
 - A warning before the index gets too big to deploy. [#199](https://github.com/dgesteves/ondocs/issues/199)
-- `ondocs index` skips a static site's 404 page. Good first issue. [#200](https://github.com/dgesteves/ondocs/issues/200)
 
 ### Plugins and languages
 
