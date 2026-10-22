@@ -32,7 +32,7 @@ For teams that run their own developer docs, at product, API and platform compan
 
 <!-- npm-readme:video -->
 
-https://github.com/user-attachments/assets/2491c5ea-de70-471c-b11e-30591c074e6f
+https://github.com/user-attachments/assets/6922d183-beeb-4c0b-bea3-2e1aba1eee56
 
 <sub>The <a href="https://ondocs.vercel.app">live demo</a>: a streamed answer with citations, one opening the section it came from, then the one-line setups.</sub>
 
