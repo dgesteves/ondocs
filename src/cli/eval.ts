@@ -10,11 +10,13 @@ import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 
 import { embeddingModelId, sameEmbeddingModel, type EmbeddingProviderOptions } from '../build';
+import { MOCK_MIN_SIMILARITY } from '../mock';
 import { readIndexFile } from '../node';
+import { embeddingFromSpec, EmbeddingSpecError } from '../node/embedding';
 import { loadIndex, retrieve, type LoadedIndex, type RetrievalOptions } from '../search/retrieve';
 import { tokenize } from '../text/tokenize';
 import { loadConfigModule } from './config';
-import { devModels, DevError, INDEX_FILES } from './dev';
+import { devModels, DevError, INDEX_FILES, UnknownEmbeddingModelError } from './dev';
 import type { CliIO } from './main';
 
 export const EVAL_USAGE = `Usage: ondocs eval <questions.yaml> [options]
@@ -46,12 +48,13 @@ Options:
       --min-refusal-precision <n>
       --min-refusal-recall <n>
   -c, --config <file>                The config module the index was built with (ondocs index -c):
-                                     questions are embedded with its embeddingModel
+                                     questions are embedded with its embedding (at its dimensions)
+                                     or embeddingModel
       --keyword-only                 Search by keywords only, embedding nothing
       --json                         Print the report as JSON
   -h, --help                         Show this help
 
-Questions are embedded with the config's embeddingModel, else with the model the index records:
+Questions are embedded with the config's model, else with the model the index records:
 the mock model offline, OpenAI or AI Gateway with OPENAI_API_KEY or AI_GATEWAY_API_KEY, Workers
 AI with CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN. .env and .env.local in the working
 directory are loaded first.`;
@@ -112,7 +115,10 @@ export interface EvalResult {
   refused: boolean;
   /** Where the first expected page came, from 1, among the distinct pages found; null if not found. */
   rank: number | null;
-  /** The first five distinct pages (or sections, where `expect` names one) found. */
+  /**
+   * The distinct pages (or sections, where `expect` names one) found, in order: all of them, so
+   * the page `rank` counts is among them (six at most, at the default `topK`).
+   */
   found: string[];
   best: { similarity: number | null; keywordCoverage: number };
   /**
@@ -149,9 +155,6 @@ const normalize = (url: string): string => {
   return anchor === undefined ? clean : `${clean}#${anchor}`;
 };
 const pageOf = (url: string): string => normalize(url).split('#')[0] ?? '';
-
-/** How many distinct pages a result keeps, for hit@5. */
-const FOUND = 5;
 
 /**
  * The words of `question` that no chunk contains. BM25 gives a word on no chunk the highest IDF,
@@ -194,7 +197,7 @@ export async function evaluate(
       unanswerable: !('expect' in entry),
       refused: !result.answerable,
       rank: position === -1 ? null : position + 1,
-      found: found.slice(0, FOUND),
+      found,
       best: result.best,
       absent: absentWords(index, entry.question),
     });
@@ -272,7 +275,8 @@ function printReport(report: EvalReport, io: CliIO): void {
       detail = `expected ${result.expect.join(' or ')}`;
       if (result.absent.length > 0) detail += `; not in the docs: ${result.absent.join(', ')}`;
     } else {
-      // A page ranked below third still counts toward hit@5 and MRR, so its rank shows.
+      // A page ranked below third still counts toward MRR, and to fifth toward hit@5, so its
+      // rank shows, with every page found.
       const rank = result.rank === null ? '-' : String(result.rank);
       mark = `${result.rank !== null && result.rank <= 3 ? '✓' : '✗'} ${rank}`.padEnd(10);
       detail = result.rank === 1 ? '' : `→ ${result.found.join(', ')}`;
@@ -395,35 +399,76 @@ export async function evalCommand(args: string[], io: CliIO): Promise<number> {
         : {};
       let embeddingModel: EmbeddingModel | undefined;
       let embeddingProviderOptions: EmbeddingProviderOptions | undefined;
-      if (config.embeddingModel) {
-        // The config's model, as `ondocs index -c` embedded the pages with it: any provider,
-        // with no key here unless that provider needs one.
-        const id = embeddingModelId(config.embeddingModel);
+      // What to change when the questions' vectors are not the index's size.
+      let resize: string;
+      /** Stops unless `id`, the config's model, is the one the index records. */
+      const sameModel = (id: string) => {
         if (!sameEmbeddingModel(embedding.model, id)) {
           throw new EvalError(
             `The index was embedded with ${embedding.model}, but ${String(configPath)} embeds with ${id}. Pass the config the index was built with, or rebuild the index with this one.`,
           );
         }
+      };
+      if (config.embedding !== undefined) {
+        // The config's model as `ondocs index -c` reads it, which puts `embedding` first: the
+        // spec, at the config's `dimensions`.
+        const name = `${String(configPath)}'s embedding: '${config.embedding}'`;
+        let choice;
+        try {
+          choice = await embeddingFromSpec(config.embedding, {
+            ...(config.dimensions ? { dimensions: config.dimensions } : {}),
+            env: io.env,
+            name,
+          });
+        } catch (error) {
+          if (error instanceof EmbeddingSpecError) {
+            throw new EvalError(`${error.message} Or pass --keyword-only.`);
+          }
+          throw error;
+        }
+        if (!choice.model) {
+          throw new EvalError(
+            `The index was embedded with ${embedding.model}, but ${name} builds a keyword-only index. Pass the config the index was built with, or --keyword-only.`,
+          );
+        }
+        const id = embeddingModelId(choice.model);
+        sameModel(id);
+        embeddingModel = choice.model;
+        embeddingProviderOptions = choice.providerOptions;
+        // As `ondocs dev` serves an index the mock model embedded.
+        if (/^mock-hash-\d+$/.test(id)) retrieval = { minSimilarity: MOCK_MIN_SIMILARITY };
+        resize = `Set the dimensions the index was built with in ${String(configPath)}, or rebuild the index with it.`;
+      } else if (config.embeddingModel) {
+        // The config's AI SDK model, as `ondocs index -c` embedded the pages with it: any
+        // provider, with no key here unless that provider needs one.
+        sameModel(embeddingModelId(config.embeddingModel));
         embeddingModel = config.embeddingModel;
         embeddingProviderOptions = config.embeddingProviderOptions;
+        resize = `Set the embeddingProviderOptions the index was built with in ${String(configPath)}, or rebuild the index with it.`;
       } else {
         let models;
         try {
           models = await devModels(indexFile, io.env);
         } catch (error) {
-          if (error instanceof DevError) {
-            // A config that names its model with `embedding` uses a provider `ondocs dev` loads,
-            // so a key is the fix; one that names no model needs the embeddingModel it built with.
-            throw new EvalError(
-              !configPath
-                ? `${error.message} Or pass -c with the config module that embeds with it, or --keyword-only.`
-                : `${configPath} sets no embeddingModel, so questions are embedded with the model the index records. ${error.message} ${config.embedding === undefined ? `Or set the embeddingModel the index was built with in ${configPath}, or pass --keyword-only.` : 'Or pass --keyword-only.'}`,
-            );
-          }
-          throw error;
+          if (!(error instanceof DevError)) throw error;
+          // A model ondocs dev loads by its id needs its key, which no config module gives; any
+          // other needs the config module that embeds with it.
+          const lead = configPath
+            ? `${configPath} sets neither embedding nor embeddingModel, so questions are embedded with the model the index records. `
+            : '';
+          const fix = !(error instanceof UnknownEmbeddingModelError)
+            ? 'Or pass --keyword-only.'
+            : configPath
+              ? `Or set the embedding or embeddingModel the index was built with in ${configPath}, or pass --keyword-only.`
+              : 'Or pass -c with the config module that embeds with it, or --keyword-only.';
+          throw new EvalError(`${lead}${error.message} ${fix}`);
         }
         retrieval = models.retrieval ?? {};
         ({ embeddingModel, embeddingProviderOptions } = models);
+        const sizes = '(embedding and dimensions, or embeddingModel and embeddingProviderOptions)';
+        resize = configPath
+          ? `Set the model and size the index was built with in ${configPath} ${sizes}, or rebuild the index.`
+          : `Rebuild the index, or pass -c with a config module that sets the model and size it was built with ${sizes}.`;
       }
       if (embeddingModel) {
         const model = embeddingModel;
@@ -439,7 +484,7 @@ export async function evalCommand(args: string[], io: CliIO): Promise<number> {
           // Options that change the size (`dimensions`) make vectors the index cannot compare.
           if (vector.length !== embedding.dimensions) {
             throw new EvalError(
-              `${configPath ?? embedding.model} embeds questions in ${String(vector.length)} dimensions, but the index was embedded in ${String(embedding.dimensions)}. ${configPath ? `Set the embeddingProviderOptions the index was built with in ${configPath}, or rebuild the index with it.` : 'Rebuild the index, or pass -c with the config module it was built with.'}`,
+              `${configPath ?? embedding.model} embeds questions in ${String(vector.length)} dimensions, but the index was embedded in ${String(embedding.dimensions)}. ${resize}`,
             );
           }
           return vector;

@@ -1,8 +1,9 @@
 # Questions about Docusaurus asked on Stack Overflow under the docusaurus tag, as their askers
 # titled them, each with the pages of docusaurus.io's docs that its accepted answer (or a
 # maintainer's) links, at facebook/docusaurus@c245217; and 15 off-topic questions from other tags.
-# The questions are Stack Overflow's, CC BY-SA 4.0: README.md in this folder credits and links
-# each one, and says how its pages were chosen. CI scores the file on every change.
+# The questions are Stack Overflow's, under CC BY-SA 4.0, or 3.0 where a link's line says so:
+# README.md in this folder credits and links each one, gives its licence, and says how its pages
+# were chosen. CI scores the file on every change.
 #
 #   node scripts/corpus.mjs .corpus docusaurus
 #   ondocs index .corpus/docusaurus/website/docs --framework docusaurus --base-url /docs -e none -o docusaurus.json
@@ -165,6 +166,6 @@ questions:
   # https://stackoverflow.com/q/12720967 (postgresql)
   - question: 'How can I change a PostgreSQL user password?'
     unanswerable: true
-  # https://stackoverflow.com/q/9463318 (postgresql)
+  # https://stackoverflow.com/q/9463318 (postgresql), CC BY-SA 3.0: https://creativecommons.org/licenses/by-sa/3.0/
   - question: 'How to exit from PostgreSQL command line utility: psql'
     unanswerable: true

@@ -1,8 +1,9 @@
 # Questions about Vitest asked on Stack Overflow under the vitest tag, as their askers
 # titled them, each with the pages of Vitest's docs that its accepted answer (or a
 # maintainer's) links, at vitest-dev/vitest@2899eb3; and 15 off-topic questions from other tags.
-# The questions are Stack Overflow's, CC BY-SA 4.0: README.md in this folder credits and links
-# each one, and says how its pages were chosen. CI scores the file on every change.
+# The questions are Stack Overflow's, under CC BY-SA 4.0, or 3.0 where a link's line says so:
+# README.md in this folder credits and links each one, gives its licence, and says how its pages
+# were chosen. CI scores the file on every change.
 #
 #   node scripts/corpus.mjs .corpus vitest
 #   ondocs index .corpus/vitest/docs --framework none --base-url / --ignore 'guide/examples/**' --ignore guide/cli-generated.md --ignore AGENTS.md -e none -o vitest.json
@@ -134,13 +135,13 @@ questions:
   # https://stackoverflow.com/q/874461 (matlab)
   - question: 'Read .mat files in Python'
     unanswerable: true
-  # https://stackoverflow.com/q/3627107 (matlab)
+  # https://stackoverflow.com/q/3627107 (matlab), CC BY-SA 3.0: https://creativecommons.org/licenses/by-sa/3.0/
   - question: 'How can I index a MATLAB array returned by a function without first assigning it to a local variable?'
     unanswerable: true
   # https://stackoverflow.com/q/12084246 (matlab)
   - question: 'Differences between Octave and MATLAB'
     unanswerable: true
-  # https://stackoverflow.com/q/12995434 (matlab)
+  # https://stackoverflow.com/q/12995434 (matlab), CC BY-SA 3.0: https://creativecommons.org/licenses/by-sa/3.0/
   - question: 'Representing and solving a maze given an image'
     unanswerable: true
   # https://stackoverflow.com/q/12701841 (matlab)

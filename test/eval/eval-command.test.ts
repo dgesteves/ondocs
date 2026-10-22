@@ -1,14 +1,17 @@
 // `ondocs eval` with an index embedded through a config module's model, which `ondocs dev`
-// cannot load, and the ranks past the top three: hit@5, MRR and the pages that ranked fourth and
-// fifth, and the words of a refused question that no page has.
+// cannot load, or through its `embedding` and `dimensions`, and the ranks past the top three:
+// hit@5, MRR and every page found, and the words of a refused question that no page has.
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { customProvider } from 'ai';
+import { MockEmbeddingModelV4 } from 'ai/test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildIndex } from '../../src';
 import { main } from '../../src/cli/main';
+import { hashEmbedding } from '../../src/mock';
 import { writeIndexFile } from '../../src/node';
 
 let cwd: string;
@@ -19,17 +22,18 @@ afterEach(async () => {
   await rm(cwd, { recursive: true, force: true });
 });
 
-async function run(...args: string[]) {
+async function runWith(env: Record<string, string | undefined>, args: string[]) {
   const stdout: string[] = [];
   const stderr: string[] = [];
   const code = await main(args, {
     cwd,
-    env: {},
+    env,
     stdout: (line) => stdout.push(line),
     stderr: (line) => stderr.push(line),
   });
   return { code, stdout: stdout.join('\n'), stderr: stderr.join('\n') };
 }
+const run = (...args: string[]) => runWith({}, args);
 
 /**
  * A config module whose embedding model is a local one of its own, as a self-hosted or another
@@ -73,6 +77,10 @@ describe('ondocs eval -c', () => {
     await writeFile(join(cwd, 'smaller.config.mjs'), config('nomic-embed-text', 32));
     await writeFile(join(cwd, 'plain.config.mjs'), "export default { baseUrl: '/' };\n");
     await writeFile(join(cwd, 'spec.config.mjs'), "export default { embedding: 'mock' };\n");
+    await writeFile(
+      join(cwd, 'openai.config.mjs'),
+      "export default { embedding: 'openai:text-embedding-3-small', dimensions: 256 };\n",
+    );
     await writeFile(join(cwd, 'broken.config.mjs'), 'export default {;\n');
     const built = await run('index', 'content', '-c', 'ask.config.mjs', '--framework', 'none');
     expect(built.code).toBe(0);
@@ -106,26 +114,144 @@ describe('ondocs eval -c', () => {
     expect(other.stderr).toContain(
       'The index was embedded with nomic-embed-text, but other.config.mjs embeds with all-minilm.',
     );
+    // A model named with `embedding` is the config's too, as `ondocs index -c` reads it.
+    const spec = await run('eval', 'questions.yaml', '-c', 'spec.config.mjs');
+    expect(spec.code).toBe(2);
+    expect(spec.stderr).toContain(
+      'The index was embedded with nomic-embed-text, but spec.config.mjs embeds with mock-hash-512.',
+    );
     const missing = await run('eval', 'questions.yaml', '-c', 'missing.mjs');
     expect(missing.code).toBe(2);
     expect(missing.stderr).toContain('Config file not found: missing.mjs');
   });
 
-  it('says so when the config sets no embeddingModel', async () => {
+  it('says so when the config names no model', async () => {
     const result = await run('eval', 'questions.yaml', '-c', 'plain.config.mjs');
     expect(result.code).toBe(2);
     expect(result.stderr).toContain(
-      'plain.config.mjs sets no embeddingModel, so questions are embedded with the model the index records. The index was embedded with nomic-embed-text, which ondocs dev cannot load',
+      'plain.config.mjs sets neither embedding nor embeddingModel, so questions are embedded with the model the index records. The index was embedded with nomic-embed-text, which ondocs dev cannot load',
     );
     expect(result.stderr).toContain(
-      'Or set the embeddingModel the index was built with in plain.config.mjs, or pass --keyword-only.',
+      'Or set the embedding or embeddingModel the index was built with in plain.config.mjs, or pass --keyword-only.',
     );
-    // One that names a model with `embedding` uses a provider ondocs dev loads: no embeddingModel.
-    const spec = await run('eval', 'questions.yaml', '-c', 'spec.config.mjs');
+  });
+
+  it('asks for the key, not a config, when the model needs a key', async () => {
+    // An index of OpenAI's model, which ondocs dev loads with a key: a config module is no fix.
+    await writeFile(join(cwd, 'named.config.mjs'), config('text-embedding-3-small'));
+    const built = await run('index', 'content', '-c', 'named.config.mjs', '-o', 'openai.json');
+    expect(built.code).toBe(0);
+    const bare = await run('eval', 'questions.yaml', '--index', 'openai.json');
+    expect(bare.code).toBe(2);
+    expect(bare.stderr).toBe(
+      '✗ The index was embedded with text-embedding-3-small, so questions must be too: set OPENAI_API_KEY or AI_GATEWAY_API_KEY. To try it without a key, rebuild the index with --embedding mock. Or pass --keyword-only.',
+    );
+    const plain = await run(
+      'eval',
+      'questions.yaml',
+      '--index',
+      'openai.json',
+      '-c',
+      'plain.config.mjs',
+    );
+    expect(plain.code).toBe(2);
+    expect(plain.stderr).toContain('set OPENAI_API_KEY or AI_GATEWAY_API_KEY');
+    expect(plain.stderr).not.toContain('Or set the embedding');
+    expect(plain.stderr).toMatch(/Or pass --keyword-only\.$/);
+    // A config whose `embedding` needs a key says which.
+    const spec = await run(
+      'eval',
+      'questions.yaml',
+      '--index',
+      'openai.json',
+      '-c',
+      'openai.config.mjs',
+    );
     expect(spec.code).toBe(2);
-    expect(spec.stderr).toContain('spec.config.mjs sets no embeddingModel');
-    expect(spec.stderr).not.toContain('Or set the embeddingModel');
-    expect(spec.stderr).toMatch(/Or pass --keyword-only\.$/);
+    expect(spec.stderr).toBe(
+      "✗ openai.config.mjs's embedding: 'openai:text-embedding-3-small' needs OPENAI_API_KEY. Or pass --keyword-only.",
+    );
+  });
+
+  describe('with a model named by the config’s embedding, at its dimensions', () => {
+    // An AI Gateway id, which the AI SDK resolves through its default provider: here one whose
+    // model embeds at the size its provider options ask for, else at 1024, as Cohere's does.
+    let sizes: number[];
+    beforeEach(async () => {
+      sizes = [];
+      globalThis.AI_SDK_DEFAULT_PROVIDER = customProvider({
+        embeddingModels: {
+          'cohere/embed-v4.0': new MockEmbeddingModelV4({
+            provider: 'cohere',
+            modelId: 'embed-v4.0',
+            doEmbed: ({ values, providerOptions }) => {
+              const size = Number(providerOptions?.cohere?.dimensions ?? 1024);
+              sizes.push(size);
+              return Promise.resolve({
+                embeddings: values.map((value) => hashEmbedding(value, size)),
+                warnings: [],
+              });
+            },
+          }),
+        },
+      });
+      await writeFile(
+        join(cwd, 'gateway.config.mjs'),
+        "export default { embedding: 'cohere/embed-v4.0', dimensions: 64 };\n",
+      );
+      const built = await run('index', 'content', '-c', 'gateway.config.mjs', '-o', 'gateway.json');
+      expect(built.code).toBe(0);
+      expect([...new Set(sizes)]).toEqual([64]);
+      sizes = [];
+    });
+    afterEach(() => {
+      globalThis.AI_SDK_DEFAULT_PROVIDER = undefined;
+    });
+
+    it('embeds the questions at the size ondocs index -c embedded the pages', async () => {
+      const args = [
+        'eval',
+        'questions.yaml',
+        '--index',
+        'gateway.json',
+        '-c',
+        'gateway.config.mjs',
+      ];
+      const result = await run(...args, '--json');
+      expect(result.code).toBe(0);
+      const report = JSON.parse(result.stdout) as {
+        retrieval: string;
+        results: { rank: number }[];
+      };
+      expect(report).toMatchObject({ retrieval: 'hybrid', results: [{ rank: 1 }] });
+      expect(sizes).toEqual([64]);
+    });
+
+    it('says which settings fix the size without the config, and they do', async () => {
+      // The model the index records, at the model's own size, as ondocs dev embeds with it.
+      const env = { AI_GATEWAY_API_KEY: 'test' };
+      const bare = await runWith(env, ['eval', 'questions.yaml', '--index', 'gateway.json']);
+      expect(bare.code).toBe(2);
+      expect(bare.stderr).toBe(
+        '✗ cohere/embed-v4.0 embeds questions in 1024 dimensions, but the index was embedded in 64. Rebuild the index, or pass -c with a config module that sets the model and size it was built with (embedding and dimensions, or embeddingModel and embeddingProviderOptions).',
+      );
+      await writeFile(
+        join(cwd, 'unsized.config.mjs'),
+        "export default { embedding: 'cohere/embed-v4.0' };\n",
+      );
+      const unsized = await run(
+        'eval',
+        'questions.yaml',
+        '--index',
+        'gateway.json',
+        '-c',
+        'unsized.config.mjs',
+      );
+      expect(unsized.code).toBe(2);
+      expect(unsized.stderr).toBe(
+        '✗ unsized.config.mjs embeds questions in 1024 dimensions, but the index was embedded in 64. Set the dimensions the index was built with in unsized.config.mjs, or rebuild the index with it.',
+      );
+    });
   });
 
   it('stops before scoring when the config’s vectors are not the index’s size', async () => {
@@ -191,6 +317,7 @@ describe('ondocs eval past the top three', () => {
       '/docs/p3',
       '/docs/p4',
       '/docs/p5',
+      '/docs/p6',
     ]);
 
     const text = await run('eval', 'questions.yaml', '--min-hit-at-5', '0.6', '--min-mrr', '0.3');
@@ -210,16 +337,25 @@ describe('ondocs eval past the top three', () => {
     });
   });
 
-  it('prints what ranked fourth and fifth, and the words of a refused question no page has', async () => {
+  it('prints every page found, and the words of a refused question no page has', async () => {
     const { stdout } = await run('eval', 'questions.yaml');
     // Ranked fourth, which counts toward hit@5 and MRR, and not found at all.
     for (const mark of ['4', '-']) {
       expect(stdout).toMatch(
         new RegExp(
-          `✗ ${mark}\\s+zebra\\s+cov 1\\.00 {2}→ /docs/p1, /docs/p2, /docs/p3, /docs/p4, /docs/p5`,
+          `✗ ${mark}\\s+zebra\\s+cov 1\\.00 {2}→ /docs/p1, /docs/p2, /docs/p3, /docs/p4, /docs/p5, /docs/p6$`,
+          'm',
         ),
       );
     }
+    // Sixth, at the default topK of six chunks: it counts toward MRR, and the list shows it.
+    await writeFile(
+      join(cwd, 'sixth.yaml'),
+      'questions:\n  - question: zebra\n    expect: /docs/p6\n',
+    );
+    const sixth = await run('eval', 'sixth.yaml');
+    expect(sixth.stdout).toMatch(/✗ 6\s+zebra\s+cov 1\.00 {2}→ \/docs\/p1, .*, \/docs\/p6$/m);
+    expect(sixth.stdout).toContain('  MRR                0.17  (0.17/1)');
     expect(stdout).toMatch(
       /✗ refused\s+quokka habitat\s+cov 0\.00 {2}expected \/docs\/p1; not in the docs: quokka, habitat/,
     );

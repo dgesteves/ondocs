@@ -1,8 +1,9 @@
 # Questions about Astro asked on Stack Overflow under the astrojs tag, as their askers
 # titled them, each with the pages of Astro's English docs that its accepted answer (or a
 # maintainer's) links, at withastro/docs@3480e4b; and 15 off-topic questions from other tags.
-# The questions are Stack Overflow's, CC BY-SA 4.0: README.md in this folder credits and links
-# each one, and says how its pages were chosen. CI scores the file on every change.
+# The questions are Stack Overflow's, under CC BY-SA 4.0, or 3.0 where a link's line says so:
+# README.md in this folder credits and links each one, gives its licence, and says how its pages
+# were chosen. CI scores the file on every change.
 #
 #   node scripts/corpus.mjs .corpus astro
 #   ondocs index .corpus/astro/src/content/docs/en --framework starlight --base-url /en -e none -o astro.json
@@ -344,7 +345,7 @@ questions:
   # https://stackoverflow.com/q/4212861 (excel)
   - question: 'What is a correct MIME type for .docx, .pptx, etc.?'
     unanswerable: true
-  # https://stackoverflow.com/q/158706 (excel)
+  # https://stackoverflow.com/q/158706 (excel), CC BY-SA 3.0: https://creativecommons.org/licenses/by-sa/3.0/
   - question: 'How do I properly clean up Excel interop objects?'
     unanswerable: true
   # https://stackoverflow.com/q/22542834 (excel)

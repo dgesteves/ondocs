@@ -37,7 +37,7 @@ Each question has the pages of one answer, so where another page answers it as w
 
 ### Licence
 
-The questions are from [Stack Overflow](https://stackoverflow.com), by the people named below, and each links to its page there. They are licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), and so are the three `*-title.yaml` files and the lists below, which add to them only the expected pages. The rest of this repository, its code included, is under its [MIT license](../../LICENSE). The docs the questions are asked of are not copied here: `scripts/corpus.mjs` fetches them, docusaurus.io's under CC BY 4.0 and Astro's and Vitest's under MIT.
+The questions are from [Stack Overflow](https://stackoverflow.com), by the people named below, and each links to its page there. Each is under the licence Stack Overflow gives its post, which the Stack Exchange API returned as `content_license` on 2026-10-22: [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), except four off-topic questions, last edited before 2018-05-02, which are under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) and say so below and in their file. Four other questions, all closed, came back with no licence; they were last edited after 2018-05-02, so Stack Overflow's date rule puts them under CC BY-SA 4.0. The three `*-title.yaml` files and the lists below, which add to the questions only the expected pages, are under CC BY-SA 4.0, and each question in them stays under its own licence. The rest of this repository, its code included, is under its [MIT license](../../LICENSE). The docs the questions are asked of are not copied here: `scripts/corpus.mjs` fetches them, docusaurus.io's under CC BY 4.0 and Astro's and Vitest's under MIT.
 
 ## The questions
 
@@ -102,7 +102,7 @@ Left out, although an answer links the site:
 - [PostgreSQL "DESCRIBE TABLE"](https://stackoverflow.com/q/109325), asked by [Mr. Muskrat](https://stackoverflow.com/users/2657951/mr-muskrat), tagged postgresql.
 - [Select first row in each GROUP BY group?](https://stackoverflow.com/q/3800551), asked by [David Wolever](https://stackoverflow.com/users/71522/david-wolever), tagged postgresql.
 - [How can I change a PostgreSQL user password?](https://stackoverflow.com/q/12720967), asked by [Saad](https://stackoverflow.com/users/353217/saad), tagged postgresql.
-- [How to exit from PostgreSQL command line utility: psql](https://stackoverflow.com/q/9463318), asked by [App Work](https://stackoverflow.com/users/1172155/app-work), tagged postgresql.
+- [How to exit from PostgreSQL command line utility: psql](https://stackoverflow.com/q/9463318), asked by [App Work](https://stackoverflow.com/users/1172155/app-work), tagged postgresql, under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
 
 ### astro-title.yaml
 
@@ -218,7 +218,7 @@ Left out, although an answer links the site:
 - [How can I stop EditText from gaining focus when an activity starts in Android?](https://stackoverflow.com/q/1555109), asked by [Mark](https://stackoverflow.com/users/137193/mark), tagged android.
 - [How do I create an Excel (.XLS and .XLSX) file in C# without installing Microsoft Office?](https://stackoverflow.com/q/151005), asked by [mistrmark](https://stackoverflow.com/users/19242/mistrmark), tagged excel.
 - [What is a correct MIME type for .docx, .pptx, etc.?](https://stackoverflow.com/q/4212861), asked by [Richard Knop](https://stackoverflow.com/users/95944/richard-knop), tagged excel.
-- [How do I properly clean up Excel interop objects?](https://stackoverflow.com/q/158706), asked by [HAdes](https://stackoverflow.com/users/11989/hades), tagged excel.
+- [How do I properly clean up Excel interop objects?](https://stackoverflow.com/q/158706), asked by [HAdes](https://stackoverflow.com/users/11989/hades), tagged excel, under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
 - [How to use Regular Expressions (Regex) in Microsoft Excel both in-cell and loops](https://stackoverflow.com/q/22542834), asked by [Automate This](https://stackoverflow.com/users/2521004/automate-this), tagged excel.
 - [Is it possible to force Excel recognize UTF-8 CSV files automatically?](https://stackoverflow.com/q/6002256), asked by [Lyubomyr Shaydariv](https://stackoverflow.com/users/166589/lyubomyr-shaydariv), tagged excel.
 
@@ -266,9 +266,9 @@ Left out, although an answer links the site:
 - [Unfortunately MyApp has stopped. How can I solve this?](https://stackoverflow.com/q/23353173), asked by [nhaarman](https://stackoverflow.com/users/675383/nhaarman), tagged kotlin.
 - [How to check if a "lateinit" variable has been initialized?](https://stackoverflow.com/q/37618738), asked by [Mathew Hany](https://stackoverflow.com/users/4613968/mathew-hany), tagged kotlin.
 - [Read .mat files in Python](https://stackoverflow.com/q/874461), asked by [Gilad Naor](https://stackoverflow.com/users/11515/gilad-naor), tagged matlab.
-- [How can I index a MATLAB array returned by a function without first assigning it to a local variable?](https://stackoverflow.com/q/3627107), asked by [Joe Kearney](https://stackoverflow.com/users/315642/joe-kearney), tagged matlab.
+- [How can I index a MATLAB array returned by a function without first assigning it to a local variable?](https://stackoverflow.com/q/3627107), asked by [Joe Kearney](https://stackoverflow.com/users/315642/joe-kearney), tagged matlab, under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
 - [Differences between Octave and MATLAB](https://stackoverflow.com/q/12084246), asked by [lswim](https://stackoverflow.com/users/1009163/lswim), tagged matlab.
-- [Representing and solving a maze given an image](https://stackoverflow.com/q/12995434), asked by [Whymarrh](https://stackoverflow.com/users/1267663/whymarrh), tagged matlab.
+- [Representing and solving a maze given an image](https://stackoverflow.com/q/12995434), asked by [Whymarrh](https://stackoverflow.com/users/1267663/whymarrh), tagged matlab, under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
 - [xkcd style graphs in MATLAB](https://stackoverflow.com/q/12701841), asked by [bla](https://stackoverflow.com/users/1292464/bla), tagged matlab.
 
 <!-- end of questions -->

@@ -68,6 +68,31 @@ describe('the Stack Overflow question files', () => {
     expect(readme).toContain('[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)');
   });
 
+  it('give the licence of a question under CC BY-SA 3.0 with it, in its file and the README', () => {
+    // Stack Overflow's posts are CC BY-SA 4.0 unless last edited before 2018-05-02: those four
+    // carry 3.0, whose terms ask for its link with each.
+    const v3 = 'https://creativecommons.org/licenses/by-sa/3.0/';
+    const inFiles = files.flatMap(({ path, text }) => {
+      const header = "# The questions are Stack Overflow's, under CC BY-SA 4.0, or 3.0 where";
+      expect([path, text.includes(header)]).toEqual([path, true]);
+      return [
+        ...text.matchAll(
+          /^ {2}# (https:\/\/stackoverflow\.com\/q\/\d+) .*, CC BY-SA 3\.0: (\S+)$/gm,
+        ),
+      ].map(([, link, licence]) => {
+        expect([link, licence]).toEqual([link, v3]);
+        return link;
+      });
+    });
+    const inReadme = readme
+      .split('\n')
+      .filter((line) => line.startsWith('- [') && line.endsWith(`, under [CC BY-SA 3.0](${v3}).`))
+      .map((line) => /\]\((https:\/\/stackoverflow\.com\/q\/\d+)\)/.exec(line)?.[1]);
+    expect(inFiles).toHaveLength(4);
+    expect(inReadme.sort()).toEqual(inFiles.sort());
+    expect(files.filter(({ text }) => text.includes('CC BY-SA 3.0:'))).toHaveLength(3);
+  });
+
   it('are what the README’s best-case count points to', () => {
     // The 22 of 22 is the project's own queries, in the docs' words: the line links these too.
     const line = read('README.md')
