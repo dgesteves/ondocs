@@ -28,6 +28,8 @@ For teams that run their own developer docs, at product, API and platform compan
 
 **Website: [ondocs.vercel.app](https://ondocs.vercel.app)**, whose [docs](https://ondocs.vercel.app/docs) answer with OpenAI and serve agents at `/api/mcp`. Formerly `ask-my-site` ([what changed](https://ondocs.vercel.app/docs/migrating)).
 
+**Feedback wanted:** say where it breaks in the [launch feedback thread](https://github.com/dgesteves/ondocs/discussions/220), see what's next in the [roadmap](https://github.com/dgesteves/ondocs/blob/main/ROADMAP.md), or pick up a [good first issue](https://github.com/dgesteves/ondocs/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22). If ondocs is useful to you, a star helps other people find it.
+
 <!-- npm-readme:video -->
 
 https://github.com/user-attachments/assets/6922d183-beeb-4c0b-bea3-2e1aba1eee56
