@@ -137,6 +137,20 @@ function isHidden(path: string, framework: Framework, routing: NextRouting): boo
 }
 
 /**
+ * A generated 404 page: `404.html`, `404.htm` or `404/index.html`, at any depth. Hugo, Jekyll,
+ * MkDocs and most generators write one, and it is not a docs page. The plugins skip theirs
+ * (`route.endsWith('404.html')` in the Docusaurus one, `file === '404.md'` in VitePress's,
+ * `path === '404'` in Astro's); this is the CLI's rule. A page such as `docs/404-errors.html`
+ * is still a page.
+ */
+function isErrorPage(path: string): boolean {
+  const name = basename(path);
+  if (name === '404.html' || name === '404.htm') return true;
+  // `404/index.html` is the same page under a folder URL.
+  return (name === 'index.html' || name === 'index.htm') && basename(dirname(path)) === '404';
+}
+
+/**
  * `path` under `baseUrl`, without the slashes around it: `/docs` and `guides/setup/` give
  * `/docs/guides/setup`.
  */
@@ -261,10 +275,11 @@ async function listFiles(
 
 /**
  * Reads every Markdown, MDX and HTML file under `directory` (recursively, in a stable order) and
- * returns them as documents. Dot-directories and `node_modules` are skipped, as are pages that
- * opt out (`draft: true`, `ask: false`, `noindex`). Symlinked files and directories are followed;
- * a link back into a directory that is already being read is skipped. Ids and URLs are the
- * relative path in Unicode NFC.
+ * returns them as documents. Dot-directories and `node_modules` are skipped, as are generated 404
+ * pages (`404.html`, `404.htm`, `404/index.html`) and pages that opt out (`draft: true`,
+ * `ask: false`, `noindex`). Symlinked files and directories are followed; a link back into a
+ * directory that is already being read is skipped. Ids and URLs are the relative path in Unicode
+ * NFC.
  */
 export async function loadDirectory(
   directory: string,
@@ -280,6 +295,7 @@ export async function loadDirectory(
   const routing = site?.routing ?? 'content';
   const files = (await listFiles(directory, extensions))
     .filter(({ path }) => !isHidden(path, framework, routing))
+    .filter(({ path }) => !isErrorPage(path))
     .filter(({ path }) => !ignore.some((pattern) => matchesGlob(path, pattern)))
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
