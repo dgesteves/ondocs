@@ -189,8 +189,8 @@
     "workers-ai-provider": "^4.0.0"
   },
   "peerDependencies": {
-    "@ai-sdk/openai": ">=4",
-    "@astrojs/starlight": ">=0.32.0",
+    "@ai-sdk/openai": "^4.0.0",
+    "@astrojs/starlight": ">=0.32.0 <1",
     "@docusaurus/core": "^3.0.0",
     "@radix-ui/react-dialog": "^1.1.23",
     "ai": "^7.0.95",

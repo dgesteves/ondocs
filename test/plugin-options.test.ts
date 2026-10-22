@@ -4,15 +4,17 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { createPluginActionsUtils } from '@docusaurus/core/lib/server/plugins/actions.js';
+import { initPluginsConfigs } from '@docusaurus/core/lib/server/plugins/init.js';
 import type { AstroIntegration } from 'astro';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { version } from '../package.json' with { type: 'json' };
 import astroOndocs from '../src/astro';
 import docusaurusOndocs, * as docusaurus from '../src/docusaurus';
-import starlightOndocs from '../src/starlight';
+import starlightOndocs, { type OndocsStarlightOptions } from '../src/starlight';
 import { withOndocs } from '../src/vitepress';
 
 let root: string;
@@ -90,10 +92,44 @@ describe('ondocs/docusaurus', () => {
     expect(typeof validateOptions).toBe('function');
     const validate = vi.fn();
     const options = { embedding: 'mock', dialog: { navbar: true, suggestions: ['Hi'] } };
-    // The options as they are: Docusaurus passes what it returns to the plugin.
-    expect(validateOptions?.({ options, validate })).toBe(options);
+    // Docusaurus passes what it returns to the plugin, and adds the instance's id only to a
+    // plugin without validateOptions: the options as they are, with the id.
+    expect(validateOptions?.({ options, validate })).toEqual({ ...options, id: 'default' });
+    expect(validateOptions?.({ options: { ...options, id: 'docs2' }, validate })).toEqual({
+      ...options,
+      id: 'docs2',
+    });
     expect(() => validateOptions?.({ options: TYPOS, validate })).toThrow(TYPO_ISSUES[0]?.slice(2));
     expect(validate).not.toHaveBeenCalled();
+  });
+
+  it('loads as a plugins entry naming the module does, through Docusaurus’s own plugin init', async () => {
+    // What Docusaurus makes of `['ondocs/docusaurus', options]`: the module, whose validateOptions
+    // it then runs. The example site passes the plugin as a function, which skips that.
+    const entryPath = fileURLToPath(new URL('../src/docusaurus/index.ts', import.meta.url));
+    const generatedFilesDir = join(root, '.docusaurus');
+    const site = { ...context(), siteConfigPath: join(root, 'docusaurus.config.js') };
+    const [loaded] = await initPluginsConfigs(untyped(site), [
+      untyped({
+        plugin: docusaurusOndocs,
+        options: { endpoint: '/api/ask' },
+        pluginModule: { path: entryPath, module: docusaurus },
+        entryPath,
+      }),
+    ]);
+    const plugin = loaded?.plugin;
+    if (!plugin) throw new Error('Docusaurus did not load the plugin');
+    expect(plugin.options).toEqual({ endpoint: '/api/ask', id: 'default' });
+    // Where a validateOptions that dropped the id failed the build: the plugin's data folder is
+    // named by its id ('The "path" argument must be of type string. Received undefined').
+    await expect(
+      createPluginActionsUtils({
+        plugin,
+        generatedFilesDir,
+        baseUrl: '/',
+        trailingSlash: undefined,
+      }),
+    ).resolves.toBeDefined();
   });
 
   it('checks each locale’s dialog options and labels', () => {
@@ -195,6 +231,12 @@ describe('ondocs/starlight', () => {
         `ondocs/starlight (ondocs ${version}): ${option} is not an option here: the Starlight plugin indexes what Starlight’s search does. Mark what to leave out with data-pagefind-ignore.`,
       );
     }
+    // Nor does its options type, which typecheck checks.
+    // @ts-expect-error -- not an option of the Starlight plugin
+    const content: OndocsStarlightOptions = { contentSelector: 'main' };
+    // @ts-expect-error -- not an option of the Starlight plugin
+    const ignore: OndocsStarlightOptions = { ignoreSelector: '.toc' };
+    expect([content, ignore]).toHaveLength(2);
   });
 });
 

@@ -23,7 +23,7 @@ Before 1.0, a minor version can rename an option. The old name keeps working unt
 Three more changes in 0.14 make a mistake fail where you can see it, instead of on the first question:
 
 - **The plugins check their options.** An option that is misspelled, or not one of the installed version's, fails the build and names the option nearest to it: `dialog.sugestions is not an option. Did you mean dialog.suggestions?`. A value of the wrong kind does too, such as `exclude: '/changelog'` for `exclude: ['/changelog']`. `ondocs/docusaurus` exports `validateOptions`, which Docusaurus runs before it loads the plugin.
-- **The endpoints check what they are given as they are made.** `createAskHandler` and `createMcpHandler` throw on an `index` that is a path (`'./ask-index.json'` for `import index from './ask-index.json'`), JSON that is not an ondocs index, or an index of a format the installed version does not read, and `createAskHandler` on a missing `model`. They now take a Promise of the index, as `import('./ask-index.json')` gives.
+- **The endpoints check what they are given as they are made.** `createAskHandler` and `createMcpHandler` throw on an `index` that is a path (`'./ask-index.json'` for `import index from './ask-index.json'`) or a URL (for `remoteIndex(url)`), JSON that is not an ondocs index, or an index of a format the installed version does not read, and `createAskHandler` on a missing `model`. They now take a Promise of the index, as `import('./ask-index.json')` gives.
 - **The CLI's config module takes `embedding` and `dimensions`**, as the plugins do, and fails on an option it does not have. The flags still win over it.
 
 To find the old names in a site:

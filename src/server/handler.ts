@@ -220,8 +220,8 @@ export interface AskHandlerOptions {
   onFeedback?: (event: AskFeedbackEvent) => void | Promise<void>;
   /**
    * Called with errors that were handled (embedding fallback, model errors, a `remoteIndex`'s
-   * failed checks), and once when the index has vectors but there is no `embeddingModel`.
-   * Default `console.error`.
+   * failed checks). Default `console.error`. An index with vectors and no `embeddingModel` to
+   * search them with is a warning in the log instead, once for each embedding model.
    */
   onError?: (error: unknown) => void;
 }
@@ -320,12 +320,18 @@ type GivenIndex = AskHandlerOptions['index'];
 const isThenable = (value: unknown): value is PromiseLike<unknown> =>
   typeof (value as { then?: unknown } | null)?.then === 'function';
 
+const notAUrl = (where: string, url: string) =>
+  new TypeError(
+    `${where} takes the index's JSON, not a URL: pass remoteIndex('${url}') from ondocs/server, which fetches it and checks it for changes.`,
+  );
+
 /**
  * `source` as the index loader takes it, checked as a handler is made (`where` names it, as in
  * `createAskHandler: index`), so that a misconfigured index fails the build or the deploy
- * rather than every question. A path in place of the JSON, JSON that is not an ondocs index, and
- * an index this version does not read throw. A Promise is awaited on the first request. Its JSON
- * text, a function and a `remoteIndex` are loaded on the first request, as before.
+ * rather than every question. A path or a URL in place of the JSON, JSON that is not an ondocs
+ * index, and an index this version does not read throw. A Promise is awaited on the first
+ * request. Its JSON text, a function and a `remoteIndex` are loaded on the first request, as
+ * before.
  */
 export function indexSource(
   source: GivenIndex,
@@ -337,6 +343,7 @@ export function indexSource(
   if (typeof source === 'function') return source;
   if (typeof source === 'string') {
     if (source.trimStart().startsWith('{')) return source;
+    if (/^https?:\/\/\S+$/i.test(source.trim())) throw notAUrl(where, source.trim());
     if (/^[^\s{]+$/.test(source.trim())) {
       const path = source.trim();
       const specifier = /^\.{0,2}\//.test(path) ? path : `./${path}`;
@@ -346,6 +353,7 @@ export function indexSource(
     }
     throw new TypeError(`${where} is not an ondocs index's JSON: it does not start with {.`);
   }
+  if (source instanceof URL) throw notAUrl(where, source.href);
   if (isThenable(source)) {
     // Nothing awaits it before the first request: a rejection fails that request, not the process.
     void source.then(undefined, () => undefined);
@@ -572,8 +580,9 @@ export function createAskHandler(
   const localeIndexes = new Map(
     localeSources.map(([locale, given]) => [locale, indexLoader(given, options.embeddingModel)]),
   );
-  // Indexes with vectors this handler searches by keywords only, as it has no embeddingModel.
-  const keywordOnly = new WeakSet<LoadedIndex>();
+  // The embedding models of the indexes this handler searches by keywords only, as it has no
+  // embeddingModel: each is mentioned once, not again for each new copy of a remote index.
+  const keywordOnly = new Set<string>();
 
   const json = (status: number, body: AskErrorBody, headers?: Record<string, string>): Response =>
     Response.json(body, { status, headers: { ...baseHeaders, ...headers } });
@@ -723,12 +732,13 @@ export function createAskHandler(
     } catch (error) {
       return misconfigured(request, error);
     }
-    if (!options.embeddingModel && index.vectors && index.embedding && !keywordOnly.has(index)) {
-      keywordOnly.add(index);
-      reportError(
-        new Error(
-          `The index was embedded with "${index.embedding.model}", but createAskHandler has no embeddingModel, so questions are matched on keywords only. Pass embeddingModel, the model the index was built with, for semantic search.`,
-        ),
+    // A warning, not an error for onError: an endpoint may leave the model out on purpose, as
+    // the GitHub Pages Worker does for an index embedded with a model Workers AI does not run.
+    const embeddedWith = index.vectors && index.embedding?.model;
+    if (!options.embeddingModel && embeddedWith && !keywordOnly.has(embeddedWith)) {
+      keywordOnly.add(embeddedWith);
+      console.warn(
+        `[ondocs] The index was embedded with "${embeddedWith}", but createAskHandler has no embeddingModel, so questions are matched on keywords only. Pass embeddingModel, the model the index was built with, for semantic search.`,
       );
     }
 

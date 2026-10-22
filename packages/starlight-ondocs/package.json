@@ -46,10 +46,10 @@
     "ondocs": "workspace:*"
   },
   "peerDependencies": {
-    "@astrojs/starlight": ">=0.32.0",
+    "@astrojs/starlight": ">=0.32.0 <1",
     "astro": "^5.0.0 || ^6.0.0 || ^7.0.0",
     "ai": "^7.0.95",
-    "@ai-sdk/openai": ">=4"
+    "@ai-sdk/openai": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "@ai-sdk/openai": {

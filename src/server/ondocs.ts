@@ -12,7 +12,7 @@ type SharedOption =
 
 export interface OndocsOptions extends Pick<
   AskHandlerOptions,
-  SharedOption | 'headers' | 'rateLimitFailure' | 'maxBodyBytes' | 'onError'
+  SharedOption | 'headers' | 'failureMode' | 'rateLimitFailure' | 'maxBodyBytes' | 'onError'
 > {
   /**
    * Retrieval for both: the relevance gate's settings, such as the `minSimilarity` of your
@@ -47,8 +47,8 @@ export interface OndocsHandlers {
  * Creates the ask endpoint and the MCP endpoint from one set of options: the same index, and the
  * same index for each locale, loaded once for both; the same embedding model, retrieval settings
  * and hooks, so agents get the results the dialog answers from; and the same site name.
- * `headers`, `rateLimitFailure`, `maxBodyBytes` and `onError` are shared too, under each
- * endpoint's own. The rate limit, the budget and `allowedOrigins` are each endpoint's own, with
+ * `headers`, `failureMode` (or its old name, `rateLimitFailure`), `maxBodyBytes` and `onError`
+ * are shared too, under each endpoint's own. The rate limit, the budget and `allowedOrigins` are each endpoint's own, with
  * its own defaults: 10 questions and 60 tool calls a minute per client IP.
  *
  * ```ts

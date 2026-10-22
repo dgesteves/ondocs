@@ -48,7 +48,7 @@
     "@radix-ui/react-dialog": "^1.1.23",
     "cmdk": "^1.1.1",
     "ai": "^7.0.95",
-    "@ai-sdk/openai": ">=4"
+    "@ai-sdk/openai": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "@ai-sdk/openai": {

@@ -18,7 +18,7 @@ import { REMOVED_IN, resetDeprecationWarnings } from '../src/deprecation';
 import { parseIndexFile } from '../src/index-file';
 import { loadBuiltPage } from '../src/integration';
 import { mockEmbeddingModel, mockLanguageModel } from '../src/mock';
-import { createAskHandler, createMcpHandler, type RateLimiter } from '../src/server';
+import { createAskHandler, createMcpHandler, createOndocs, type RateLimiter } from '../src/server';
 import { withOndocs, type VitePressSiteConfig } from '../src/vitepress';
 import { corpus } from './helpers';
 
@@ -214,6 +214,18 @@ describe('failureMode, which was rateLimitFailure', () => {
       onError: () => undefined,
     });
     expect((await closed(ask(JSON.stringify({ question: 'How do I deploy?' })))).status).toBe(503);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('is one of the options createOndocs gives both endpoints', async () => {
+    const shared = createOndocs({
+      index,
+      failureMode: 'open',
+      onError: () => undefined,
+      ask: { model: mockLanguageModel(), rateLimit: failing },
+    });
+    const asked = await shared.ask(ask(JSON.stringify({ question: 'How do I deploy?' })));
+    expect(asked.status).toBe(200);
     expect(warn).not.toHaveBeenCalled();
   });
 

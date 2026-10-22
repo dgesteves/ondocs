@@ -172,11 +172,13 @@ const OPTION_RULES = shape<OndocsOptions>({
 /**
  * Checks the plugin's options before Docusaurus loads the plugin, as Docusaurus runs a plugin's
  * `validateOptions`: an option that is misspelled, or not one in this version of ondocs, fails
- * the build with what to change. Returns the options as they are.
+ * the build with what to change. Returns the options with the instance's `id`, `"default"` unless
+ * one is given: Docusaurus passes what this returns to the plugin, and adds the `id` itself only
+ * for a plugin without `validateOptions`.
  */
 export function validateOptions({ options }: { options: OndocsOptions }): OndocsOptions {
   checkOptions('ondocs/docusaurus', OPTION_RULES, options);
-  return options;
+  return { ...options, id: options.id ?? 'default' };
 }
 
 export default function ondocs(context: LoadContext, options: OndocsOptions = {}) {

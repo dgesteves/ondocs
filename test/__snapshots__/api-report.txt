@@ -666,10 +666,11 @@ interface OndocsHandlers {
   ask: (request: Request) => Promise<Response>
   mcp: (request: Request) => Promise<Response>
 }
-interface OndocsOptions extends Pick< AskHandlerOptions, SharedOption | 'headers' | 'rateLimitFailure' | 'maxBodyBytes' | 'onError' > {
+interface OndocsOptions extends Pick< AskHandlerOptions, SharedOption | 'headers' | 'failureMode' | 'rateLimitFailure' | 'maxBodyBytes' | 'onError' > {
   ask: Omit<AskHandlerOptions, SharedOption>
   embeddingModel?: EmbeddingModel
   embeddingProviderOptions?: EmbeddingProviderOptions
+  failureMode?: 'closed' | 'open'
   headers?: Record<string, string>
   index: IndexSource | Promise<IndexSource> | (() => IndexSource | Promise<IndexSource>)
   indexes?: Record<string, IndexSource | Promise<IndexSource> | (() => IndexSource | Promise<IndexSource>)>
@@ -1228,7 +1229,6 @@ interface OndocsDialogOptions {
 }
 type OndocsStarlightOptions = {
   chunking?: ChunkingOptions
-  contentSelector?: string
   dialog?: OndocsDialogOptions
   dimensions?: number
   embedding?: EmbeddingSpec
@@ -1236,7 +1236,6 @@ type OndocsStarlightOptions = {
   embeddingProviderOptions?: EmbeddingProviderOptions
   endpoint?: string
   exclude?: string[]
-  ignoreSelector?: string
   indexFile?: string
   llmsTxt?: LlmsTxtOption
   mcp?: McpOption

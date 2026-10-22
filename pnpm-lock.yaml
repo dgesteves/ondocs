@@ -481,7 +481,7 @@ importers:
   packages/docusaurus-plugin-ondocs:
     dependencies:
       '@ai-sdk/openai':
-        specifier: '>=4'
+        specifier: ^4.0.0
         version: 4.0.98(zod@4.6.7)
       '@docusaurus/core':
         specifier: ^3.0.0
@@ -508,10 +508,10 @@ importers:
   packages/starlight-ondocs:
     dependencies:
       '@ai-sdk/openai':
-        specifier: '>=4'
+        specifier: ^4.0.0
         version: 4.0.98(zod@4.6.7)
       '@astrojs/starlight':
-        specifier: '>=0.32.0'
+        specifier: '>=0.32.0 <1'
         version: 0.42.6(astro@7.3.8(@types/node@24.19.2)(esbuild@0.28.2)(jiti@1.21.7)(terser@5.51.2)(yaml@2.9.1))(supports-color@7.2.0)(typescript@6.0.3)
       ai:
         specifier: ^7.0.95

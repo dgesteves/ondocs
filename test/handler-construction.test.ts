@@ -13,6 +13,7 @@ import {
   createAskHandler,
   createMcpHandler,
   createOndocs,
+  remoteIndex,
   type AskHandlerOptions,
 } from '../src/server';
 import { corpus } from './helpers';
@@ -56,6 +57,17 @@ describe('an index that is not one, at construction', () => {
     );
     expect(() => createOndocs({ index: '/srv/ask-index.json', ask: { model } })).toThrow(
       "createAskHandler: index takes the index's JSON, not a path: import index from '/srv/ask-index.json'",
+    );
+  });
+
+  it('a URL, which remoteIndex fetches', () => {
+    const URL_ = 'https://acme.github.io/docs/ask-index.json';
+    const remote = `index takes the index's JSON, not a URL: pass remoteIndex('${URL_}') from ondocs/server, which fetches it and checks it for changes.`;
+    expect(() => createAskHandler({ index: URL_, model })).toThrow(`createAskHandler: ${remote}`);
+    expect(() => createMcpHandler({ index: URL_ })).toThrow(`createMcpHandler: ${remote}`);
+    // A URL object, which the index type lets through.
+    expect(() => createAskHandler({ index: new URL(URL_), model })).toThrow(
+      `createAskHandler: ${remote}`,
     );
   });
 
@@ -140,15 +152,28 @@ describe('no model, at construction', () => {
 });
 
 describe('an index with vectors, and no embeddingModel', () => {
-  it('answers on keywords, and says so once', async () => {
+  it('answers on keywords, and warns once, for each model, not to onError', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const onError = vi.fn();
-    const handler = createAskHandler({ index: embedded, model, onError });
+    // A new copy of the index for each question, as a remoteIndex gives after each deploy.
+    let deploys = 0;
+    const index = remoteIndex('https://acme.github.io/docs/ask-index.json', {
+      revalidateSeconds: 0,
+      fetch: () => {
+        deploys += 1;
+        const body = `${serializeIndexFile(embedded)}${' '.repeat(deploys)}`;
+        return Promise.resolve(new Response(body, { headers: { etag: `"${String(deploys)}"` } }));
+      },
+    });
+    const handler = createAskHandler({ index, model, onError });
     expect((await handler(ask())).status).toBe(200);
     expect((await handler(ask())).status).toBe(200);
-    expect(onError).toHaveBeenCalledOnce();
-    expect(String(onError.mock.calls[0]?.[0])).toBe(
-      'Error: The index was embedded with "mock-hash-512", but createAskHandler has no embeddingModel, so questions are matched on keywords only. Pass embeddingModel, the model the index was built with, for semantic search.',
+    expect(deploys).toBe(2);
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      '[ondocs] The index was embedded with "mock-hash-512", but createAskHandler has no embeddingModel, so questions are matched on keywords only. Pass embeddingModel, the model the index was built with, for semantic search.',
     );
+    // An endpoint may leave the model out on purpose, as the GitHub Pages Worker does.
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it('is not worth a word on the MCP endpoint, which may search by keywords to cost nothing', async () => {
