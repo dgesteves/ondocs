@@ -76,7 +76,7 @@ Each of these waits for a site that needs it. The line says what would make it h
 
 ## Not planned
 
-- Boosting titles and headings in ranking (field weighting): it measured almost no gain and would force a re-embed. Revisit if the real-question evals show a ranking gap.
+- Boosting titles and headings in ranking (field weighting): it would force a re-embed, and no published measurement shows a gain yet. Revisit if the real-question evals show a ranking gap.
 - New llms.txt output options: the dedicated llms.txt plugins do more, and ondocs steps aside when one is installed.
 - New framework, host or model integrations in the first four weeks after launch, unless an issue asks for one. Fixes, and tests that move an integration to "tested in CI", are welcome all along.
 - A shared brand, more renames or a shared site kit across ondocs, onsystem and signoff-ui: the listings and redirects depend on the current names.
