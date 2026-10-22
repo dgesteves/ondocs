@@ -24,15 +24,15 @@ const doc = (content: string, title = 'Page'): SourceDocument => ({
 });
 
 /**
- * Runs `fn` three times and returns the fastest, in milliseconds. A GC pause or a busy CI runner
- * can slow one run several times over; the quadratic cases these tests guard against take seconds.
- */
-/**
  * The budget for one hostile input. CI runners have measured 261 to 328 ms for the slowest linear
  * cases here, while the quadratic ones these tests catch take seconds, so 1 s still tells them apart.
  */
 const BUDGET_MS = 1000;
 
+/**
+ * Runs `fn` three times and returns the fastest, in milliseconds. A GC pause or a busy CI runner
+ * can slow one run several times over; the quadratic cases these tests guard against take seconds.
+ */
 function timed(fn: () => unknown): number {
   let fastest = Infinity;
   for (let run = 0; run < 3; run++) {
