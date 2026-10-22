@@ -1,5 +1,5 @@
 ---
-'ondocs': patch
+'ondocs': minor
 ---
 
 `ondocs eval` scores an index built with a config module's embedding model: `ondocs eval ask-eval.yaml -c ask.config.mjs` embeds the questions with the module's `embeddingModel` and `embeddingProviderOptions`, or its `embedding` at its `dimensions`, as `ondocs index -c` embedded the pages, so an index embedded with Gemini, Cohere or a model you host no longer stops at "which ondocs dev cannot load". It stops instead, with exit code 2, if the module's model is not the one the index records or its vectors are not the index's size, and `--keyword-only` does not import the module at all.
