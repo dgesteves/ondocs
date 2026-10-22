@@ -8,7 +8,7 @@
 //   node scripts/corpus.mjs .corpus astro vitest
 //   ONDOCS_CORPUS=.corpus pnpm vitest run test/corpus.test.ts
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -123,7 +123,9 @@ function fetchCorpus(dir, corpus) {
   console.log(`Fetched ${corpus.title} at ${corpus.commit} into ${target}.`);
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Run as a script, not imported. import.meta.url has symlinks resolved and argv[1] does not, so a
+// checkout reached through one (macOS's /tmp, a linked home) compares their real paths.
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = fileURLToPath(new URL('..', import.meta.url));
   const [dir = join(root, '.corpus'), ...names] = process.argv.slice(2);
   const unknown = names.filter((name) => !CORPORA.some((corpus) => corpus.name === name));

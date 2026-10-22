@@ -357,7 +357,7 @@ const markdown = [
             : result.rank === null
               ? `missed; found ${result.found.join(', ')}`
               : `rank ${String(result.rank)}`;
-        return `| ${result.question.replace(/\|/g, '\\|')} | ${outcome} | ${two(result.best.similarity)} | ${result.best.keywordCoverage.toFixed(2)} |`;
+        return `| ${result.question.replace(/\\/g, '\\\\').replace(/\|/g, '\\|')} | ${outcome} | ${two(result.best.similarity)} | ${result.best.keywordCoverage.toFixed(2)} |`;
       }),
       '',
     ];

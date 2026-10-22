@@ -33,9 +33,10 @@ async function run(...args: string[]) {
 
 /**
  * A config module whose embedding model is a local one of its own, as a self-hosted or another
- * provider's would be: `modelId` names it, and each text it embeds is counted on `globalThis`.
+ * provider's would be: `modelId` names it, its vectors have `dimensions` numbers, and each text it
+ * embeds is counted on `globalThis`.
  */
-const config = (modelId: string) => `
+const config = (modelId: string, dimensions = 256) => `
 import { hashEmbedding } from ${JSON.stringify(new URL('../../src/mock/index.ts', import.meta.url).href)};
 export default {
   embeddingModel: {
@@ -46,7 +47,7 @@ export default {
     supportsParallelCalls: true,
     async doEmbed({ values }) {
       globalThis.ondocsEvalEmbedded = (globalThis.ondocsEvalEmbedded ?? 0) + values.length;
-      return { embeddings: values.map((value) => hashEmbedding(value, 256)), warnings: [] };
+      return { embeddings: values.map((value) => hashEmbedding(value, ${String(dimensions)})), warnings: [] };
     },
   },
 };
@@ -69,6 +70,10 @@ describe('ondocs eval -c', () => {
     );
     await writeFile(join(cwd, 'ask.config.mjs'), config('nomic-embed-text'));
     await writeFile(join(cwd, 'other.config.mjs'), config('all-minilm'));
+    await writeFile(join(cwd, 'smaller.config.mjs'), config('nomic-embed-text', 32));
+    await writeFile(join(cwd, 'plain.config.mjs'), "export default { baseUrl: '/' };\n");
+    await writeFile(join(cwd, 'spec.config.mjs'), "export default { embedding: 'mock' };\n");
+    await writeFile(join(cwd, 'broken.config.mjs'), 'export default {;\n');
     const built = await run('index', 'content', '-c', 'ask.config.mjs', '--framework', 'none');
     expect(built.code).toBe(0);
   });
@@ -106,17 +111,37 @@ describe('ondocs eval -c', () => {
     expect(missing.stderr).toContain('Config file not found: missing.mjs');
   });
 
-  it('searches by keywords alone with --keyword-only, whatever the config', async () => {
-    const result = await run(
-      'eval',
-      'questions.yaml',
-      '-c',
-      'other.config.mjs',
-      '--keyword-only',
-      '--json',
+  it('says so when the config sets no embeddingModel', async () => {
+    const result = await run('eval', 'questions.yaml', '-c', 'plain.config.mjs');
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain(
+      'plain.config.mjs sets no embeddingModel, so questions are embedded with the model the index records. The index was embedded with nomic-embed-text, which ondocs dev cannot load',
     );
-    expect(result.code).toBe(0);
-    expect((JSON.parse(result.stdout) as { retrieval: string }).retrieval).toBe('keyword');
+    expect(result.stderr).toContain(
+      'Or set the embeddingModel the index was built with in plain.config.mjs, or pass --keyword-only.',
+    );
+    // One that names a model with `embedding` uses a provider ondocs dev loads: no embeddingModel.
+    const spec = await run('eval', 'questions.yaml', '-c', 'spec.config.mjs');
+    expect(spec.code).toBe(2);
+    expect(spec.stderr).toContain('spec.config.mjs sets no embeddingModel');
+    expect(spec.stderr).not.toContain('Or set the embeddingModel');
+    expect(spec.stderr).toMatch(/Or pass --keyword-only\.$/);
+  });
+
+  it('stops before scoring when the config’s vectors are not the index’s size', async () => {
+    const result = await run('eval', 'questions.yaml', '-c', 'smaller.config.mjs');
+    expect(result.code).toBe(2);
+    expect(result.stderr).toBe(
+      '✗ smaller.config.mjs embeds questions in 32 dimensions, but the index was embedded in 256. Set the embeddingProviderOptions the index was built with in smaller.config.mjs, or rebuild the index with it.',
+    );
+  });
+
+  it('searches by keywords alone with --keyword-only, without importing the config', async () => {
+    for (const file of ['other.config.mjs', 'broken.config.mjs']) {
+      const result = await run('eval', 'questions.yaml', '-c', file, '--keyword-only', '--json');
+      expect(result.code).toBe(0);
+      expect((JSON.parse(result.stdout) as { retrieval: string }).retrieval).toBe('keyword');
+    }
   });
 });
 
@@ -187,9 +212,14 @@ describe('ondocs eval past the top three', () => {
 
   it('prints what ranked fourth and fifth, and the words of a refused question no page has', async () => {
     const { stdout } = await run('eval', 'questions.yaml');
-    expect(stdout).toMatch(
-      /✗ -\s+zebra\s+cov 1\.00 {2}→ \/docs\/p1, \/docs\/p2, \/docs\/p3, \/docs\/p4, \/docs\/p5/,
-    );
+    // Ranked fourth, which counts toward hit@5 and MRR, and not found at all.
+    for (const mark of ['4', '-']) {
+      expect(stdout).toMatch(
+        new RegExp(
+          `✗ ${mark}\\s+zebra\\s+cov 1\\.00 {2}→ /docs/p1, /docs/p2, /docs/p3, /docs/p4, /docs/p5`,
+        ),
+      );
+    }
     expect(stdout).toMatch(
       /✗ refused\s+quokka habitat\s+cov 0\.00 {2}expected \/docs\/p1; not in the docs: quokka, habitat/,
     );

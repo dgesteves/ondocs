@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -21,7 +21,9 @@ const read = (path: string) => readFileSync(join(root, path), 'utf8');
 const readme = read('test/eval/README.md');
 const quality = read('examples/nextjs/content/docs/quality.md');
 
-const corpusDir = process.env.ONDOCS_CORPUS ?? join(root, '.corpus');
+// Absolute, since the CLI below runs in a temporary folder: a relative ONDOCS_CORPUS, such as
+// .corpus, is the working directory's.
+const corpusDir = resolve(process.env.ONDOCS_CORPUS ?? join(root, '.corpus'));
 const present = CORPORA.every((corpus) => existsSync(join(corpusDir, corpus.name, corpus.docs)));
 if (!present && process.env.CI)
   throw new Error(`No corpus at ${corpusDir}: run node scripts/corpus.mjs`);

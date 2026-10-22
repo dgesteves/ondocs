@@ -1,10 +1,8 @@
 // `ondocs eval`: scores retrieval against questions with known answers, for CI. It runs what
 // the endpoint runs before the model (embedding, hybrid retrieval and the relevance gate), so it
 // costs one embedding call per question at most, and no model call. Node.js only.
-import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 
 import { embed, type EmbeddingModel } from 'ai';
@@ -12,9 +10,10 @@ import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 
 import { embeddingModelId, sameEmbeddingModel, type EmbeddingProviderOptions } from '../build';
-import { readIndexFile, type AskConfig } from '../node';
+import { readIndexFile } from '../node';
 import { loadIndex, retrieve, type LoadedIndex, type RetrievalOptions } from '../search/retrieve';
 import { tokenize } from '../text/tokenize';
+import { loadConfigModule } from './config';
 import { devModels, DevError, INDEX_FILES } from './dev';
 import type { CliIO } from './main';
 
@@ -273,8 +272,9 @@ function printReport(report: EvalReport, io: CliIO): void {
       detail = `expected ${result.expect.join(' or ')}`;
       if (result.absent.length > 0) detail += `; not in the docs: ${result.absent.join(', ')}`;
     } else {
-      mark =
-        result.rank !== null && result.rank <= 3 ? `✓ ${String(result.rank)}       ` : '✗ -       ';
+      // A page ranked below third still counts toward hit@5 and MRR, so its rank shows.
+      const rank = result.rank === null ? '-' : String(result.rank);
+      mark = `${result.rank !== null && result.rank <= 3 ? '✓' : '✗'} ${rank}`.padEnd(10);
       detail = result.rank === 1 ? '' : `→ ${result.found.join(', ')}`;
     }
     const signals = `cov ${result.best.keywordCoverage.toFixed(2)}${result.best.similarity === null ? '' : `, sim ${result.best.similarity.toFixed(2)}`}`;
@@ -293,18 +293,6 @@ function printReport(report: EvalReport, io: CliIO): void {
         : `  threshold ${String(entry.threshold)} ${entry.pass ? '✓' : '✗'}`;
     io.stdout(`  ${LABELS[metric].padEnd(18)} ${value}  (${count}/${String(entry.of)})${against}`);
   }
-}
-
-/** The config module at `path`, as `ondocs index -c` loads it. */
-async function loadConfig(path: string, io: CliIO): Promise<AskConfig> {
-  const absolute = resolve(io.cwd, path);
-  if (!existsSync(absolute)) throw new EvalError(`Config file not found: ${path}`);
-  const module = (await import(pathToFileURL(absolute).href)) as { default?: unknown };
-  const config = module.default;
-  if (!config || typeof config !== 'object') {
-    throw new EvalError(`${path} must export a config object as its default export.`);
-  }
-  return config;
 }
 
 /** Runs `ondocs eval`. Returns the exit code: 0 at or over every threshold, 1 under one, 2 usage. */
@@ -398,17 +386,22 @@ export async function evalCommand(args: string[], io: CliIO): Promise<number> {
 
     let embedQuestion: ((question: string) => Promise<number[]>) | null = null;
     let retrieval: RetrievalOptions = {};
-    const config = typeof values.config === 'string' ? await loadConfig(values.config, io) : {};
     if (!values['keyword-only'] && indexFile.embedding) {
+      const { embedding } = indexFile;
+      // The config is read only to embed questions: a keyword-only run never imports it.
+      const configPath = typeof values.config === 'string' ? values.config : undefined;
+      const config = configPath
+        ? await loadConfigModule(configPath, io.cwd, (message) => new EvalError(message))
+        : {};
       let embeddingModel: EmbeddingModel | undefined;
       let embeddingProviderOptions: EmbeddingProviderOptions | undefined;
       if (config.embeddingModel) {
         // The config's model, as `ondocs index -c` embedded the pages with it: any provider,
         // with no key here unless that provider needs one.
         const id = embeddingModelId(config.embeddingModel);
-        if (!sameEmbeddingModel(indexFile.embedding.model, id)) {
+        if (!sameEmbeddingModel(embedding.model, id)) {
           throw new EvalError(
-            `The index was embedded with ${indexFile.embedding.model}, but ${String(values.config)} embeds with ${id}. Pass the config the index was built with, or rebuild the index with this one.`,
+            `The index was embedded with ${embedding.model}, but ${String(configPath)} embeds with ${id}. Pass the config the index was built with, or rebuild the index with this one.`,
           );
         }
         embeddingModel = config.embeddingModel;
@@ -419,8 +412,12 @@ export async function evalCommand(args: string[], io: CliIO): Promise<number> {
           models = await devModels(indexFile, io.env);
         } catch (error) {
           if (error instanceof DevError) {
+            // A config that names its model with `embedding` uses a provider `ondocs dev` loads,
+            // so a key is the fix; one that names no model needs the embeddingModel it built with.
             throw new EvalError(
-              `${error.message} Or pass -c with the config module that embeds with it, or --keyword-only.`,
+              !configPath
+                ? `${error.message} Or pass -c with the config module that embeds with it, or --keyword-only.`
+                : `${configPath} sets no embeddingModel, so questions are embedded with the model the index records. ${error.message} ${config.embedding === undefined ? `Or set the embeddingModel the index was built with in ${configPath}, or pass --keyword-only.` : 'Or pass --keyword-only.'}`,
             );
           }
           throw error;
@@ -430,8 +427,8 @@ export async function evalCommand(args: string[], io: CliIO): Promise<number> {
       }
       if (embeddingModel) {
         const model = embeddingModel;
-        embedQuestion = async (question) =>
-          (
+        embedQuestion = async (question) => {
+          const vector = (
             await embed({
               model,
               value: question,
@@ -439,6 +436,14 @@ export async function evalCommand(args: string[], io: CliIO): Promise<number> {
               ...(embeddingProviderOptions ? { providerOptions: embeddingProviderOptions } : {}),
             })
           ).embedding;
+          // Options that change the size (`dimensions`) make vectors the index cannot compare.
+          if (vector.length !== embedding.dimensions) {
+            throw new EvalError(
+              `${configPath ?? embedding.model} embeds questions in ${String(vector.length)} dimensions, but the index was embedded in ${String(embedding.dimensions)}. ${configPath ? `Set the embeddingProviderOptions the index was built with in ${configPath}, or rebuild the index with it.` : 'Rebuild the index, or pass -c with the config module it was built with.'}`,
+            );
+          }
+          return vector;
+        };
       }
     }
     retrieval = { ...retrieval, ...file.retrieval };
