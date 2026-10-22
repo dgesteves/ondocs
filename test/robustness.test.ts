@@ -27,6 +27,12 @@ const doc = (content: string, title = 'Page'): SourceDocument => ({
  * Runs `fn` three times and returns the fastest, in milliseconds. A GC pause or a busy CI runner
  * can slow one run several times over; the quadratic cases these tests guard against take seconds.
  */
+/**
+ * The budget for one hostile input. CI runners have measured 261 to 328 ms for the slowest linear
+ * cases here, while the quadratic ones these tests catch take seconds, so 1 s still tells them apart.
+ */
+const BUDGET_MS = 1000;
+
 function timed(fn: () => unknown): number {
   let fastest = Infinity;
   for (let run = 0; run < 3; run++) {
@@ -40,30 +46,30 @@ function timed(fn: () => unknown): number {
 describe('linear-time parsing of hostile input', () => {
   it('parses headings with long whitespace runs quickly', () => {
     const line = `# a${' \t'.repeat(20_000)}b`;
-    expect(timed(() => chunkDocument(doc(line)))).toBeLessThan(250);
+    expect(timed(() => chunkDocument(doc(line)))).toBeLessThan(BUDGET_MS);
     const ids = `## a {/* #b${' \t'.repeat(400)}`.repeat(25).concat('\n').repeat(400);
-    expect(timed(() => chunkDocument(doc(ids)))).toBeLessThan(250);
-    expect(timed(() => fromMarkdown(line, { id: 'x', url: '/x' }))).toBeLessThan(250);
+    expect(timed(() => chunkDocument(doc(ids)))).toBeLessThan(BUDGET_MS);
+    expect(timed(() => fromMarkdown(line, { id: 'x', url: '/x' }))).toBeLessThan(BUDGET_MS);
   });
 
   it('reads `[#id]` heading ids quickly, on long and on many lines', () => {
     const long = `## a${' [#'.repeat(20_000)}]`;
-    expect(timed(() => nextHeadingIds(long, { nextra: false }))).toBeLessThan(250);
+    expect(timed(() => nextHeadingIds(long, { nextra: false }))).toBeLessThan(BUDGET_MS);
     const many = `## a [#b${' '.repeat(200)}[#c]\n`.repeat(20_000);
-    expect(timed(() => nextHeadingIds(many, { nextra: true }))).toBeLessThan(250);
+    expect(timed(() => nextHeadingIds(many, { nextra: true }))).toBeLessThan(BUDGET_MS);
   });
 
   it('leaves footnote references out of headings quickly, on long and on many lines', () => {
     const long = `## a${' [^'.repeat(20_000)}]\n\n[^a]: A footnote.`;
-    expect(timed(() => dropHeadingFootnotes(long))).toBeLessThan(250);
+    expect(timed(() => dropHeadingFootnotes(long))).toBeLessThan(BUDGET_MS);
     const many = `## a [^b${' '.repeat(200)}[^c]\n[^c]: C.\n`.repeat(20_000);
-    expect(timed(() => dropHeadingFootnotes(many))).toBeLessThan(250);
+    expect(timed(() => dropHeadingFootnotes(many))).toBeLessThan(BUDGET_MS);
   });
 
   it('splits long lines of CJK sentence ends and closing quotes quickly', () => {
     for (const unit of ['。', '」', '。」', '！？ ', '。」」」」a', '😀']) {
       const line = unit.repeat(Math.ceil(100_000 / unit.length));
-      expect(timed(() => chunkDocument(doc(line)))).toBeLessThan(250);
+      expect(timed(() => chunkDocument(doc(line)))).toBeLessThan(BUDGET_MS);
     }
   });
 
@@ -73,15 +79,15 @@ describe('linear-time parsing of hostile input', () => {
       const title = `a${run.repeat(Math.ceil(100_000 / run.length))}b`;
       const page = { url: '/p', title, content: '# a\n\nBody.' };
       const copy = () => buildLlmsFiles([page], { title: 'S' }, { index: false, full: false });
-      expect(timed(copy)).toBeLessThan(250);
+      expect(timed(copy)).toBeLessThan(BUDGET_MS);
     }
   });
 
   it('handles long backtick runs and unclosed tags quickly', () => {
     const backticks = 'a'.concat('`'.repeat(20_000), ' b');
-    expect(timed(() => fromMarkdown(backticks, { id: 'x', url: '/x' }))).toBeLessThan(250);
+    expect(timed(() => fromMarkdown(backticks, { id: 'x', url: '/x' }))).toBeLessThan(BUDGET_MS);
     const metas = '<meta name=robots '.repeat(5_000);
-    expect(timed(() => fromHtml(metas, { id: 'x', url: '/x' }))).toBeLessThan(250);
+    expect(timed(() => fromHtml(metas, { id: 'x', url: '/x' }))).toBeLessThan(BUDGET_MS);
   });
 });
 
@@ -255,7 +261,7 @@ describe('linear-time loaders on unclosed constructs', () => {
       md(`## x {/* #a${' \t'.repeat(400)}*/}${' '.repeat(100)}\n`.repeat(n / 100), true),
     ],
   ])('%s', (_, parse) => {
-    expect(timed(parse)).toBeLessThan(250);
+    expect(timed(parse)).toBeLessThan(BUDGET_MS);
   });
 });
 
