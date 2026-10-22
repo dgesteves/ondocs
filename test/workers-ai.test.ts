@@ -338,6 +338,24 @@ describe('the Cloudflare Worker template', () => {
     );
   });
 
+  it('reads SITE_URL without its trailing slashes, and quickly on a long run of slashes', async () => {
+    const slashed = await worker('bge');
+    slashed.env.SITE_URL = `${SITE}///`;
+    expect((await slashed.ask('How do I rate limit with Upstash?')).status).toBe(200);
+    expect(slashed.site).toEqual([`${SITE}/ask-index.json`]);
+
+    // Over 40 s before: `/\/+$/` started a match at each slash of the run, once to fetch the
+    // index and once for the CORS headers of the error.
+    const { ask, env } = await worker('bge');
+    env.SITE_URL = `${SITE}/a${'/'.repeat(100_000)}x`;
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const start = performance.now();
+    const response = await ask('How do I rate limit with Upstash?');
+    expect(performance.now() - start).toBeLessThan(1000);
+    expect(response.status).toBe(500);
+    expect(response.headers.get('access-control-allow-origin')).toBe('https://acme.github.io');
+  });
+
   it('refuses without calling the model, and answers 500 while the site has no index', async () => {
     const { ask, ai, env } = await worker('bge');
     expect(await (await ask('What is the capital of France?')).text()).toContain("I don't know");

@@ -2,6 +2,7 @@
 // Starlight and VitePress): a script that mounts it, and the stylesheets it needs.
 import { warnDeprecated } from '../deprecation';
 import type { OndocsDialogOptions, OndocsTheme } from '../embed/options';
+import { trimTrailingSlashes } from '../text/slashes';
 
 /** What the dialog shows in one locale, over the dialog's own options. */
 export type LocaleDialogOptions = Pick<
@@ -147,7 +148,7 @@ export function launcherScript({
       ];
     }),
   );
-  const pathUnderBase = `location.pathname.slice(${String(base.replace(/\/+$/, '').length)}).replace(/^\\/+/, '')`;
+  const pathUnderBase = `location.pathname.slice(${String(trimTrailingSlashes(base).length)}).replace(/^\\/+/, '')`;
   const head = [
     "import { mountAskDialog } from 'ondocs/embed/standalone';",
     `const options = ${JSON.stringify(mount)};`,
