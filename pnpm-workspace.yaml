@@ -6,25 +6,13 @@ allowBuilds:
   '@swc/core': false
   core-js: false
   esbuild: false
-# next 16.4.1 is a security release (GHSA-673q-mjm6-r5xr, GHSA-2464-fhr4-w9xw, GHSA-p3m5-59mp-jv5r),
-# published on 2026-10-14, so it is younger than pnpm's one-day minimum release age. These exact versions
-# are exempt so the fix lands now. The entries can go after 2026-10-15 17:44 UTC, when they are old enough.
-minimumReleaseAgeExclude:
-  - '@next/env@16.4.1'
-  - '@next/swc-darwin-arm64@16.4.1'
-  - '@next/swc-darwin-x64@16.4.1'
-  - '@next/swc-linux-arm64-gnu@16.4.1'
-  - '@next/swc-linux-arm64-musl@16.4.1'
-  - '@next/swc-linux-x64-gnu@16.4.1'
-  - '@next/swc-linux-x64-musl@16.4.1'
-  - '@next/swc-win32-arm64-msvc@16.4.1'
-  - '@next/swc-win32-x64-msvc@16.4.1'
-  - next@16.4.1
 # CI's audit job fails on a high or critical advisory in a production dependency (`pnpm audit --prod
 # --audit-level=high`), and pnpm counts the examples' dependencies and the peers it installs as
 # production. tinypool and serialize-javascript come in through @docusaurus/core 3.10, and vite through
-# VitePress 1: each asks for a major that has no fixed release. Only this repository's install takes
-# the overrides: a site that installs ondocs resolves its own Docusaurus and VitePress.
+# VitePress 1: each asks for a major that has no fixed release. postcss-selector-parser and uuid are
+# moderate, so they pass the audit job, but each is an open Dependabot alert. Only this repository's
+# install takes the overrides: a site that installs ondocs resolves its own Docusaurus, Starlight and
+# VitePress.
 overrides:
   # Critical GHSA-5gmw-xhrv-c9v3 and GHSA-85c8-ppgw-ccpr. Docusaurus builds a site of more than 100
   # pages in a tinypool worker pool.
@@ -36,6 +24,18 @@ overrides:
   # its latest release, asks for vite ^5.4.14, no vite 5 release fixes them, and VitePress 2 is still
   # an alpha. Its @vitejs/plugin-vue 5 accepts vite 6, and the VitePress example builds with it.
   vitepress>vite: ^6.4.4
+  # Moderate GHSA-rj75-hqrm-r3gf: a long flat selector such as .a.a.a... parses in quadratic time.
+  # cssnano 6, which @docusaurus/bundler 3.10 asks for, and postcss-nested 6, through Starlight's
+  # Expressive Code 0.44.2, ask for ^6. 6.1.5 backports the fix, but the advisory still lists every
+  # version below 7.1.6. 7.0's one breaking change makes insertions during iteration safe. With it,
+  # cssnano 6 and postcss-nested 6 give the same output on the examples' CSS, and the Docusaurus and
+  # Starlight examples build the same files. Take it out once the advisory lists 6.1.5, or once
+  # Docusaurus asks for cssnano 7 (Expressive Code 0.44.3 already asks for postcss-nested 7).
+  postcss-selector-parser@<7.1.6: ^7.1.6
+  # Moderate GHSA-w5hq-g745-h8pq, through sockjs 0.3.24 in webpack-dev-server 5, the Docusaurus dev
+  # server. sockjs 0.3.24 is its latest release and asks for uuid ^8.3.2. It only calls v4(), which
+  # uuid 11 still exports from its CommonJS build.
+  sockjs>uuid: ^11.1.1
 # Advisories the audit skips, because no release this repository can take fixes them. Take an entry
 # out once one does.
 auditConfig:
