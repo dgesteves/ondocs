@@ -40,6 +40,11 @@ export type DialogPanelProps = Omit<
   theme?: OndocsTheme;
   /** The footer's credit line, as `AskButton` takes it: `true` for `labels.poweredBy`, or a line. */
   poweredBy?: boolean | string;
+  /**
+   * Takes what was typed since the dialog was asked for, which the input starts with as the
+   * dialog opens: on the first open, what came while its code loaded.
+   */
+  draft?: () => string;
 };
 
 const cx = (...names: (string | undefined | false)[]): string => names.filter(Boolean).join(' ');
@@ -358,6 +363,7 @@ export function DialogPanel({
   sourceUrls,
   question,
   poweredBy,
+  draft,
   ...askOptions
 }: DialogPanelProps): ReactNode {
   const labels = resolveLabels(given);
@@ -483,12 +489,25 @@ export function DialogPanel({
         <Dialog.Content
           className={cx('ask-dialog', classNames.content)}
           data-ask-theme={themeAttribute}
-          onOpenAutoFocus={() => {
+          onOpenAutoFocus={(event) => {
             // Runs before focus moves in, however the dialog was opened (shortcut, trigger,
             // controlled prop), so this is still the element to give focus back to.
             const active = document.activeElement;
             returnFocusRef.current =
               active instanceof HTMLElement && active !== document.body ? active : null;
+            // What was typed before the input had focus, which takes the keys itself from here
+            // on. It replaces the text from before, as typing into Radix's selection of it would.
+            // The input has it at once, with the caret after it: the next key can come before
+            // React's next render, and should not replace it.
+            const typed = draft?.().slice(0, 500);
+            const input = inputRef.current;
+            if (typed && input) {
+              event.preventDefault();
+              input.value = typed;
+              setQuery(typed);
+              input.focus({ preventScroll: true });
+              input.setSelectionRange(typed.length, typed.length);
+            }
           }}
           onCloseAutoFocus={(event) => {
             // Opened by the shortcut there is no trigger to return to, so Radix would drop focus
