@@ -71,6 +71,20 @@ describe('an index that is not one, at construction', () => {
     );
   });
 
+  it('a file URL, which readFileSync reads, and a URL neither reads', () => {
+    const FILE = 'file:///tmp/ask-index.json';
+    const file = `createAskHandler: index takes the index's JSON, not a file URL: read it with readFileSync(new URL('${FILE}'), 'utf8').`;
+    expect(() => createAskHandler({ index: FILE, model })).toThrow(file);
+    expect(() => createAskHandler({ index: new URL(FILE), model })).toThrow(file);
+    // Not taken for a path, which would advise import index from './file:///tmp/ask-index.json'.
+    expect(() => createAskHandler({ index: 'file:/tmp/ask-index.json', model })).toThrow(
+      "not a file URL: read it with readFileSync(new URL('file:/tmp/ask-index.json'), 'utf8').",
+    );
+    expect(() => createMcpHandler({ index: 's3://acme-docs/ask-index.json' })).toThrow(
+      "createMcpHandler: index takes the index's JSON, not a URL: load the file at s3://acme-docs/ask-index.json and pass its JSON, or serve it over HTTPS and pass remoteIndex('https://…') from ondocs/server.",
+    );
+  });
+
   it('JSON that is not an ondocs index', () => {
     const notOurs = 'createAskHandler: index is not an ondocs index: it has no format.';
     expect(() => createAskHandler({ index: { documents: [] }, model })).toThrow(notOurs);

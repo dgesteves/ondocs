@@ -320,10 +320,22 @@ type GivenIndex = AskHandlerOptions['index'];
 const isThenable = (value: unknown): value is PromiseLike<unknown> =>
   typeof (value as { then?: unknown } | null)?.then === 'function';
 
-const notAUrl = (where: string, url: string) =>
-  new TypeError(
-    `${where} takes the index's JSON, not a URL: pass remoteIndex('${url}') from ondocs/server, which fetches it and checks it for changes.`,
+/** The error for a URL in place of the index, with the way out its scheme has. */
+const notAUrl = (where: string, url: string) => {
+  if (/^https?:/i.test(url)) {
+    return new TypeError(
+      `${where} takes the index's JSON, not a URL: pass remoteIndex('${url}') from ondocs/server, which fetches it and checks it for changes.`,
+    );
+  }
+  if (/^file:/i.test(url)) {
+    return new TypeError(
+      `${where} takes the index's JSON, not a file URL: read it with readFileSync(new URL('${url}'), 'utf8').`,
+    );
+  }
+  return new TypeError(
+    `${where} takes the index's JSON, not a URL: load the file at ${url} and pass its JSON, or serve it over HTTPS and pass remoteIndex('https://…') from ondocs/server.`,
   );
+};
 
 /**
  * `source` as the index loader takes it, checked as a handler is made (`where` names it, as in
@@ -343,7 +355,10 @@ export function indexSource(
   if (typeof source === 'function') return source;
   if (typeof source === 'string') {
     if (source.trimStart().startsWith('{')) return source;
-    if (/^https?:\/\/\S+$/i.test(source.trim())) throw notAUrl(where, source.trim());
+    // A URL of any scheme: http(s) for remoteIndex, file: for readFileSync, or one like s3://.
+    if (/^(?:[a-z][a-z0-9+.-]*:\/\/|file:)\S+$/i.test(source.trim())) {
+      throw notAUrl(where, source.trim());
+    }
     if (/^[^\s{]+$/.test(source.trim())) {
       const path = source.trim();
       const specifier = /^\.{0,2}\//.test(path) ? path : `./${path}`;
