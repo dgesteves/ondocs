@@ -1,10 +1,9 @@
 import {
   cloneElement,
   isValidElement,
-  lazy,
-  Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -14,6 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { keyBuffer } from '../embed/mount';
 import type { OndocsTheme } from '../embed/options';
 import type { AnswerLinks, SourceUrls } from './answer';
 import type { AskDialogLabels } from './labels';
@@ -96,6 +96,12 @@ export interface AskDialogProps extends Omit<UseAskOptions, 'onFinish'> {
 }
 
 let panel: Promise<typeof import('./dialog-panel')> | undefined;
+/**
+ * The dialog, once its code has loaded, which `AskDialog` then renders in the same render as the
+ * open. Behind `Suspense`, React held its first render back for about 300 ms, even with the code
+ * already there.
+ */
+let loadedPanel: (typeof import('./dialog-panel'))['DialogPanel'] | undefined;
 
 /**
  * Loads the dialog's code (Radix Dialog, cmdk and the answer), once. `AskDialog` calls it when
@@ -103,15 +109,16 @@ let panel: Promise<typeof import('./dialog-panel')> | undefined;
  * opening it. Call it yourself to load the dialog sooner, e.g. when the page is idle.
  */
 export function loadAskDialog(): Promise<unknown> {
-  panel ??= import('./dialog-panel');
+  panel ??= import('./dialog-panel').then((module) => {
+    loadedPanel = module.DialogPanel;
+    return module;
+  });
   return panel;
 }
 
-const DialogPanel = lazy(() =>
-  (loadAskDialog() as Promise<typeof import('./dialog-panel')>).then((module) => ({
-    default: module.DialogPanel,
-  })),
-);
+// A layout effect, so what is typed is kept from the commit that opens the dialog, before the
+// dialog's own effects move focus into it. The server runs neither.
+const useBrowserLayoutEffect = typeof document === 'undefined' ? useEffect : useLayoutEffect;
 
 const noSubscription = () => () => undefined;
 const isMac = () => /Mac|iPhone|iPad/.test(navigator.platform);
@@ -158,13 +165,46 @@ export function AskDialog({
   // The dialog mounts the first time it opens, and stays, so its answer survives closing.
   const [mounted, setMounted] = useState(open);
   if (open && !mounted) setMounted(true);
+  const wanted = mounted || open;
   const loadedRef = useRef(false);
+  const [, setArrived] = useState(false);
+  // What is typed while the dialog is open and its input does not have focus yet: on the first
+  // open, while its code loads. The input starts with it, unless the dialog opened on a question.
+  const [typed] = useState(keyBuffer);
+  const asking = Boolean(props.question?.trim());
   // The server renders "Ctrl", and the browser corrects it after hydration.
   const mac = useSyncExternalStore(noSubscription, isMac, () => false);
 
   useEffect(() => {
     openRef.current = open;
   }, [open]);
+
+  useBrowserLayoutEffect(() => {
+    if (!open || asking) return;
+    typed.start();
+    return () => {
+      typed.take();
+    };
+  }, [open, asking, typed]);
+
+  // Wanted before its code is there, the dialog renders as the code arrives.
+  useEffect(() => {
+    if (!wanted || loadedPanel) return;
+    let current = true;
+    loadAskDialog().then(
+      () => {
+        if (current) setArrived(true);
+      },
+      (error: unknown) => {
+        // Without a dialog to type into, the page has its keys back.
+        typed.take();
+        console.error('[ondocs] The dialog could not load.', error);
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [wanted, typed]);
 
   const setOpen = useCallback(
     (next: boolean) => {
@@ -223,6 +263,7 @@ export function AskDialog({
   } as const;
   const themeAttribute = useThemeAttribute(theme);
   const key = shortcut ? shortcut.toUpperCase() : '';
+  const DialogPanel = wanted ? loadedPanel : undefined;
 
   return (
     <>
@@ -251,10 +292,14 @@ export function AskDialog({
           ) : null}
         </button>
       )}
-      {mounted || open ? (
-        <Suspense fallback={null}>
-          <DialogPanel {...props} theme={theme} open={open} onOpenChange={setOpen} />
-        </Suspense>
+      {DialogPanel ? (
+        <DialogPanel
+          {...props}
+          theme={theme}
+          open={open}
+          onOpenChange={setOpen}
+          draft={typed.take}
+        />
       ) : null}
     </>
   );

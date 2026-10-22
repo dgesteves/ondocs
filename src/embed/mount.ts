@@ -1,7 +1,7 @@
 // The part of the embed every page runs: the "Ask AI" button and the shortcut, in plain DOM, with
 // no React. The dialog (React, Radix, cmdk) loads on first use: a pointer over or focus on the
 // button or a `data-ondocs-open` element, the shortcut, or `open()`. A shortcut pressed while it
-// loads opens it once it has.
+// loads opens it once it has, and what is typed in the meantime is its input's text.
 import { warnDeprecated } from '../deprecation';
 import { asked, listenForOpen } from './open';
 import type { OndocsDialogOptions, OndocsTheme } from './options';
@@ -51,6 +51,11 @@ export interface DialogRenderOptions extends Omit<
   open: boolean;
   /** A question to ask as the dialog opens. */
   question?: string;
+  /**
+   * Takes what was typed since the dialog was asked for, before its input had focus, for the
+   * input to start with. See `keyBuffer`.
+   */
+  draft?: () => string;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -70,6 +75,45 @@ function isEditable(target: EventTarget | null): boolean {
     target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') !==
       null
   );
+}
+
+/** A key that types a character, on its own or with Shift or Option (AltGr is Ctrl and Alt). */
+const typesCharacter = (event: KeyboardEvent): boolean =>
+  /^.$/su.test(event.key) && !event.metaKey && (!event.ctrlKey || event.altKey);
+
+/**
+ * What the visitor types after asking for the dialog and before its input has focus, which would
+ * otherwise go nowhere. ⌘I is often followed straight away by the question, and on the first open
+ * the dialog's code is still on its way: a moment on a fast connection, seconds on a slow one.
+ * While it listens, the characters and Backspace typed on the page are kept, and kept from the
+ * page, as the dialog would (a Space would scroll it). A text field, an IME's composition, a
+ * dialog and the shortcuts keep their keys. `take` stops listening and returns the text, which
+ * the dialog's input starts with: a draft, not a question it asks.
+ */
+export function keyBuffer(): { start: () => void; take: () => string } {
+  let text = '';
+  const onKeyDown = (event: KeyboardEvent): void => {
+    const { target } = event;
+    if (event.isComposing || isEditable(target)) return;
+    if (target instanceof Element && target.closest('[role="dialog"]')) return;
+    if (event.key === 'Backspace') text = text.replace(/.$/su, '');
+    else if (typesCharacter(event)) text += event.key;
+    else return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  return {
+    start: () => {
+      // The same listener twice is one listener.
+      window.addEventListener('keydown', onKeyDown, true);
+    },
+    take: () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      const taken = text;
+      text = '';
+      return taken;
+    },
+  };
 }
 
 /**
@@ -109,6 +153,7 @@ export function mountWithLoader(
   let dialog: ReturnType<DialogRenderer['render']> | null = null;
   let loading: Promise<void> | null = null;
   let unmounted = false;
+  const typed = keyBuffer();
 
   const key = shortcut ? shortcut.toUpperCase() : '';
   let button: HTMLButtonElement | null = null;
@@ -146,6 +191,8 @@ export function mountWithLoader(
   media?.addEventListener('change', applyScheme);
 
   const setOpen = (next: boolean, asking?: string): void => {
+    // Closed, or opened on a question, what was typed for it is dropped.
+    if (!next || asking) typed.take();
     open = next;
     if (next) question = asking;
     button?.setAttribute('aria-expanded', String(next));
@@ -165,6 +212,7 @@ export function mountWithLoader(
           theme,
           open,
           ...(open && question ? { question } : {}),
+          draft: typed.take,
           onOpenChange: (next) => {
             setOpen(next);
           },
@@ -172,12 +220,16 @@ export function mountWithLoader(
       })
       .catch((error: unknown) => {
         loading = null;
+        // Without a dialog to type into, the page has its keys back.
+        typed.take();
         console.error('[ondocs] The dialog could not load.', error);
       });
     return loading;
   };
 
   const show = (asking?: string): void => {
+    // From here until the dialog's input has focus, what is typed is kept for it.
+    if (!open && !asking) typed.start();
     setOpen(true, asking);
     void prepare();
   };
@@ -221,6 +273,7 @@ export function mountWithLoader(
     },
     unmount: () => {
       unmounted = true;
+      typed.take();
       window.removeEventListener('keydown', onKeyDown);
       stopListening();
       observer?.disconnect();

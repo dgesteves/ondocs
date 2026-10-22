@@ -258,6 +258,40 @@ describe('dist/embed.global.js', () => {
     });
   });
 
+  it('starts the dialog’s input with what was typed while its script loaded, unasked', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    await runScript({ 'data-manual': '' });
+    let dialog!: MountedAskDialog;
+    act(() => {
+      dialog = window.Ondocs!.mount();
+    });
+    try {
+      const user = userEvent.setup();
+      await user.keyboard('{Meta>}i{/Meta}How do');
+      // The dialog's script arrives, which jsdom does not load itself.
+      const tag = document.querySelector('script[src$="embed-dialog.global.js"]');
+      expect(tag).not.toBeNull();
+      const { render } = await import('../src/embed/dialog');
+      await act(async () => {
+        window.OndocsDialog = { render };
+        tag?.dispatchEvent(new Event('load'));
+        await Promise.resolve();
+      });
+      const input = await screen.findByRole<HTMLInputElement>('combobox');
+      await waitFor(() => {
+        expect(document.activeElement).toBe(input);
+      });
+      await user.keyboard(' I install it?');
+      expect(input.value).toBe('How do I install it?');
+      expect(fetch).not.toHaveBeenCalled();
+    } finally {
+      act(() => {
+        dialog.unmount();
+      });
+      delete window.OndocsDialog;
+    }
+  });
+
   /* eslint-disable @typescript-eslint/no-deprecated -- the name from before ondocs, on purpose */
   it('keeps window.AskMySite, its name before ondocs, and says once to use window.Ondocs', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
