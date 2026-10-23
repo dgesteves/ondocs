@@ -16,7 +16,7 @@ Every setup has the same two halves: an index built with your site, and an endpo
 - **Fumadocs or Nextra.** The same, with the CLI following the framework's URLs. See [Fumadocs](/docs/fumadocs) and [Nextra](/docs/nextra).
 - **Any other site.** Index the built HTML with the CLI, write the endpoint with `npx ondocs init`, and add one script tag. See [Script tag](/docs/script-tag).
 
-With the Starlight, Astro, Docusaurus or VitePress plugin, follow your framework's guide and skip the rest of this page: the plugin builds the index and adds the dialog, the guide shows it answering on your machine with no key, and `npx ondocs init` writes the endpoint for your host. The steps below are for the CLI, Next.js and other React apps, and the script tag.
+With the Starlight, Astro, Docusaurus or VitePress plugin, follow your framework's guide and skip the steps below: the plugin builds the index and adds the dialog, the guide shows it answering on your machine with no key, and `npx ondocs init` writes the endpoint for your host, unless an Astro SSR adapter serves it. The steps below are for the CLI, Next.js and other React apps, and the script tag.
 
 ## Install
 

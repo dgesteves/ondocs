@@ -67,7 +67,7 @@ After `astro build`, the index is written to `dist/ask-index.json`, or to `dist/
 
 The Starlight plugin reads what Starlight's own search reads: the part of each page marked `data-pagefind-body`, which is the title and the Markdown, notes and tips included, without the header, sidebar, table of contents, edit link or pagination. Pages Starlight's search leaves out are left out too, such as the 404 page and pages with `pagefind: false`, and so are pages with `<meta name="robots" content="noindex">`. Mark anything else with `data-pagefind-ignore`. To keep a site out of search engines and still index it, send an `X-Robots-Tag: noindex` header from the host rather than the meta tag, such as from `headers` in `vercel.json`.
 
-The Astro integration reads each page's `<main>`. Choose another part with `content: '.prose'` (a tag, `#id`, `.class` or `[attribute]`, or a comma-separated list) and leave parts out with `ignore: '.toc'`. 404 and 500 pages, redirects and `noindex` pages are skipped. Unchanged pages reuse their vectors from the previous build, cached in `node_modules/.cache/ondocs`.
+The Astro integration reads each page's `<main>`. Choose another part with `contentSelector: '.prose'` (a tag, `#id`, `.class` or `[attribute]`, or a comma-separated list) and leave parts out with `ignoreSelector: '.toc'`. 404 and 500 pages, redirects and `noindex` pages are skipped. Unchanged pages reuse their vectors from the previous build, cached in `node_modules/.cache/ondocs`.
 
 ## Already using starlight-llms-txt?
 
@@ -117,7 +117,7 @@ A static site, without an adapter, needs the endpoint as a function on its host,
 | `exclude`                                    | `[]`                               | Path prefixes to leave out, relative to `base` and the locale.                                                     |
 | `dialog`                                     |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar` (Starlight), `theme`, `labels`, `locales`. |
 | `route`                                      | on with an SSR adapter             | The endpoints the integration serves: `{ model, rateLimit, trustedHeader, budget, mcp }`, or `false`.              |
-| `content`, `ignore`                          | `main`                             | Astro integration only: what to read from each page, and what to skip.                                             |
+| `contentSelector`, `ignoreSelector`          | `main`                             | Astro integration only: what to read from each page, and what to skip.                                             |
 | `mcp`                                        | the route it serves, with `site`   | The [MCP endpoint](/mcp)'s URL or path, for `llms.txt` and `McpInstall.astro`.                                     |
 | `llmsTxt`                                    | on                                 | Write [llms.txt, llms-full.txt and .md copies](/llms-txt); `false` turns them off.                                 |
 
