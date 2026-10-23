@@ -12,7 +12,7 @@
  *   Docusaurus and Starlight llms plugins write them. It starts with a pointer to `llms.txt`.
  */
 import { mapLinkDestinations } from './text/links';
-import { parseAtxHeading } from './text/markdown';
+import { linkLabel, parseAtxHeading } from './text/markdown';
 import { trimSlashes, trimTrailingSlashes } from './text/slashes';
 import { plainHeading } from './text/slug';
 
@@ -336,7 +336,7 @@ export function buildLlmsFiles(
       for (const page of group) {
         const copy = copies.get(page);
         const href = copy ? siteHref(copy, site) : pageHref(page.url, site);
-        const label = oneLine(page.title).replace(/[[\]\\]/g, '\\$&');
+        const label = linkLabel(oneLine(page.title));
         const note = page.description?.trim() ? `: ${oneLine(page.description)}` : '';
         lines.push(`- [${label}](${href})${note}`);
       }

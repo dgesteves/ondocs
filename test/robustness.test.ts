@@ -85,6 +85,23 @@ describe('linear-time parsing of hostile input', () => {
     }
   });
 
+  it('escapes a link label of backtick runs of mixed lengths quickly, in a .md copy and llms.txt', () => {
+    // Runs of every length to 300 that no later run closes, then pairs of single backticks: a
+    // search from each unclosed run for its closer would read every run after it.
+    const runs = Array.from({ length: 300 }, (_, i) => '`'.repeat(i + 2)).join('[');
+    const label = `${runs}${'[`'.repeat(25_000)}`;
+    const copy = () =>
+      fromHtml(`<main><p><a href=/x>${label}</a></p></main>`, {
+        id: 'x',
+        url: '/x',
+        markdown: true,
+      });
+    expect(timed(copy)).toBeLessThan(BUDGET_MS);
+    const page = { url: '/p', title: label, content: 'Body.' };
+    const llms = () => buildLlmsFiles([page], { title: 'S' }, { full: false, markdown: false });
+    expect(timed(llms)).toBeLessThan(BUDGET_MS);
+  });
+
   it('handles long backtick runs and unclosed tags quickly', () => {
     const backticks = 'a'.concat('`'.repeat(20_000), ' b');
     expect(timed(() => fromMarkdown(backticks, { id: 'x', url: '/x' }))).toBeLessThan(BUDGET_MS);

@@ -1,4 +1,4 @@
-import { removeDelimited } from '../text/markdown';
+import { linkLabel, removeDelimited } from '../text/markdown';
 import type { SourceDocument } from '../types';
 
 export interface HtmlMeta {
@@ -1075,9 +1075,7 @@ function markdownInline(html: string, page: string): string {
         .trim();
       const href = target(attribute(` ${open[1] ?? ''}`, 'href') ?? '');
       if (!label) return '';
-      return href
-        ? `[${label.replace(/[[\]\\]/g, '\\$&')}](${href.replace(/[()\s]/g, encodeURIComponent)})`
-        : label;
+      return href ? `[${linkLabel(label)}](${href.replace(/[()\s]/g, encodeURIComponent)})` : label;
     },
   );
   return withLinks

@@ -198,6 +198,15 @@ export function mapOutsideCodeSpans(text: string, transform: (prose: string) => 
 }
 
 /**
+ * Text as the label of a Markdown link: `[`, `]` and `\` escaped, so the link ends where it should
+ * and a backslash shows as one, except in code spans, where Markdown reads no escapes and they
+ * show as they are.
+ */
+export function linkLabel(text: string): string {
+  return mapOutsideCodeSpans(text, (prose) => prose.replace(/[[\]\\]/g, '\\$&'));
+}
+
+/**
  * Removes every `open … close` span, shortest first and left to right, like
  * `text.replace(/open[\s\S]*?close/g, replacement)` but in linear time: when one `open` has no
  * `close` after it, neither has any later one, so the scan stops instead of retrying each.

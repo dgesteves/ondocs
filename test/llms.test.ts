@@ -159,6 +159,17 @@ describe('buildLlmsFiles', () => {
     expect(llms).toContain('- [a\\\\\\[b\\] \\[c\\]](/docs/arrays.md)');
   });
 
+  it('leaves code spans in llms.txt link labels as they are, as Markdown reads no escapes there', () => {
+    // A frontmatter title keeps its backticks, and llms.txt is Markdown.
+    const llms =
+      files([
+        { url: '/docs/paths', title: 'The `C:\\dir\\` path', content: 'x' },
+        { url: '/docs/arrays', title: '`arr[0]` and [x]', content: 'x' },
+      ]).get('llms.txt') ?? '';
+    expect(llms).toContain('- [The `C:\\dir\\` path](/docs/paths.md)');
+    expect(llms).toContain('- [`arr[0]` and \\[x\\]](/docs/arrays.md)');
+  });
+
   it('keeps a leading H1 that is not the title, and writes one that is once', () => {
     const pages: LlmsPage[] = [
       // A Markdown file whose frontmatter title is not its H1.
@@ -268,6 +279,21 @@ describe('fromHtml with markdown', () => {
     expect(md('<p>See <a href="/docs/win">C:\\</a> and <a href="/docs/a">[a]</a>.</p>')).toBe(
       'See [C:\\\\](/docs/win) and [\\[a\\]](/docs/a).',
     );
+  });
+
+  // Markdown reads no escapes in a code span, where one would show: `C:\\dir\\`, `arr\[0\]`.
+  it('escapes link labels outside their code spans only', () => {
+    expect(md('<p><a href="/win">C:\\</a></p>')).toBe('[C:\\\\](/win)');
+    expect(md('<p><a href="/api"><code>C:\\dir\\</code></a></p>')).toBe('[`C:\\dir\\`](/api)');
+    expect(md('<p><a href="/api"><code>arr[0]</code></a></p>')).toBe('[`arr[0]`](/api)');
+    expect(md('<p><a href="/api">a [b] c</a></p>')).toBe('[a \\[b\\] c](/api)');
+    expect(md('<p><a href="/api">Call <code>get(a[0])</code> on [x]</a></p>')).toBe(
+      '[Call `get(a[0])` on \\[x\\]](/api)',
+    );
+    // A span of two backticks around one, and a backtick that no run of its length closes, which
+    // opens no span: the text after it is escaped too.
+    expect(md('<p><a href="/api"><code>a`[b]</code></a></p>')).toBe('[`` a`[b] ``](/api)');
+    expect(md('<p><a href="/api">it`s [here]</a></p>')).toBe('[it`s \\[here\\]](/api)');
   });
 
   it('keeps links, resolving relative ones, and drops unsafe ones', () => {
