@@ -60,6 +60,12 @@ export const INDEX_FILES = [
 /** A setup problem to explain, rather than a crash. */
 export class DevError extends Error {}
 
+/**
+ * The index's model is not one `ondocs dev` loads by its id (OpenAI's, AI Gateway's, Workers AI's
+ * or the mock one), so no key helps: only the model it was built with does.
+ */
+export class UnknownEmbeddingModelError extends DevError {}
+
 export interface DevModels {
   model: LanguageModel;
   embeddingModel?: EmbeddingModel;
@@ -165,14 +171,17 @@ export async function devModels(
       description: `${id} embeddings through AI Gateway, ${answers}`,
     };
   }
-  throw new DevError(
-    fromOpenAI || gateway
-      ? `The index was embedded with ${embedding.model}, so questions must be too: set ` +
-          `${fromOpenAI ? 'OPENAI_API_KEY or ' : ''}AI_GATEWAY_API_KEY. To try it without a key, ` +
-          'rebuild the index with --embedding mock.'
-      : `The index was embedded with ${embedding.model}, which ondocs dev cannot load: it ` +
-          'embeds with OpenAI, AI Gateway, Workers AI or the mock model. Serve this index with your own ' +
-          'createAskHandler, or rebuild it with --embedding mock to try it.',
+  if (fromOpenAI || gateway) {
+    throw new DevError(
+      `The index was embedded with ${embedding.model}, so questions must be too: set ` +
+        `${fromOpenAI ? 'OPENAI_API_KEY or ' : ''}AI_GATEWAY_API_KEY. To try it without a key, ` +
+        'rebuild the index with --embedding mock.',
+    );
+  }
+  throw new UnknownEmbeddingModelError(
+    `The index was embedded with ${embedding.model}, which ondocs dev cannot load: it ` +
+      'embeds with OpenAI, AI Gateway, Workers AI or the mock model. Serve this index with your own ' +
+      'createAskHandler, or rebuild it with --embedding mock to try it.',
   );
 }
 
