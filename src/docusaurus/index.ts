@@ -430,11 +430,14 @@ function docsVersions(plugins: readonly { content?: unknown }[]): DocsVersion[] 
         isLast: option(version, 'isLast'),
       }));
       if (!versions.some(({ isLast }) => isLast === true)) return [];
-      return versions.flatMap(({ path, isLast }) =>
-        typeof path === 'string'
-          ? [{ path: path.replace(/\/+$/, '') || '/', indexed: isLast === true }]
-          : [],
-      );
+      return versions.flatMap(({ path, isLast }) => {
+        if (typeof path !== 'string') return [];
+        // Without its trailing slashes, trimmed in a loop: `/\/+$/` takes quadratic time on a long
+        // run of slashes inside the path. This plugin imports only ondocs/integration.
+        let end = path.length;
+        while (path[end - 1] === '/') end -= 1;
+        return [{ path: path.slice(0, end) || '/', indexed: isLast === true }];
+      });
     });
   } catch {
     return [];

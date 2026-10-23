@@ -16,6 +16,7 @@ import {
   type EmbeddingSpec,
 } from '../node/embedding';
 import { mcpServerName } from '../mcp-install';
+import { trimSlashes } from '../text/slashes';
 import type { ChunkingOptions, SourceDocument } from '../types';
 
 export interface Logger {
@@ -251,9 +252,9 @@ export function warnMissingDialogPeers(log: Logger, from: string | URL = import.
  * `['/changelog', 'blog/']` leaves out `/changelog`, `/changelog/1.0` and `/blog`.
  */
 export function excluder(exclude: readonly string[]): (path: string) => boolean {
-  const prefixes = exclude.map((prefix) => `/${prefix.replace(/^\/+|\/+$/g, '')}`);
+  const prefixes = exclude.map((prefix) => `/${trimSlashes(prefix)}`);
   return (path) => {
-    const clean = `/${path.replace(/^\/+|\/+$/g, '')}`;
+    const clean = `/${trimSlashes(path)}`;
     return prefixes.some((prefix) => clean === prefix || clean.startsWith(`${prefix}/`));
   };
 }
