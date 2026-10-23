@@ -344,6 +344,30 @@ describe('tools/call', () => {
     expect(body.error?.code).toBe(-32602);
   });
 
+  it('treats null optional strings as omitted, while still rejecting null required strings', async () => {
+    const { call } = setup({ index: english, indexes: { fr: french } });
+    const all = await call('list_pages', {});
+    for (const args of [{ prefix: null }, { locale: null }, { prefix: null, locale: null }]) {
+      expect(await call('list_pages', args)).toEqual(all);
+    }
+    expect(await call('list_pages', { prefix: null, locale: 'fr' })).toEqual(
+      await call('list_pages', { locale: 'fr' }),
+    );
+    expect(await call('search', { query: 'Install the package', locale: null })).toEqual(
+      await call('search', { query: 'Install the package' }),
+    );
+    for (const [tool, args, key] of [
+      ['search', { query: null }, 'query'],
+      ['fetch', { id: null }, 'id'],
+    ] as const) {
+      const result = await call(tool, args);
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toBe(`${key} must be a non-empty string.`);
+    }
+    expect((await call('list_pages', { prefix: 42 })).isError).toBe(true);
+    expect((await call('list_pages', { locale: false })).isError).toBe(true);
+  });
+
   it('calls onToolCall with what was called and found, never the visitor’s IP', async () => {
     const { call, onToolCall } = setup();
     await call('search', { query: 'int8 vectors' });
