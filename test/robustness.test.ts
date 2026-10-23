@@ -24,10 +24,12 @@ const doc = (content: string, title = 'Page'): SourceDocument => ({
 });
 
 /**
- * The budget for one hostile input. CI runners have measured 261 to 328 ms for the slowest linear
- * cases here, while the quadratic ones these tests catch take seconds, so 1 s still tells them apart.
+ * The budget for one hostile input. The slowest linear cases here take under 100 ms on a laptop and
+ * have measured 261 to 328 ms on CI runners, while the fastest quadratic case they catch took 0.8 s
+ * on a laptop (unclosed `<pre>`, below) and several times that on CI. So 250 ms locally and 1 s on
+ * CI both tell them apart.
  */
-const BUDGET_MS = 1000;
+const BUDGET_MS = process.env.CI ? 1000 : 250;
 
 /**
  * Runs `fn` three times and returns the fastest, in milliseconds. A GC pause or a busy CI runner
