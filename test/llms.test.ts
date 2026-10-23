@@ -263,6 +263,13 @@ describe('fromHtml with markdown', () => {
   const md = (main: string, url = '/docs/guides/setup') =>
     fromHtml(page(main), { id: 'x', url, markdown: true })?.content;
 
+  // Unescaped, `C:\` escaped the closing bracket and the link was text, as in llms.txt.
+  it('escapes backslashes and brackets in link labels, so each link still works', () => {
+    expect(md('<p>See <a href="/docs/win">C:\\</a> and <a href="/docs/a">[a]</a>.</p>')).toBe(
+      'See [C:\\\\](/docs/win) and [\\[a\\]](/docs/a).',
+    );
+  });
+
   it('keeps links, resolving relative ones, and drops unsafe ones', () => {
     expect(
       md(

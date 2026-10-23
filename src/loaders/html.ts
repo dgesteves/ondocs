@@ -664,7 +664,10 @@ function htmlToText(
       // or inside its `<div>`, does not count twice.
       const body = stripTags(inner.replace(/<br\s*\/?>/gi, '\n').replace(/<\/div>/gi, '\uE001'))
         .replace(/\n?\uE001+\n?/g, '\n')
-        .replace(/^\n+|\s+$/g, '');
+        // Not `/^\n+|\s+$/g`: `\s+$` started a match at each character of a run of blank lines
+        // inside the block, and each failed at the run's end, which is quadratic.
+        .replace(/^\n+/, '')
+        .trimEnd();
       const fence = fenceFor(body);
       // Markdown keeps the language, as highlighters record it on <pre> or its <code>.
       const language = markdown ? codeLanguage(open[0], inner) : '';
@@ -1073,7 +1076,7 @@ function markdownInline(html: string, page: string): string {
       const href = target(attribute(` ${open[1] ?? ''}`, 'href') ?? '');
       if (!label) return '';
       return href
-        ? `[${label.replace(/[[\]]/g, '\\$&')}](${href.replace(/[()\s]/g, encodeURIComponent)})`
+        ? `[${label.replace(/[[\]\\]/g, '\\$&')}](${href.replace(/[()\s]/g, encodeURIComponent)})`
         : label;
     },
   );

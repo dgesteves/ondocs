@@ -61,6 +61,15 @@ describe('linear time on 100,000 slashes or spaces', () => {
       () => launcherScript({ endpoint: '/api/ask', locales: ['fr'], base: slashes }),
     ],
     [
+      'the Markdown copy of a code block with a long run of blank lines',
+      () =>
+        fromHtml(`<main><pre><code>a${'\n'.repeat(n)}b</code></pre></main>`, {
+          id: 'x',
+          url: '/x',
+          markdown: true,
+        }),
+    ],
+    [
       'the Markdown copy of a page with a long run of spaces before a list',
       () =>
         fromHtml(`<main><p>a${' '.repeat(n)}x</p><ul><li>b</li></ul></main>`, {
