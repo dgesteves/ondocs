@@ -12,7 +12,7 @@ export interface ChallengeResult {
 /**
  * Checks the token a question came with. Resolves `{ success: false }` for a bad token, which the
  * endpoint refuses with a 403, and rejects when it cannot tell (the provider is down, or the
- * secret is wrong), which the endpoint handles as `rateLimitFailure` says: a 503 by default.
+ * secret is wrong), which the endpoint handles as `failureMode` says: a 503 by default.
  */
 export type ChallengeVerifier = (token: string, request: Request) => Promise<ChallengeResult>;
 

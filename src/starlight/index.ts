@@ -36,10 +36,14 @@ export interface OndocsDialogOptions extends AstroDialogOptions {
 }
 
 /**
- * The Astro integration's options, without `content` and `ignore`: the plugin indexes what
- * Starlight's search does. Leave anything else out by marking it `data-pagefind-ignore`.
+ * The Astro integration's options, without `contentSelector` and `ignoreSelector` (or their old
+ * names, `content` and `ignore`): the plugin indexes what Starlight's search does. Leave anything
+ * else out by marking it `data-pagefind-ignore`.
  */
-export type OndocsStarlightOptions = Omit<OndocsOptions, 'content' | 'ignore' | 'dialog'> & {
+export type OndocsStarlightOptions = Omit<
+  OndocsOptions,
+  'contentSelector' | 'ignoreSelector' | 'content' | 'ignore' | 'dialog'
+> & {
   dialog?: OndocsDialogOptions;
 };
 

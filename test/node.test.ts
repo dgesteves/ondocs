@@ -99,6 +99,24 @@ describe('loadDirectory', () => {
     ]);
   });
 
+  it('skips generated 404 pages at any depth, and keeps pages that only look like one', async () => {
+    const content = join(root, 'content');
+    await mkdir(join(content, 'fr'), { recursive: true });
+    await mkdir(join(content, '404'), { recursive: true });
+    await mkdir(join(content, 'docs'), { recursive: true });
+    await writeFile(join(content, '404.html'), '<main><h1>Page not found</h1></main>');
+    await writeFile(join(content, '404.htm'), '<main><h1>Page not found</h1></main>');
+    await writeFile(join(content, '404', 'index.html'), '<main><h1>Page not found</h1></main>');
+    await writeFile(join(content, 'fr', '404.html'), '<main><h1>Page not found</h1></main>');
+    await writeFile(join(content, 'docs', '404-errors.html'), '<main><h1>404 errors</h1></main>');
+    await writeFile(join(content, 'docs', 'install.html'), '<main><h1>Install</h1></main>');
+
+    expect(await ids(content)).toEqual([
+      ['docs/404-errors.html', '/docs/404-errors.html'],
+      ['docs/install.html', '/docs/install.html'],
+    ]);
+  });
+
   it('matches --ignore globs without node:path matchesGlob, which is experimental on Node 22', async () => {
     const spy = vi.spyOn(process, 'emitWarning');
     const content = join(root, 'content');

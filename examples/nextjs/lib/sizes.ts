@@ -7,7 +7,7 @@ import { gzipSync } from 'node:zlib';
 
 /**
  * A file of the package's build, gzipped at level 9, in KB of 1,024 bytes, as
- * scripts/js-weight.mjs and the docs count them: `embed.global.js` → "2.7 KB".
+ * scripts/js-weight.mjs and the docs count them, as "N.N KB".
  */
 export function gzippedSize(file: string): string {
   const path = join(process.cwd(), 'node_modules', 'ondocs', 'dist', file);
