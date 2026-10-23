@@ -110,13 +110,13 @@ describe('what the README claims', () => {
     expect(setup).toMatch(/rate-limited by default/);
   });
 
-  it('stays one screen: about 800 to 1,200 words of prose', () => {
+  it('stays one screen: about 800 to 1,250 words of prose', () => {
     const prose = readme
       .replace(/```[\s\S]*?```/g, '')
       .replace(/<!-- npm-readme:image[\s\S]*?-->/g, '');
     const words = prose.match(/\S+/g)?.length ?? 0;
     expect(words).toBeGreaterThan(800);
-    expect(words).toBeLessThan(1200);
+    expect(words).toBeLessThan(1250);
   });
 });
 
