@@ -120,7 +120,7 @@ describe('getting started', () => {
     const text = section(page('getting-started'), 'Pick your setup');
     const note = text
       .split(/\n\s*\n/)
-      .find((paragraph) => paragraph.includes('skip the rest of this page'));
+      .find((paragraph) => paragraph.includes('skip the steps below'));
     expect(note).toBeDefined();
     for (const plugin of ['Starlight', 'Astro', 'Docusaurus', 'VitePress']) {
       expect(note).toContain(plugin);

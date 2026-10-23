@@ -57,7 +57,7 @@ After `vitepress build`, the index is written to `.vitepress/dist/ask-index.json
 
 With `cleanUrls`, the index and citations have `/guide/setup`, and the host must serve `guide/setup.html` there. On Vercel, set `"cleanUrls": true` in `vercel.json`. Without it, VitePress moves between pages without loading them, so the site looks fine, but a page loaded at its URL is a 404: a citation opened in a new tab, a shared link, a reload.
 
-The plugin reads each page's Markdown as the default theme renders it, the `.vp-doc` element, without the navigation, sidebar, outline, edit link or pagination, and without the heading anchors and code blocks' language labels. A home page with only a hero has no Markdown, so it is skipped. A theme of your own that does not use `.vp-doc` names its content with `content: '.my-content'` (a tag, `#id`, `.class` or `[attribute]`, or a comma-separated list), and `ignore: '.toc'` leaves parts out. A page's title is its `<h1>`, else its title without the site's, and its description is its frontmatter `description`. Unchanged pages reuse their vectors from the previous build, cached in `node_modules/.cache/ondocs`.
+The plugin reads each page's Markdown as the default theme renders it, the `.vp-doc` element, without the navigation, sidebar, outline, edit link or pagination, and without the heading anchors and code blocks' language labels. A home page with only a hero has no Markdown, so it is skipped. A theme of your own that does not use `.vp-doc` names its content with `contentSelector: '.my-content'` (a tag, `#id`, `.class` or `[attribute]`, or a comma-separated list), and `ignoreSelector: '.toc'` leaves parts out. A page's title is its `<h1>`, else its title without the site's, and its description is its frontmatter `description`. Unchanged pages reuse their vectors from the previous build, cached in `node_modules/.cache/ondocs`.
 
 ## The dialog in VitePress
 
@@ -99,7 +99,7 @@ A VitePress site is static, so the endpoint is a function on its host. Write it 
 | `embedding`, `dimensions`                    | OpenAI when a key is set           | The embedding model, named as the CLI names it.                                                        |
 | `embeddingModel`, `embeddingProviderOptions` | none                               | An AI SDK model object and its options, instead of `embedding`.                                        |
 | `chunking`                                   | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                                 |
-| `content`, `ignore`                          | `.vp-doc`                          | What to read from each page, and what to skip besides heading anchors and code labels.                 |
+| `contentSelector`, `ignoreSelector`          | `.vp-doc`                          | What to read from each page, and what to skip besides heading anchors and code labels.                 |
 | `indexFile`                                  | `ask-index.json`                   | Where the index is written in `.vitepress/dist/` and served from.                                      |
 | `exclude`                                    | `[]`                               | Path prefixes to leave out, relative to `base` and the locale.                                         |
 | `dialog`                                     |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar`, `theme`, `labels`, `locales`. |
