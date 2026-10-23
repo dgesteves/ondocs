@@ -601,7 +601,7 @@ export function createMcpHandler(
   ): Promise<McpToolResult> {
     const string = (key: string, required: boolean): string | null | McpToolResult => {
       const value = args[key];
-      if (value === undefined && !required) return null;
+      if ((value === undefined || value === null) && !required) return null;
       if (typeof value !== 'string' || (required && !value.trim())) {
         return toolError(`${key} must be a ${required ? 'non-empty ' : ''}string.`);
       }
