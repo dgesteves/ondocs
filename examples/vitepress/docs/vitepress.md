@@ -8,7 +8,7 @@ description: 'The VitePress plugin, which indexes the built site and adds the di
 
 The `ondocs/vitepress` plugin adds ondocs to a VitePress site by wrapping its config. After every `vitepress build` it indexes the pages the site serves, writes `llms.txt` and the pages' Markdown copies, and adds the dialog to every page with a floating "Ask AI" button. It works with VitePress 1 and the VitePress 2 alphas, with the default theme or a theme of your own, and needs no theme file.
 
-Live demo: [these docs as a VitePress site](https://ondocs-vitepress.vercel.app), with the plugin, on Vercel.
+Live demo: [these docs as a VitePress site](https://ondocs-vitepress.vercel.app), with the plugin, on Vercel ([source](https://github.com/dgesteves/ondocs/tree/main/examples/vitepress)).
 
 ## Install for VitePress
 
@@ -40,6 +40,18 @@ export default withOndocs(
 Options go in a second argument: `withOndocs(defineConfig({ ... }), { endpoint: 'https://ask.acme.dev/api/ask' })`. Your config's own `buildEnd`, `transformHtml` and Vite plugins keep working: `withOndocs` adds its own after them.
 
 `withOndocs` takes the config in any shape VitePress does, and returns it in the same shape: an object, a Promise of one, or a function of `{ command, mode }` that returns either. So it can wrap another wrapper that returns a Promise, such as `withPwa` from `@vite-pwa/vitepress`, or go inside it: `withOndocs(withPwa(defineConfig({ ... })))` and `withPwa(withOndocs(defineConfig({ ... })))` both work.
+
+## See it working in VitePress, with no key
+
+With the plugin in the config, three commands show the dialog answering on your machine, with no API key: build the site, start `ondocs dev`, which answers from the index the build wrote, and, in a second terminal, start `vitepress dev` pointed at it. `docs:build` and `docs:dev` are the scripts `vitepress init` adds:
+
+```sh
+npm run docs:build                                            # writes .vitepress/dist/ask-index.json
+npx ondocs dev                                                # serves http://localhost:8787/api/ask
+ASK_ENDPOINT=http://localhost:8787/api/ask npm run docs:dev   # in a second terminal
+```
+
+Then press ⌘I (Ctrl+I outside macOS), or click "Ask AI", and ask in words from your pages. Without a key, the build makes a keyword-only index unless you set `embedding: 'mock'`, and says so ("No embedding model: building a keyword-only index"), which is expected here. `ondocs dev` answers with the mock model either way: it quotes your pages, with citations. With the site in `docs/`, the index is `docs/.vitepress/dist/ask-index.json`, where `ondocs dev` finds it too. For answers on the live site, [deploy the endpoint](/vitepress#deploy-the-endpoint-for-vitepress).
 
 ## What VitePress indexes
 
@@ -80,8 +92,6 @@ Embeddings work as in the other plugins. OpenAI's `text-embedding-3-small` at 51
 A VitePress site is static, so the endpoint is a function on its host. Write it with `npx ondocs init`, which reads `.vitepress/dist/ask-index.json` on Vercel, Netlify or Cloudflare, or writes a Cloudflare Worker for GitHub Pages; see [Deploying](/deployment). When the endpoint is not at `/api/ask` on the site, point the dialog at it with `endpoint`; on another origin, it must send CORS headers for the site's origin (see [Cross-origin requests](/security#cross-origin-requests)). To serve the same index to agents, `init` writes the [MCP endpoint](/mcp) too, and the `mcp` option puts its URL in `llms.txt`.
 
 `llms.txt` links pages absolutely when the plugin knows the site's URL: `sitemap.hostname`, or the `siteUrl` option. When vitepress-plugin-llms is in your Vite plugins, the plugin leaves the llms files to it.
-
-To try it locally, build the site once, run `npx ondocs dev`, which answers from `.vitepress/dist/ask-index.json` or `docs/.vitepress/dist/ask-index.json`, and start `vitepress dev` with `ASK_ENDPOINT=http://localhost:8787/api/ask`.
 
 ## VitePress options
 
