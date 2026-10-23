@@ -1,5 +1,12 @@
 # docusaurus-plugin-ondocs
 
+## 0.14.1
+
+### Patch Changes
+
+- Updated dependencies [[`8753cad`](https://github.com/dgesteves/ondocs/commit/8753cade6afe5fc9d421bf313cda7ecf12117c55)]:
+  - ondocs@0.14.1
+
 ## 0.14.0
 
 ### Patch Changes
