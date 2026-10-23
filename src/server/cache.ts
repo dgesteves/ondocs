@@ -37,18 +37,21 @@ export interface AnswerCacheOptions {
   prefix?: string;
 }
 
+/** What the end of a question may have that the cache ignores, once whitespace is one space. */
+const TRAILING = ' ?!.。？！';
+
 /**
  * The form of a question the cache compares: Unicode-normalized, lowercased, with runs of
  * whitespace collapsed and trailing punctuation dropped, so "How do I install it?" and
  * "how do i install it" share an answer.
  */
 export function normalizeQuestion(question: string): string {
-  return question
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/[\s?!.。？！]+$/u, '')
-    .trim();
+  const text = question.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ');
+  // Trimmed in a loop: `/[\s?!.。？！]+$/` started a match at each character of a long run of
+  // them that does not end the question, and each failed at the run's end.
+  let end = text.length;
+  while (end > 0 && TRAILING.includes(text.charAt(end - 1))) end -= 1;
+  return text.slice(0, end).trim();
 }
 
 const cachedAnswerSchema = z.object({

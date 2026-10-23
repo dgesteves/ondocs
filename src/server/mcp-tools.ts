@@ -15,6 +15,7 @@ import {
   type RetrievalHit,
   type RetrievalOptions,
 } from '../search/retrieve';
+import { trimTrailingSlashes } from '../text/slashes';
 import type { RetrievalHooks } from './retrieval';
 
 /** A tool as `tools/list` describes it. */
@@ -50,6 +51,9 @@ export interface McpSearchResult {
 
 /** Retrieval settings for `search`: looser than the ask endpoint's, as the agent judges results. */
 export const MCP_RETRIEVAL = { minKeywordCoverage: 0.3 } as const satisfies RetrievalOptions;
+
+/** Longest `id` that `fetch` takes and `prefix` that `list_pages` takes, in characters. */
+export const MAX_REFERENCE_LENGTH = 2048;
 
 /** Sections `search` returns at most. */
 export const SEARCH_RESULTS = 8;
@@ -149,7 +153,7 @@ export function mcpTools(
             type: 'string',
             description: 'An id from search, or a page URL or path.',
             minLength: 1,
-            maxLength: 2048,
+            maxLength: MAX_REFERENCE_LENGTH,
           },
         },
         required: ['id'],
@@ -180,7 +184,7 @@ export function mcpTools(
           prefix: {
             type: 'string',
             description: 'Only pages whose path starts with this, e.g. /docs/guides.',
-            maxLength: 2048,
+            maxLength: MAX_REFERENCE_LENGTH,
           },
           ...localeProperty(locales),
         },
@@ -339,7 +343,7 @@ export function listPages(
   prefix: string | undefined,
   siteUrl: string | undefined,
 ): McpToolResult {
-  const wanted = prefix?.trim().replace(/\/+$/, '') ?? '';
+  const wanted = prefix === undefined ? '' : trimTrailingSlashes(prefix.trim());
   const path = (url: string): string => {
     if (!ABSOLUTE.test(url)) return url;
     try {
