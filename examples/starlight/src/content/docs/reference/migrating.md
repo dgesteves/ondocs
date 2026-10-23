@@ -57,7 +57,7 @@ git ls-files -z -- '*.js' '*.jsx' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.mts' '*.md' 
   | xargs -0 perl -pi -e 's{(["\x27`])ask-my-site(?=[/"\x27`])}{$1ondocs}g; s{\bask-my-site (?=index|init|dev|eval)}{ondocs }g; s{(cdn\.jsdelivr\.net/npm|unpkg\.com)/ask-my-site(?:\@[\d.]+)?}{$1/ondocs\@0.14}g; s{ask-my-site-launcher}{ondocs-launcher}g; s{\.ask-my-site(?![\w-])}{.ondocs}g; s{\bAskMySite}{Ondocs}g; s{\baskMySite\b}{ondocs}g'
 ```
 
-It leaves links to `github.com/dgesteves/ask-my-site` and the demo site alone, since they still work. Check the result with `git diff` before you commit it. A script tag pinned to an exact version, such as `ask-my-site@0.6.0`, comes out as `ondocs@0.14`: pin it again, such as `ondocs@0.14.0`.
+It leaves links to `github.com/dgesteves/ask-my-site` and the demo site alone, since they still work. Check the result with `git diff` before you commit it. A script tag pinned to an exact version, such as `ask-my-site@0.6.0`, comes out as `ondocs@0.14`: pin it again, such as `ondocs@0.14.1`.
 
 ### Docusaurus
 

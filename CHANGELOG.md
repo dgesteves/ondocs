@@ -2,6 +2,14 @@
 
 Until 0.6.0 this package was published as `ask-my-site`. Its entries below keep the links and names of that time.
 
+## 0.14.1
+
+### Patch Changes
+
+- [#233](https://github.com/dgesteves/ondocs/pull/233) [`8753cad`](https://github.com/dgesteves/ondocs/commit/8753cade6afe5fc9d421bf313cda7ecf12117c55) Thanks [@dgesteves](https://github.com/dgesteves)! - The MCP endpoint trims the trailing slashes of `list_pages`'s `prefix` and `fetch`'s `id` in linear time, and so does the ask endpoint where it rewrites a follow-up question (the whitespace before the citations in earlier answers) and in `normalizeQuestion`, the answer cache's key (trailing punctuation): long runs of slashes, whitespace or punctuation were slow. What they return is unchanged. `prefix` and `id` are now limited to the 2,048 characters the tools' schema has always advertised: a longer one is a tool error the agent reads, `id is limited to 2048 characters.`, as a `query` over `maxQueryLength` is.
+  
+  In the `.md` copies' links and in `llms.txt`, `[`, `]` and `\` in a link's text are escaped only outside code spans, where Markdown reads no escapes. A link around `<code>C:\dir\</code>` showed `C:\\dir\\` in 0.14.0, and one around `<code>arr[0]</code>` showed `arr\[0\]`; both show as written now, and still link.
+
 ## 0.14.0
 
 ### Minor Changes
