@@ -2,6 +2,40 @@
 
 Until 0.6.0 this package was published as `ask-my-site`. Its entries below keep the links and names of that time.
 
+## 0.14.0
+
+### Minor Changes
+
+- [#185](https://github.com/dgesteves/ondocs/pull/185) [`1a40dc1`](https://github.com/dgesteves/ondocs/commit/1a40dc1c5c1c95cecc69597280c3e88d9039499b) Thanks [@dgesteves](https://github.com/dgesteves)! - One meaning per option name, options checked where they are given, and mistakes that fail as the site builds or the endpoint is made, not on the first question.
+  
+  - Renamed, with the old names still working, and warning once, until 1.0: the Astro and VitePress plugins' `content` and `ignore` are `contentSelector` and `ignoreSelector`, as are `loadBuiltPage`'s `root` and `ignore`; `createAskHandler`'s and `createMcpHandler`'s `rateLimitFailure` is `failureMode`; and `ondocs init --out` is `--build-dir`. The Upgrading page has the table.
+  - The Docusaurus, Astro, Starlight and VitePress plugins check their options. One that is misspelled or not in the installed version fails the build and names the nearest option (`dialog.sugestions is not an option. Did you mean dialog.suggestions?`), as does a value of the wrong kind, such as `exclude: '/changelog'`. Before, they ignored it, and shipped the dialog's typos to every page. `ondocs/docusaurus` exports `validateOptions`, which Docusaurus runs before it loads the plugin.
+  - `createAskHandler` and `createMcpHandler` throw as they are made on an `index` that is a path or a URL (naming `remoteIndex` for an http(s) URL, and `readFileSync` for a file URL), JSON that is not an ondocs index, or an index of a format this version does not read, saying both ways out, and `createAskHandler` on a missing `model`. Before, every question got a 500. They now take a Promise of the index, as `import('./ask-index.json')` gives.
+  - `createAskHandler` warns once in the log, for each embedding model, when the index has vectors but it has no `embeddingModel`, so questions are matched on keywords only. A provider's 404, for a model it does not have, and OpenAI's `insufficient_quota` 429 now say the endpoint is misconfigured, without "Please try again".
+  - `remoteIndex` takes `onError`. A check of the site that fails while the index in hand keeps answering (an error status, a failed fetch, or a file that does not load, such as one from a newer ondocs) is reported once until it changes, instead of not at all. Without `onError`, it goes to the handlers' `onError`, else to `console.error`.
+  - `createOndocs` takes `failureMode` for both endpoints, as it took `rateLimitFailure`.
+  - The CLI's config module takes `embedding` and `dimensions`, as the plugins do, and fails on an option it does not have.
+  - The two peer ranges that had no upper bound stop at the major ondocs is tested with: `@ai-sdk/openai` ^4 (it was >=4), and `@astrojs/starlight` below 1.0 (it was >=0.32.0).
+  - The Package API page names the exports that may still change before 1.0, and the index file page states the format's compatibility rules.
+
+### Patch Changes
+
+- [#222](https://github.com/dgesteves/ondocs/pull/222) [`bc14395`](https://github.com/dgesteves/ondocs/commit/bc1439506b98bcd8a6dc2d94c602a4916155d7bc) Thanks [@tyza66](https://github.com/tyza66)! - `ondocs index` skips the 404 page a generator writes (`404.html`, `404.htm` or `404/index.html`, at any depth) instead of indexing it as a page, as the plugins already did. A page such as `docs/404-errors.html` is still indexed.
+
+- [#183](https://github.com/dgesteves/ondocs/pull/183) [`c52ed52`](https://github.com/dgesteves/ondocs/commit/c52ed5235a5a7f8e67913bf85dd61d153d7b11b6) Thanks [@dgesteves](https://github.com/dgesteves)! - What a visitor types straight after ⌘I is no longer lost while the dialog's code loads. Before, the keys went nowhere until the dialog was on screen: in headless Chrome with its CPU slowed four times, the first one or two letters on the script embed and the first seven on a React page, and the whole question when the code took 1.5 s to arrive. The keys typed on the page between opening the dialog and its input taking focus now go to the input, which opens with them (with Backspace applied), and typing goes on from there. They are not sent until the visitor sends them, and a page's own key handlers no longer see them (a Space no longer scrolls the page under the dialog). A text field, an IME's composition and the shortcuts keep their keys, and opening the dialog on a question, or closing it, drops what was typed. This applies to the script tag, `mountAskDialog`, the Starlight, Astro and VitePress plugins, `AskDialog`, `AskButton` and the Docusaurus plugin.
+  
+  On React hosts (`AskDialog`, `AskButton`, Docusaurus), the dialog now renders as it opens once its code has loaded, for example after a pointer over the button. Before, `Suspense` held its first render back by about 300 ms, which also cost those keys: 313 to 314 ms from ⌘I to the dialog, now 12 to 13 ms.
+  
+  The script tag's launcher, `embed.global.js`, is 0.2 KB larger: 3.5 KB gzipped.
+
+- [#186](https://github.com/dgesteves/ondocs/pull/186) [`6569079`](https://github.com/dgesteves/ondocs/commit/6569079a9e1193e44ea737ae6c1395c774651c3d) Thanks [@dgesteves](https://github.com/dgesteves)! - `ondocs dev` lists VitePress with Docusaurus, Astro and Starlight where it says to start the site with `ASK_ENDPOINT`, and in its message when it finds no index to serve. The VitePress plugin reads `ASK_ENDPOINT` as the others do.
+
+- [#226](https://github.com/dgesteves/ondocs/pull/226) [`305a88b`](https://github.com/dgesteves/ondocs/commit/305a88b320448a39ab128835c1df2f6ad89a6e09) Thanks [@dgesteves](https://github.com/dgesteves)! - A long run of slashes in a path, a base or a URL, or of whitespace or blank lines in a built page, no longer slows ondocs down. On 100,000 of them, `markdownPath`, `excluder`, `launcherScript`, the Docusaurus plugin's reading of its docs versions, `loadIndex` on an index with copies of a chunk, and the `.md` copy of a built page (a long run of whitespace that is not followed by a list, or of blank lines in a code block) each took seconds, up to 31 s; they now take a few milliseconds. The Worker that `ondocs init --host github-pages` writes, and the Cloudflare template, trim `SITE_URL`'s trailing slashes the same way. What they return is unchanged.
+  
+  Two escapes are complete now. In the `.md` copies, a code block's title that holds both kinds of quote has its backslashes escaped as well as its double quotes, so a title that ends in `\` no longer leaves the fence's `title="…"` open. In `llms.txt` and in the `.md` copies' links, a backslash in a link's text is escaped, so `C:\` is written `[C:\\](/docs/win.md)`, a link, instead of a line of text.
+
+- [#229](https://github.com/dgesteves/ondocs/pull/229) [`84dedbc`](https://github.com/dgesteves/ondocs/commit/84dedbc90ed5c98227af5e9b1aef33e614de6c41) Thanks [@Golden007-prog](https://github.com/Golden007-prog)! - Treat null optional MCP prefix and locale arguments like omitted arguments, while keeping required string arguments validated.
+
 ## 0.13.1
 
 ### Patch Changes
