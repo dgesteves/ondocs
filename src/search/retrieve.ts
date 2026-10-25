@@ -8,6 +8,7 @@ import {
   type IndexEmbedding,
 } from '../index-file';
 import { decodeVector } from '../quantize';
+import { trimTrailingSlashes } from '../text/slashes';
 import { tokenize } from '../text/tokenize';
 import { Bm25Index } from './bm25';
 import { reciprocalRankFusion } from './rrf';
@@ -234,7 +235,7 @@ function findCopies(
 
 /** Path segments before the anchor: 2 for `/docs/intro`, 3 for `/docs/next/intro`. */
 function depth(url: string): number {
-  return (url.split('#', 1)[0] ?? '').replace(/\/+$/, '').split('/').length;
+  return trimTrailingSlashes(url.split('#', 1)[0] ?? '').split('/').length;
 }
 
 /** Whether a copy at `url` is cited over one at `other`: fewer path segments, then shorter. */

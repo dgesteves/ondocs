@@ -103,9 +103,22 @@ export function looksStandalone(question: string): boolean {
 const clip = (text: string): string =>
   text.length > MAX_TURN_CHARS ? `${text.slice(0, MAX_TURN_CHARS)}…` : text;
 
-/** Citations out of an answer, which mean nothing to the rewrite. */
-const withoutCitations = (text: string): string =>
-  text.replace(/\s*\[\d{1,3}(?:\s*,\s*\d{1,3})*\]/g, '');
+const CITATION = /\[\d{1,3}(?:\s*,\s*\d{1,3})*\]/g;
+
+/**
+ * Citations out of an answer, which mean nothing to the rewrite, with the whitespace before each.
+ * That whitespace is trimmed off the text before the citation: a leading `\s*` in the pattern
+ * would scan a long run of whitespace again from each of its characters.
+ */
+export function withoutCitations(text: string): string {
+  let out = '';
+  let end = 0;
+  for (const match of text.matchAll(CITATION)) {
+    out += text.slice(end, match.index).trimEnd();
+    end = match.index + match[0].length;
+  }
+  return out + text.slice(end);
+}
 
 /**
  * The rewrite's prompt: the conversation and the question, each inside tags that end in a random

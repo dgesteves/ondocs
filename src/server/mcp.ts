@@ -13,6 +13,7 @@ import { indexSource } from './handler';
 import {
   fetchPage,
   listPages,
+  MAX_REFERENCE_LENGTH,
   mcpTools,
   searchResult,
   searchRetrieval,
@@ -601,12 +602,15 @@ export function createMcpHandler(
   ): Promise<McpToolResult> {
     const string = (key: string, required: boolean): string | null | McpToolResult => {
       const value = args[key];
-      if (value === undefined && !required) return null;
+      if ((value === undefined || value === null) && !required) return null;
       if (typeof value !== 'string' || (required && !value.trim())) {
         return toolError(`${key} must be a ${required ? 'non-empty ' : ''}string.`);
       }
       return value;
     };
+    /** The error for a string longer than its schema's `maxLength`, or `null` when it fits. */
+    const tooLong = (key: string, value: string, max: number): McpToolResult | null =>
+      value.length > max ? toolError(`${key} is limited to ${String(max)} characters.`) : null;
     // `locale`, which search and list_pages take with `indexes`, chose the index.
     const locale = string('locale', false);
     if (locale !== null && typeof locale !== 'string') return locale;
@@ -614,9 +618,8 @@ export function createMcpHandler(
       case 'search': {
         const query = string('query', true);
         if (typeof query !== 'string') return query ?? toolError('query is required.');
-        if (query.length > maxQueryLength) {
-          return toolError(`query is limited to ${String(maxQueryLength)} characters.`);
-        }
+        const long = tooLong('query', query, maxQueryLength);
+        if (long) return long;
         const vector = await embedQuery(query, index, options, request.signal, reportError);
         const retrieval = await retrieveWithHooks(
           index,
@@ -632,11 +635,15 @@ export function createMcpHandler(
       case 'fetch': {
         const reference = string('id', true);
         if (typeof reference !== 'string') return reference ?? toolError('id is required.');
+        const long = tooLong('id', reference, MAX_REFERENCE_LENGTH);
+        if (long) return long;
         return fetchPage(await pageIndex(index, reference), reference, siteUrl);
       }
       case 'list_pages': {
         const prefix = string('prefix', false);
         if (prefix !== null && typeof prefix !== 'string') return prefix;
+        const long = prefix === null ? null : tooLong('prefix', prefix, MAX_REFERENCE_LENGTH);
+        if (long) return long;
         return listPages(index, prefix ?? undefined, siteUrl);
       }
       default:

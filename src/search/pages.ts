@@ -1,6 +1,7 @@
 // Pages and sections read back out of a loaded index: what the MCP endpoint's `fetch` and
 // `list_pages` serve, and the snippets its `search` shows. Runtime-neutral.
 import type { IndexDocument } from '../index-file';
+import { trimTrailingSlashes } from '../text/slashes';
 import { tokenize } from '../text/tokenize';
 import type { LoadedIndex, RetrievedChunk } from './retrieve';
 
@@ -173,7 +174,7 @@ function comparablePath(path: string): string {
   } catch {
     // Keep it as it is.
   }
-  value = value.replace(PAGE_SUFFIX, '').replace(/\/+$/, '');
+  value = trimTrailingSlashes(value.replace(PAGE_SUFFIX, ''));
   return value || '/';
 }
 

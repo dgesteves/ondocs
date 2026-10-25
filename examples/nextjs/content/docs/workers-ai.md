@@ -28,7 +28,7 @@ cd my-docs-ask && npx wrangler deploy
 
 Or use [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/dgesteves/ondocs/tree/main/templates/cloudflare-worker), which copies the template to a new repository of yours, asks for `SITE_URL`, and deploys it on every push.
 
-Wrangler prints the Worker's URL. Point the dialog at it, plus `/api/ask`: `endpoint` in the Docusaurus or Starlight plugin, or `data-endpoint` on the script tag. You need a Cloudflare account, which is free, and `npx wrangler login` once. The site keeps deploying as it does now, and must serve its index at `SITE_URL/ask-index.json`, which the plugins write with every build.
+Wrangler prints the Worker's URL. Point the dialog at it, plus `/api/ask`: `endpoint` in the plugin's options, as below, or `data-endpoint` on the script tag. You need a Cloudflare account, which is free, and `npx wrangler login` once. The site keeps deploying as it does now, and must serve its index at `SITE_URL/ask-index.json`, which the plugins write with every build.
 
 The Worker fetches the index from the live site and checks it again every five minutes with a conditional request, so it follows the site's deploys without being deployed again. It sends CORS headers for the site's origin and no other, says "I don't know" without calling the model when nothing in the docs is relevant, and serves the same index to agents at `/api/mcp`, keyword-only, calling no model.
 
@@ -37,8 +37,29 @@ The Worker fetches the index from the live site and checks it again every five m
 For the Ask box, embed the index with Workers AI as the site builds, as `init --host github-pages` sets it up: the Worker then searches by meaning as well as by keywords. An index built without an embedding model, as the plugins build one with no `embedding` option and no model key, or `ondocs index` with `-e none`, is searched by keywords only and needs no secret anywhere. That is how the Worker's MCP endpoint searches either way, but the Ask box then answers only questions that use enough of the docs' own words.
 
 ```js
-// The Docusaurus or Starlight plugin
+// Starlight or Astro, in astro.config.mjs
 ondocs({
+  endpoint: 'https://my-docs-ask.<subdomain>.workers.dev/api/ask',
+  embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5',
+});
+```
+
+```ts
+// Docusaurus, in docusaurus.config.ts
+plugins: [
+  [
+    'ondocs/docusaurus',
+    {
+      endpoint: 'https://my-docs-ask.<subdomain>.workers.dev/api/ask',
+      embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5',
+    },
+  ],
+],
+```
+
+```ts
+// VitePress, in .vitepress/config.mts
+export default withOndocs(defineConfig({ title: 'Acme Docs' }), {
   endpoint: 'https://my-docs-ask.<subdomain>.workers.dev/api/ask',
   embedding: 'workers-ai:@cf/baai/bge-small-en-v1.5',
 });

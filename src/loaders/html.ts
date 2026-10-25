@@ -1,4 +1,4 @@
-import { removeDelimited } from '../text/markdown';
+import { linkLabel, removeDelimited } from '../text/markdown';
 import type { SourceDocument } from '../types';
 
 export interface HtmlMeta {
@@ -664,7 +664,10 @@ function htmlToText(
       // or inside its `<div>`, does not count twice.
       const body = stripTags(inner.replace(/<br\s*\/?>/gi, '\n').replace(/<\/div>/gi, '\uE001'))
         .replace(/\n?\uE001+\n?/g, '\n')
-        .replace(/^\n+|\s+$/g, '');
+        // Not `/^\n+|\s+$/g`: `\s+$` started a match at each character of a run of blank lines
+        // inside the block, and each failed at the run's end, which is quadratic.
+        .replace(/^\n+/, '')
+        .trimEnd();
       const fence = fenceFor(body);
       // Markdown keeps the language, as highlighters record it on <pre> or its <code>.
       const language = markdown ? codeLanguage(open[0], inner) : '';
@@ -809,15 +812,16 @@ const markdownText = (text: string): string =>
 /**
  * A code block's title as the value of a fence's `title=`, quoted as Docusaurus, Expressive Code
  * and rehype-pretty-code read it: in double quotes, or in single quotes when it holds a double
- * quote and no single one (with both, its double quotes are escaped). A backtick fence's info
- * string cannot hold a backtick, so those go. Empty for a title with no text.
+ * quote and no single one (with both, its double quotes and backslashes are escaped, so a title
+ * that ends in `\` still closes). A backtick fence's info string cannot hold a backtick, so those
+ * go. Empty for a title with no text.
  */
 function fenceTitle(text: string): string {
   const title = text.replace(/`/g, '').replace(/\s+/g, ' ').trim();
   if (!title) return '';
   if (!title.includes('"')) return `"${title}"`;
   if (!title.includes("'")) return `'${title}'`;
-  return `"${title.replace(/"/g, '\\"')}"`;
+  return `"${title.replace(/["\\]/g, '\\$&')}"`;
 }
 
 /** The labels of a list of tabs, for its panels: by the tab a panel names, else in order. */
@@ -1071,9 +1075,7 @@ function markdownInline(html: string, page: string): string {
         .trim();
       const href = target(attribute(` ${open[1] ?? ''}`, 'href') ?? '');
       if (!label) return '';
-      return href
-        ? `[${label.replace(/[[\]]/g, '\\$&')}](${href.replace(/[()\s]/g, encodeURIComponent)})`
-        : label;
+      return href ? `[${linkLabel(label)}](${href.replace(/[()\s]/g, encodeURIComponent)})` : label;
     },
   );
   return withLinks
@@ -1087,6 +1089,9 @@ function markdownInline(html: string, page: string): string {
  */
 const LIST_ITEM = /<li(?=[\s>])[^<>]*>(?:\s*<p(?=[\s>])[^<>]*>)?/gi;
 
+/** A list tag, with the `<p>` that opens a loose list's item after an `<li>`. */
+const LIST_TAG = /<(\/?)(ul|ol|li)(?=[\s/>])([^<>]*)>(\s*<p(?=[\s>])[^<>]*>)?/gi;
+
 /**
  * Lists as Markdown: each `<li>` starts a line with `- `, or its number in an `<ol>`, counted from
  * the list's `start`, indented two spaces per level of nesting (written as a marker that survives
@@ -1095,28 +1100,40 @@ const LIST_ITEM = /<li(?=[\s>])[^<>]*>(?:\s*<p(?=[\s>])[^<>]*>)?/gi;
  */
 function markdownLists(html: string): string {
   const open: { ordered: boolean; next: number }[] = [];
-  // The whitespace before a list tag goes with it, so items are not a blank line apart.
-  return html.replace(
-    /\s*<(\/?)(ul|ol|li)(?=[\s/>])([^<>]*)>(\s*<p(?=[\s>])[^<>]*>)?/gi,
-    (_, close: string, name: string, attributes: string, item: string | undefined) => {
-      const tag = name.toLowerCase();
-      const paragraph = item ?? '';
-      if (tag === 'li') {
-        if (close) return paragraph;
-        const list = open.at(-1);
-        const depth = Math.max(0, open.length - 1);
-        const marker = list?.ordered ? `${String(list.next++)}.` : '-';
-        return `\n\uE002${String(depth)}\uE002${marker} `;
-      }
-      // A list nested in an item continues it; one at the top stands apart.
-      if (close) open.pop();
-      else {
-        const start = Number.parseInt(attribute(` ${attributes}`, 'start') ?? '', 10);
-        open.push({ ordered: tag === 'ol', next: start >= 0 ? start : 1 });
-      }
-      return (open.length > (close ? 0 : 1) ? '' : '\n\n') + paragraph;
-    },
-  );
+  const markdownOf = (
+    close: string,
+    name: string,
+    attributes: string,
+    item: string | undefined,
+  ) => {
+    const tag = name.toLowerCase();
+    const paragraph = item ?? '';
+    if (tag === 'li') {
+      if (close) return paragraph;
+      const list = open.at(-1);
+      const depth = Math.max(0, open.length - 1);
+      const marker = list?.ordered ? `${String(list.next++)}.` : '-';
+      return `\n\uE002${String(depth)}\uE002${marker} `;
+    }
+    // A list nested in an item continues it; one at the top stands apart.
+    if (close) open.pop();
+    else {
+      const start = Number.parseInt(attribute(` ${attributes}`, 'start') ?? '', 10);
+      open.push({ ordered: tag === 'ol', next: start >= 0 ? start : 1 });
+    }
+    return (open.length > (close ? 0 : 1) ? '' : '\n\n') + paragraph;
+  };
+  // The whitespace before a list tag goes with it, so items are not a blank line apart. It is
+  // trimmed off the text before the tag: a leading `\s*` in the pattern would scan a long run of
+  // whitespace again from each of its characters.
+  let lists = '';
+  let end = 0;
+  for (const match of html.matchAll(LIST_TAG)) {
+    lists += html.slice(end, match.index).trimEnd();
+    lists += markdownOf(match[1] ?? '', match[2] ?? '', match[3] ?? '', match[4]);
+    end = match.index + match[0].length;
+  }
+  return lists + html.slice(end);
 }
 
 const CODE = /<code(?=[\s>])[^<>]*>/gi;

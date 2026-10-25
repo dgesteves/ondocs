@@ -32,7 +32,7 @@ For teams that run their own developer docs, at product, API and platform compan
 
 <!-- npm-readme:video -->
 
-https://github.com/user-attachments/assets/2491c5ea-de70-471c-b11e-30591c074e6f
+https://github.com/user-attachments/assets/6922d183-beeb-4c0b-bea3-2e1aba1eee56
 
 <sub>The <a href="https://ondocs.vercel.app">live demo</a>: a streamed answer with citations, one opening the section it came from, then the one-line setups.</sub>
 
@@ -131,7 +131,7 @@ npx ondocs init --out public                       # plain HTML needs --out; Hug
 On a GitHub Pages project site, at `https://user.github.io/repo`, add `--base-url /repo` to the index command.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/ondocs@0.13/dist/embed.global.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/ondocs@0.14/dist/embed.global.js" defer></script>
 ```
 
 **Try it without a key.** `npx ondocs index ./docs -e mock`, then `npx ondocs dev`, serves the ask endpoint and MCP server on localhost, with a mock model that quotes your docs. See [Try it locally](https://ondocs.vercel.app/docs/local-development).

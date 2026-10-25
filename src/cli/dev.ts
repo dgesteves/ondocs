@@ -196,8 +196,8 @@ export function findIndexFile(cwd: string, index?: string): string {
   if (file) return file;
   throw new DevError(
     `No index found: looked for ${INDEX_FILES.join(', ')}. Build one with ` +
-      '`ondocs index <dir>` (or your site’s build, with the Docusaurus or Astro plugin), ' +
-      'or pass --index <file>.',
+      '`ondocs index <dir>` (or your site’s build, with the Docusaurus, Astro, Starlight or ' +
+      'VitePress plugin), or pass --index <file>.',
   );
 }
 
@@ -578,10 +578,10 @@ export async function dev(args: string[], io: CliIO): Promise<number> {
       `            Gemini CLI   ${mcp.gemini}`,
       '',
       'Point the dialog at it:',
-      `  Docusaurus, Astro, Starlight  start the site with ASK_ENDPOINT=${endpoint}`,
-      `                                or set endpoint: '${endpoint}' in the plugin's options`,
-      `  React                         <AskDialog endpoint="${endpoint}" />`,
-      `  Script embed                  data-endpoint="${endpoint}"`,
+      `  Docusaurus, Astro, Starlight, VitePress  start the site with ASK_ENDPOINT=${endpoint}`,
+      `                                           or set endpoint: '${endpoint}' in the plugin's options`,
+      `  React                                    <AskDialog endpoint="${endpoint}" />`,
+      `  Script embed                             data-endpoint="${endpoint}"`,
       '',
       'Ctrl+C stops it.',
     ].join('\n'),

@@ -2,6 +2,8 @@
 
 The site at [ondocs.vercel.app](https://ondocs.vercel.app): a landing page and the docs, which index their own pages at build time and answer questions about them with ⌘K. The docs are about ondocs itself, so you can ask it how it works.
 
+This is the project's website, not a starter: it depends on ondocs as `workspace:*`, this repository's own build, and on the repository's lint config, so it runs only inside the repository. To add ondocs to your own app, follow [the Next.js guide](https://ondocs.vercel.app/docs/nextjs), or [Fumadocs](https://ondocs.vercel.app/docs/fumadocs) and [Nextra](https://ondocs.vercel.app/docs/nextra) for those.
+
 ## Run it
 
 From the repository root:

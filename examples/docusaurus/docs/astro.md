@@ -6,7 +6,7 @@ description: 'The Starlight plugin and the Astro integration, which index the bu
 
 `ondocs/starlight` is a Starlight plugin, and `ondocs/astro` is the Astro integration under it, for any other Astro site. Like the Docusaurus plugin, they build the index with the site and add the dialog to every page. They work with Astro 5, 6 and 7, and Starlight 0.32 and later.
 
-Live demo: [these docs as a Starlight site](https://ondocs-starlight.vercel.app), with the plugin, on Vercel.
+Live demo: [these docs as a Starlight site](https://ondocs-starlight.vercel.app), with the plugin, on Vercel ([source](https://github.com/dgesteves/ondocs/tree/main/examples/starlight)).
 
 ## Install for Astro
 
@@ -47,13 +47,29 @@ import { defineConfig } from 'astro/config';
 export default defineConfig({ integrations: [ondocs()] });
 ```
 
+## See it working in Starlight or Astro, with no key
+
+With the plugin in the config, three commands show the dialog answering on your machine, with no API key: build the site, start `ondocs dev`, which answers from the index the build wrote, and, in a second terminal, start `astro dev` pointed at it.
+
+```sh
+npm run build                                            # writes dist/ask-index.json
+npx ondocs dev                                           # serves http://localhost:8787/api/ask
+ASK_ENDPOINT=http://localhost:8787/api/ask npm run dev   # in a second terminal
+```
+
+Then press ⌘I (Ctrl+I outside macOS), or click "Ask AI", and ask in words from your pages. Without a key, the build makes a keyword-only index unless you set `embedding: 'mock'`, and says so ("No embedding model: building a keyword-only index"), which is expected here. `ondocs dev` answers with the mock model either way: it quotes your pages, with citations. With an SSR adapter the build writes `dist/client/ask-index.json`, where `ondocs dev` finds it too; with `OPENAI_API_KEY` set as well, plain `npm run dev` answers from the integration's own routes. For answers on the live site, [deploy the endpoint](./astro.md#deploy-the-endpoint-for-astro).
+
 ## What Astro and Starlight index
 
 After `astro build`, the index is written to `dist/ask-index.json`, or to `dist/client/ask-index.json` on a site with an adapter, where Astro puts the static files it serves. It is at the URLs Astro serves: with your `base`, and with or without a trailing slash as `trailingSlash` and `build.format` have it.
 
 The Starlight plugin reads what Starlight's own search reads: the part of each page marked `data-pagefind-body`, which is the title and the Markdown, notes and tips included, without the header, sidebar, table of contents, edit link or pagination. Pages Starlight's search leaves out are left out too, such as the 404 page and pages with `pagefind: false`, and so are pages with `<meta name="robots" content="noindex">`. Mark anything else with `data-pagefind-ignore`. To keep a site out of search engines and still index it, send an `X-Robots-Tag: noindex` header from the host rather than the meta tag, such as from `headers` in `vercel.json`.
 
-The Astro integration reads each page's `<main>`. Choose another part with `content: '.prose'` (a tag, `#id`, `.class` or `[attribute]`, or a comma-separated list) and leave parts out with `ignore: '.toc'`. 404 and 500 pages, redirects and `noindex` pages are skipped. Unchanged pages reuse their vectors from the previous build, cached in `node_modules/.cache/ondocs`.
+The Astro integration reads each page's `<main>`. Choose another part with `contentSelector: '.prose'` (a tag, `#id`, `.class` or `[attribute]`, or a comma-separated list) and leave parts out with `ignoreSelector: '.toc'`. 404 and 500 pages, redirects and `noindex` pages are skipped. Unchanged pages reuse their vectors from the previous build, cached in `node_modules/.cache/ondocs`.
+
+## Already using starlight-llms-txt?
+
+Keep it. ondocs leaves `llms.txt` and `llms-full.txt` to it, and says so in the build, then adds what it does not write, from the same build: a Markdown copy of each page at its URL plus `.md`, the Ask AI dialog, and the index an [MCP endpoint](./mcp.md) serves to agents, the integration's own with an SSR adapter or the one `npx ondocs init` writes. starlight-llms-txt's `llms.txt` does not name that endpoint, so show it on a page with `McpInstall.astro`: see [Show it on your site](./mcp.md#show-it-on-your-site). The other llms plugins ondocs leaves files to are in [Alongside other llms plugins](./llms-txt.md#alongside-other-llms-plugins).
 
 ## The dialog in Astro
 
@@ -87,8 +103,6 @@ The routes limit each visitor by the client address the adapter reports, an IPv6
 
 A static site, without an adapter, needs the endpoint as a function on its host, or `endpoint` set to one on another origin that sends CORS headers for the site's origin (see [Cross-origin requests](./security.md#cross-origin-requests)). Write it with `npx ondocs init`, which reads `dist/ask-index.json` on Vercel, Netlify or Cloudflare, or writes a Cloudflare Worker for GitHub Pages; see [Deploying](./deployment.md). Until then, a static build warns that the dialog posts to `/api/ask`, which it does not serve. The warning stops once the site has the endpoint `init` writes for Vercel, Netlify or Cloudflare (`api/ask.ts`, `netlify/functions/ask.mts`, `functions/api/ask.ts` or `worker/ondocs.ts`), or once `endpoint` is set. Astro writes `base` into URLs, not folders, so with `base: '/docs'` the file is still `dist/ask-index.json` and is served at `/docs/ask-index.json`.
 
-To try it locally, build the site once and start `astro dev`: with an adapter, the integration's routes answer from the index the build wrote. Without one, run `npx ondocs dev`, which answers from `dist/ask-index.json` or `dist/client/ask-index.json`, and start `astro dev` with `ASK_ENDPOINT=http://localhost:8787/api/ask`.
-
 ## Astro and Starlight options
 
 | Option                                       | Default                            | What it does                                                                                                       |
@@ -101,7 +115,7 @@ To try it locally, build the site once and start `astro dev`: with an adapter, t
 | `exclude`                                    | `[]`                               | Path prefixes to leave out, relative to `base` and the locale.                                                     |
 | `dialog`                                     |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar` (Starlight), `theme`, `labels`, `locales`. |
 | `route`                                      | on with an SSR adapter             | The endpoints the integration serves: `{ model, rateLimit, trustedHeader, budget, mcp }`, or `false`.              |
-| `content`, `ignore`                          | `main`                             | Astro integration only: what to read from each page, and what to skip.                                             |
+| `contentSelector`, `ignoreSelector`          | `main`                             | Astro integration only: what to read from each page, and what to skip.                                             |
 | `mcp`                                        | the route it serves, with `site`   | The [MCP endpoint](./mcp.md)'s URL or path, for `llms.txt` and `McpInstall.astro`.                                 |
 | `llmsTxt`                                    | on                                 | Write [llms.txt, llms-full.txt and .md copies](./llms-txt.md); `false` turns them off.                             |
 

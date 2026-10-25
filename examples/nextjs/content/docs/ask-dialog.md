@@ -6,7 +6,7 @@ label: Ask dialog
 order: 32
 ---
 
-`AskDialog` from `ondocs/react` is a command palette built on Radix Dialog and cmdk. The Docusaurus, Astro and Starlight plugins and the script tag render the same component, so everything here applies to them too, through their `dialog` options or `data-*` attributes. In a React site's header, [`AskButton`](#the-ask-button) renders the dialog with the button that opens it.
+`AskDialog` from `ondocs/react` is a command palette built on Radix Dialog and cmdk. The Docusaurus, Astro, Starlight and VitePress plugins and the script tag render the same component, so everything here applies to them too, through their `dialog` options or `data-*` attributes. In a React site's header, [`AskButton`](#the-ask-button) renders the dialog with the button that opens it.
 
 ## AskDialog props
 
@@ -173,7 +173,7 @@ Every string the dialog and its button show or announce, visible or for screen r
 />
 ```
 
-The endpoint's own words, its "I don't know" answer, its rate limit and budget messages, its other errors and the message for an answer the model failed to write, show as it sends them, so set them there (`noAnswerMessage`, `budget.message`), or replace them in the dialog with `noAnswer`, `rateLimited`, `budgetExceeded`, `serverError` and `answerFailed`. The plugins take labels per locale; see [Docusaurus](/docs/docusaurus#locales-and-versions) and [Astro and Starlight](/docs/astro#locales-in-starlight).
+The endpoint's own words, its "I don't know" answer, its rate limit and budget messages, its other errors and the message for an answer the model failed to write, show as it sends them, so set them there (`noAnswerMessage`, `budget.message`), or replace them in the dialog with `noAnswer`, `rateLimited`, `budgetExceeded`, `serverError` and `answerFailed`. The plugins take labels per locale; see [Docusaurus](/docs/docusaurus#locales-and-versions), [Astro and Starlight](/docs/astro#locales-in-starlight) and [VitePress](/docs/vitepress#locales-in-vitepress).
 
 | Label                | Default                                                                                      |
 | -------------------- | -------------------------------------------------------------------------------------------- |
