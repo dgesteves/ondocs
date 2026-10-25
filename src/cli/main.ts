@@ -1,6 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { parseArgs, parseEnv } from 'node:util';
 
 import type { EmbeddingModel } from 'ai';
@@ -15,6 +14,7 @@ import { checkIndexOptions, DEFAULT_DIMENSIONS } from '../integration/build';
 import { llmsOutputs, writeLlmsFiles } from '../integration/llms';
 import { checkOptions, optionRules } from '../integration/options';
 import { markdownCopies, resolveMarkdownLinks, rootedPath, type LlmsPage } from '../llms';
+import { loadConfigModule } from './config';
 import { dev } from './dev';
 import { evalCommand } from './eval';
 import { init } from './init';
@@ -263,13 +263,7 @@ const CONFIG_RULES = shape<AskConfig>({
 
 async function loadConfig(path: string | undefined, io: CliIO): Promise<AskConfig> {
   if (!path) return {};
-  const absolute = resolve(io.cwd, path);
-  if (!existsSync(absolute)) throw new UsageError(`Config file not found: ${path}`);
-  const module = (await import(pathToFileURL(absolute).href)) as { default?: unknown };
-  const config = module.default;
-  if (!config || typeof config !== 'object') {
-    throw new UsageError(`${path} must export a config object as its default export.`);
-  }
+  const config = await loadConfigModule(path, io.cwd, (message) => new UsageError(message));
   try {
     checkOptions(path, CONFIG_RULES, config);
     checkIndexOptions(config);
