@@ -165,7 +165,9 @@ describe('how the README places ondocs, as the website does', () => {
     const at = snippets.map((name) => setup.indexOf(`\n${name}`));
     expect(at.every((position) => position > 0)).toBe(true);
     expect(at).toEqual([...at].sort((a, b) => a - b));
-    expect(setup).toContain('**Live demos:** [Starlight](https://ondocs-starlight.vercel.app)');
+    // The live demos sit under the hero video, where a reader still is.
+    const hero = readme.slice(0, readme.indexOf('\n## '));
+    expect(hero).toContain('**Live demos:** [Starlight](https://ondocs-starlight.vercel.app)');
   });
 
   it('describes each package on npm as open-source Ask AI, within what npm shows', () => {

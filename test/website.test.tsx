@@ -208,6 +208,7 @@ describe('the header', () => {
     ).toEqual([
       ['Docs', '/docs'],
       ['Integrations', '/docs#integrations'],
+      ['Demos', '/#demos'],
     ]);
     const actions = [...element.querySelector('.header-actions')!.children].map(
       (child) =>
@@ -237,6 +238,7 @@ describe('the header', () => {
     expect([...menu.querySelectorAll('a')].map((a) => a.textContent)).toEqual([
       'Docs',
       'Integrations',
+      'Demos',
       'GitHub',
       'npm',
     ]);
