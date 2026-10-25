@@ -39,6 +39,11 @@ overrides:
   # server. sockjs 0.3.24 is its latest release and asks for uuid ^8.3.2. It only calls v4(), which
   # uuid 11 still exports from its CommonJS build.
   sockjs>uuid: ^11.1.1
+  # High GHSA-xjj6-f33q-929c: a response with too many content-encodings throws an unhandled error.
+  # undici 7 comes through the AI SDK's provider-utils, undici 8 through Astro's unifont, and each
+  # major has a patch release in range.
+  'undici@>=7 <7.30.1': ^7.30.1
+  'undici@>=8 <8.12.2': ^8.12.2
 # Advisories the audit skips, because no release this repository can take fixes them. Take an entry
 # out once one does.
 auditConfig:
