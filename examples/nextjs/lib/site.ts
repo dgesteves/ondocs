@@ -18,9 +18,9 @@ export const HOME_DESCRIPTION =
  * leads with it.
  */
 export const DEMOS = [
-  { label: 'Starlight', href: 'https://ondocs-starlight.vercel.app' },
-  { label: 'Docusaurus', href: 'https://ondocs-docusaurus.vercel.app' },
-  { label: 'VitePress', href: 'https://ondocs-vitepress.vercel.app' },
+  { label: 'Starlight', href: 'https://ondocs-starlight.vercel.app', entry: 'ondocs/starlight' },
+  { label: 'Docusaurus', href: 'https://ondocs-docusaurus.vercel.app', entry: 'ondocs/docusaurus' },
+  { label: 'VitePress', href: 'https://ondocs-vitepress.vercel.app', entry: 'ondocs/vitepress' },
 ] as const;
 /**
  * The live demos' origins. Their dialogs send questions to this site's /api/ask, which gives these

@@ -393,8 +393,8 @@ export default async function Home() {
                 Get started
                 <ArrowRight />
               </Link>
-              <a href={demoUrl('Starlight')} className="button button-secondary">
-                Try the live demo
+              <a href="#demos" className="button button-secondary">
+                See the live demos
               </a>
               <AskButton className="button button-ghost hero-ask">Ask these docs</AskButton>
             </div>
@@ -438,6 +438,33 @@ export default async function Home() {
                 .
               </li>
             </ul>
+          </div>
+        </div>
+      </section>
+
+      <section className="section" id="demos" aria-labelledby="demos-title">
+        <div className="container">
+          <p className="eyebrow">Live demos</p>
+          <h2 id="demos-title" className="section-title">
+            These docs, on real Starlight, Docusaurus and VitePress sites.
+          </h2>
+          <p className="section-lead">
+            Each site is built with its framework&rsquo;s plugin, and its Ask dialog answers from
+            this site&rsquo;s endpoint. Open one and ask it something.
+          </p>
+          <div className="principles demos">
+            {DEMOS.map(({ label, href, entry }) => (
+              <div key={href}>
+                <h3>{label}</h3>
+                <p>
+                  Built with <code>{entry}</code>.
+                </p>
+                <a href={href} className="text-link">
+                  {new URL(href).host}
+                  <ArrowRight />
+                </a>
+              </div>
+            ))}
           </div>
         </div>
       </section>

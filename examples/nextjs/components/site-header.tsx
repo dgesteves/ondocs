@@ -21,6 +21,7 @@ export async function SiteHeader() {
   const items: NavItem[] = [
     { href: '/docs', label: 'Docs', except: integrations },
     { href: '/docs#integrations', label: 'Integrations', paths: integrations },
+    { href: '/#demos', label: 'Demos', paths: [] },
   ];
   const label = starLabel(stars);
   const github = label ? `ondocs on GitHub, ${String(stars)} stars` : 'ondocs on GitHub';

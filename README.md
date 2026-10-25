@@ -44,6 +44,8 @@ https://github.com/user-attachments/assets/6922d183-beeb-4c0b-bea3-2e1aba1eee56
 <sub>The <a href="https://ondocs.vercel.app">live demo</a>: a streamed answer with citations, one opening the section it came from, then the one-line setups.</sub>
 -->
 
+**Live demos:** [Starlight](https://ondocs-starlight.vercel.app), [Docusaurus](https://ondocs-docusaurus.vercel.app) and [VitePress](https://ondocs-vitepress.vercel.app), each a real docs site built with its plugin.
+
 ## What you get
 
 One index, `ask-index.json`, built with your site, feeds three things:
@@ -67,8 +69,6 @@ Search runs in memory inside one function you deploy: BM25 and vectors, merged w
 | Hugo, Jekyll, MkDocs or plain HTML | One script tag; for plain HTML, `init --out <dir>` | [Script tag](https://ondocs.vercel.app/docs/script-tag)     |
 
 Each answers from an endpoint you deploy as one function next to the site, rate-limited by default. `npx ondocs init` writes it for Vercel, Netlify, Cloudflare or GitHub Pages (as a Worker answering with Workers AI, no API key): see [Deploying](https://ondocs.vercel.app/docs/deployment).
-
-**Live demos:** [Starlight](https://ondocs-starlight.vercel.app), [Docusaurus](https://ondocs-docusaurus.vercel.app), [VitePress](https://ondocs-vitepress.vercel.app).
 
 **Starlight.** `npm i ondocs ai @ai-sdk/openai`, then:
 

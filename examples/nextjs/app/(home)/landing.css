@@ -1059,6 +1059,10 @@
   color: var(--muted);
 }
 
+.demos .text-link {
+  margin-top: 12px;
+}
+
 .inline-cite {
   display: inline-grid;
   place-items: center;

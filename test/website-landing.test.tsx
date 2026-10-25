@@ -93,13 +93,13 @@ describe('the home page’s first screen', () => {
     }
   });
 
-  it('leads with Get started, then the live Starlight demo, with the site’s own Ask beside them', async () => {
+  it('leads with Get started, then the live demos, with the site’s own Ask beside them', async () => {
     const actions = (await home()).querySelector('.hero-actions')!;
     expect(
       [...actions.querySelectorAll('a')].map((a) => [text(a), a.getAttribute('href'), a.className]),
     ).toEqual([
       ['Get started', '/docs/getting-started', 'button button-primary'],
-      ['Try the live demo', 'https://ondocs-starlight.vercel.app', 'button button-secondary'],
+      ['See the live demos', '#demos', 'button button-secondary'],
     ]);
     const ask = actions.querySelector('button')!;
     expect(text(ask.querySelector('.ask-button-text'))).toBe('Ask these docs');
@@ -366,9 +366,24 @@ describe('the home page’s comparison', () => {
 describe('the live demos', () => {
   it('are the example sites, Starlight first', () => {
     expect(DEMOS.map(({ label }) => label)).toEqual(['Starlight', 'Docusaurus', 'VitePress']);
-    for (const { label, href } of DEMOS) {
+    for (const { label, href, entry } of DEMOS) {
       expect(href).toBe(`https://ondocs-${label.toLowerCase()}.vercel.app`);
+      expect(entry).toBe(`ondocs/${label.toLowerCase()}`);
     }
+  });
+
+  it('have their own section right after the hero, one card per site with the entry it uses', async () => {
+    // The hero's button and the header's Demos item land here.
+    const section = (await home()).querySelector('section#demos')!;
+    expect(section.previousElementSibling?.matches('section.hero')).toBe(true);
+    const cards = [...section.querySelectorAll('.demos > div')];
+    expect(
+      cards.map((card) => [
+        text(card.querySelector('h3')),
+        text(card.querySelector('code')),
+        [...card.querySelectorAll('a')].map((a) => a.getAttribute('href')),
+      ]),
+    ).toEqual(DEMOS.map(({ label, href, entry }) => [label, entry, [href]]));
   });
 
   it('are linked from each plugin’s setup tab, Starlight’s first', async () => {
