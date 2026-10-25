@@ -135,7 +135,10 @@ describe('the integration freeze', () => {
   it('holds new integrations for four weeks after the launch unless an issue asks, and links the tiers', () => {
     const contributing = read('CONTRIBUTING.md');
     expect(contributing).toMatch(/^## New integrations$/m);
-    expect(contributing).toContain('for the first four weeks after the public launch');
+    // The launch was Thursday 2026-10-22: the freeze ends four weeks later, on the date it names.
+    expect(contributing).toContain(
+      'until Thursday 2026-11-19, four weeks after the public launch on 2026-10-22',
+    );
     expect(contributing).toContain(`(${REPO}/issues/new?template=feature_request.yml)`);
     expect(existsSync(join(root, '.github/ISSUE_TEMPLATE/feature_request.yml'))).toBe(true);
     expect(contributing).toContain('](https://ondocs.vercel.app/docs/limits#support-tiers)');

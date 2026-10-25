@@ -132,5 +132,5 @@ CI has no model key and signs in to no host. Where it calls a model, it calls a 
 ## What is planned
 
 - **Bigger corpora:** sharded indexes loaded per section, and binary quantization with int8 rescoring.
-- **More framework plugins,** built on [`ondocs/integration`](/writing-an-integration) as the Docusaurus, Astro, Starlight and VitePress ones are. None lands in the first four weeks after the public launch unless an issue asks for it ([new integrations](https://github.com/dgesteves/ondocs/blob/main/CONTRIBUTING.md#new-integrations)).
+- **More framework plugins,** built on [`ondocs/integration`](/writing-an-integration) as the Docusaurus, Astro, Starlight and VitePress ones are. None lands before Thursday 2026-11-19, four weeks after the public launch, unless an issue asks for it ([new integrations](https://github.com/dgesteves/ondocs/blob/main/CONTRIBUTING.md#new-integrations)).
 - **Language-aware keyword search:** stopwords and stemming per language.
