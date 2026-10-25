@@ -148,6 +148,28 @@ describe('buildLlmsFiles', () => {
     expect(llmsOutputs({ full: false })).toEqual({ index: true, full: false, markdown: true });
   });
 
+  it('escapes backslashes and brackets in llms.txt link labels, so each link still works', () => {
+    const llms =
+      files([
+        { url: '/docs/win', title: 'C:\\', content: 'x' },
+        { url: '/docs/arrays', title: 'a\\[b] [c]', content: 'x' },
+      ]).get('llms.txt') ?? '';
+    // Unescaped, `C:\` escaped the closing bracket and the line was text, not a link.
+    expect(llms).toContain('- [C:\\\\](/docs/win.md)');
+    expect(llms).toContain('- [a\\\\\\[b\\] \\[c\\]](/docs/arrays.md)');
+  });
+
+  it('leaves code spans in llms.txt link labels as they are, as Markdown reads no escapes there', () => {
+    // A frontmatter title keeps its backticks, and llms.txt is Markdown.
+    const llms =
+      files([
+        { url: '/docs/paths', title: 'The `C:\\dir\\` path', content: 'x' },
+        { url: '/docs/arrays', title: '`arr[0]` and [x]', content: 'x' },
+      ]).get('llms.txt') ?? '';
+    expect(llms).toContain('- [The `C:\\dir\\` path](/docs/paths.md)');
+    expect(llms).toContain('- [`arr[0]` and \\[x\\]](/docs/arrays.md)');
+  });
+
   it('keeps a leading H1 that is not the title, and writes one that is once', () => {
     const pages: LlmsPage[] = [
       // A Markdown file whose frontmatter title is not its H1.
@@ -251,6 +273,28 @@ describe('fromHtml with markdown', () => {
     `<html><head><title>T</title><meta name="description" content="A page &amp; more."></head><body><main>${main}</main></body></html>`;
   const md = (main: string, url = '/docs/guides/setup') =>
     fromHtml(page(main), { id: 'x', url, markdown: true })?.content;
+
+  // Unescaped, `C:\` escaped the closing bracket and the link was text, as in llms.txt.
+  it('escapes backslashes and brackets in link labels, so each link still works', () => {
+    expect(md('<p>See <a href="/docs/win">C:\\</a> and <a href="/docs/a">[a]</a>.</p>')).toBe(
+      'See [C:\\\\](/docs/win) and [\\[a\\]](/docs/a).',
+    );
+  });
+
+  // Markdown reads no escapes in a code span, where one would show: `C:\\dir\\`, `arr\[0\]`.
+  it('escapes link labels outside their code spans only', () => {
+    expect(md('<p><a href="/win">C:\\</a></p>')).toBe('[C:\\\\](/win)');
+    expect(md('<p><a href="/api"><code>C:\\dir\\</code></a></p>')).toBe('[`C:\\dir\\`](/api)');
+    expect(md('<p><a href="/api"><code>arr[0]</code></a></p>')).toBe('[`arr[0]`](/api)');
+    expect(md('<p><a href="/api">a [b] c</a></p>')).toBe('[a \\[b\\] c](/api)');
+    expect(md('<p><a href="/api">Call <code>get(a[0])</code> on [x]</a></p>')).toBe(
+      '[Call `get(a[0])` on \\[x\\]](/api)',
+    );
+    // A span of two backticks around one, and a backtick that no run of its length closes, which
+    // opens no span: the text after it is escaped too.
+    expect(md('<p><a href="/api"><code>a`[b]</code></a></p>')).toBe('[`` a`[b] ``](/api)');
+    expect(md('<p><a href="/api">it`s [here]</a></p>')).toBe('[it`s \\[here\\]](/api)');
+  });
 
   it('keeps links, resolving relative ones, and drops unsafe ones', () => {
     expect(
@@ -369,6 +413,11 @@ describe('fromHtml with markdown', () => {
       '```js title="it’s \\"a\\" file\'s"\nx\n```',
     );
     expect(md(titled('a `b` c'))).toBe('```js title="a b c"\nx\n```');
+    // With both quotes, a backslash is escaped too, so one at the end does not escape the closing
+    // quote.
+    expect(md(titled(`say &quot;hi&quot; it's C:\\`))).toBe(
+      '```js title="say \\"hi\\" it\'s C:\\\\"\nx\n```',
+    );
   });
 
   it('starts a paragraph at <details> when minified HTML leaves the one before it open', () => {
@@ -384,6 +433,17 @@ describe('fromHtml with markdown', () => {
     expect(md('<blockquote><p>Run:</p><pre><code>npm i</code></pre></blockquote>')).toBe(
       '> Run:\n>\n> ```\n> npm i\n> ```',
     );
+  });
+
+  it('writes an indented list as it writes the same list minified', () => {
+    const minified =
+      '<p>Steps:</p><ul><li>One<ol start="3"><li>Three</li><li><p>Four</p></li></ol></li><li>Two</li></ul><p>After.</p>';
+    const indented =
+      '<p>Steps:</p>\n<ul>\n  <li>One\n    <ol start="3">\n      <li>Three</li>\n      <li>\n        <p>Four</p>\n      </li>\n    </ol>\n  </li>\n  <li>Two</li>\n</ul>\n<p>After.</p>';
+    // The whitespace before each list tag goes, and the <p> in an item leaves a blank line after it.
+    const expected = 'Steps:\n\n- One\n  3. Three\n  4. Four\n\n- Two\n\nAfter.';
+    expect(md(minified)).toBe(expected);
+    expect(md(indented)).toBe(expected);
   });
 
   it('writes tables with a header row, from minified HTML without closing tags too', () => {

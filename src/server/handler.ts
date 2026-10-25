@@ -6,6 +6,7 @@ import {
   generateText,
   LoadAPIKeyError,
   LoadSettingError,
+  RetryError,
   streamText,
   toUIMessageStream,
   type EmbeddingModel,
@@ -14,9 +15,11 @@ import {
 } from 'ai';
 import { z } from 'zod';
 
+import { version } from '../../package.json' with { type: 'json' };
 import type { EmbeddingProviderOptions } from '../build';
 import { warnDeprecated } from '../deprecation';
 import { sha256 } from '../hash';
+import { INDEX_FORMAT, validateIndexFile } from '../index-file';
 import {
   SOURCE_METADATA_KEY,
   type AskErrorBody,
@@ -46,6 +49,7 @@ import {
 } from './follow-up';
 import { buildSources, defaultInstructions, formatPrompt } from './prompt';
 import type { RateLimiter } from './rate-limit';
+import { reportRemoteIndexErrors } from './remote-index';
 import {
   CLIENT_CLOSED,
   corsPolicy,
@@ -80,15 +84,21 @@ export type { IndexSource } from './shared';
 export interface AskHandlerOptions {
   /**
    * The index: `import index from './ask-index.json'`, its JSON text, the result of `loadIndex`,
-   * or a (possibly async) function returning any of those, called once on the first request.
+   * a Promise of any of those (`import('./ask-index.json')`), or a (possibly async) function
+   * returning any of those, called once on the first request. An index given as it is, not as
+   * a function, is checked as the handler is made, so a path, JSON that is not an index, or an
+   * index this version does not read fails at once.
    */
-  index: IndexSource | (() => IndexSource | Promise<IndexSource>);
+  index: IndexSource | Promise<IndexSource> | (() => IndexSource | Promise<IndexSource>);
   /**
    * The index of each other locale, by the locale the dialog sends (`fr`, `pt-br`): the plugins
    * build one per locale, and send the page's with each question. A question from a locale with
    * no index here is answered from `index`.
    */
-  indexes?: Record<string, IndexSource | (() => IndexSource | Promise<IndexSource>)>;
+  indexes?: Record<
+    string,
+    IndexSource | Promise<IndexSource> | (() => IndexSource | Promise<IndexSource>)
+  >;
   /** Any AI SDK language model, e.g. `openai('gpt-5.4-mini')`, or a gateway model id. */
   model: LanguageModel;
   /**
@@ -140,10 +150,16 @@ export interface AskHandlerOptions {
    */
   rateLimit?: RateLimiter | false;
   /**
-   * What to do when `rateLimit` throws or rejects, e.g. because Redis is unreachable. `"closed"`
-   * (the default) answers 503 without calling the model; `"open"` answers as if the request were
-   * allowed. Either way the error goes to `onError`. The `budget` store's failures are handled
-   * the same way.
+   * What to do when a check that guards the model cannot be made: `rateLimit` throws or rejects
+   * (Redis is unreachable, say), the `budget` store fails, or the `challenge` cannot be checked.
+   * `"closed"` (the default) answers 503 without calling the model; `"open"` answers as if the
+   * request were allowed. Either way the error goes to `onError`.
+   */
+  failureMode?: 'closed' | 'open';
+  /**
+   * @deprecated Use `failureMode`, which takes the same values. It always covered the budget
+   * store and the bot check too, which the old name did not say. `rateLimitFailure` still works,
+   * with a warning, until 1.0.
    */
   rateLimitFailure?: 'closed' | 'open';
   /**
@@ -151,8 +167,8 @@ export interface AskHandlerOptions {
    * token the dialog sends with each question (its `challenge: { turnstile: '<site key>' }`
    * option) before anything is spent on it. A question without a token gets a 403 with code
    * `challenge_required`, and one with a bad or used token a 403 with `challenge_failed`. When the
-   * check cannot be made (Turnstile is down), the request is handled as `rateLimitFailure` says:
-   * a 503 by default. Feedback posts are not checked. Off by default.
+   * check cannot be made (Turnstile is down), the request is handled as `failureMode` says: a
+   * 503 by default. Feedback posts are not checked. Off by default.
    */
   challenge?: ChallengeVerifier;
   /**
@@ -202,7 +218,11 @@ export interface AskHandlerOptions {
    * `id`. If it throws, the visitor is told the feedback could not be sent.
    */
   onFeedback?: (event: AskFeedbackEvent) => void | Promise<void>;
-  /** Called with errors that were handled (embedding fallback, model errors). Default `console.error`. */
+  /**
+   * Called with errors that were handled (embedding fallback, model errors, a `remoteIndex`'s
+   * failed checks). Default `console.error`. An index with vectors and no `embeddingModel` to
+   * search them with is a warning in the log instead, once for each embedding model.
+   */
   onError?: (error: unknown) => void;
 }
 
@@ -269,13 +289,116 @@ const MISCONFIGURED_MESSAGE = 'The ask endpoint is misconfigured.';
 
 /**
  * Whether a model call failed because of how the endpoint is set up, which asking again cannot
- * fix: no API key or other setting for the provider, or a key the provider rejects (401) or that
- * may not use the model (403). AI Gateway's is matched by name, so nothing imports it.
+ * fix: no API key or other setting for the provider, a key the provider rejects (401) or that
+ * may not use the model (403), a model it does not have (404), or an account out of quota
+ * (OpenAI's 429 `insufficient_quota`). AI Gateway's is matched by name, so nothing imports it.
  */
 function isMisconfiguration(error: unknown): boolean {
-  if (LoadAPIKeyError.isInstance(error) || LoadSettingError.isInstance(error)) return true;
-  if (APICallError.isInstance(error)) return error.statusCode === 401 || error.statusCode === 403;
-  return error instanceof Error && error.name === 'GatewayAuthenticationError';
+  // The last try's error, when the AI SDK tried again first.
+  const cause = RetryError.isInstance(error) ? error.lastError : error;
+  if (LoadAPIKeyError.isInstance(cause) || LoadSettingError.isInstance(cause)) return true;
+  if (APICallError.isInstance(cause)) {
+    return [401, 403, 404].includes(cause.statusCode ?? 0) || isOutOfQuota(cause);
+  }
+  return cause instanceof Error && cause.name === 'GatewayAuthenticationError';
+}
+
+/** OpenAI's 429 for an account with no credit left, unlike one for too many requests. */
+function isOutOfQuota(error: APICallError): boolean {
+  if (error.statusCode !== 429) return false;
+  const body = error.data as { error?: { code?: unknown; type?: unknown } } | undefined;
+  return (
+    body?.error?.code === 'insufficient_quota' ||
+    body?.error?.type === 'insufficient_quota' ||
+    (error.responseBody ?? '').includes('"insufficient_quota"')
+  );
+}
+
+/** An index source as the handlers take it. */
+type GivenIndex = AskHandlerOptions['index'];
+
+const isThenable = (value: unknown): value is PromiseLike<unknown> =>
+  typeof (value as { then?: unknown } | null)?.then === 'function';
+
+/** The error for a URL in place of the index, with the way out its scheme has. */
+const notAUrl = (where: string, url: string) => {
+  if (/^https?:/i.test(url)) {
+    return new TypeError(
+      `${where} takes the index's JSON, not a URL: pass remoteIndex('${url}') from ondocs/server, which fetches it and checks it for changes.`,
+    );
+  }
+  if (/^file:/i.test(url)) {
+    return new TypeError(
+      `${where} takes the index's JSON, not a file URL: read it with readFileSync(new URL('${url}'), 'utf8').`,
+    );
+  }
+  return new TypeError(
+    `${where} takes the index's JSON, not a URL: load the file at ${url} and pass its JSON, or serve it over HTTPS and pass remoteIndex('https://…') from ondocs/server.`,
+  );
+};
+
+/**
+ * `source` as the index loader takes it, checked as a handler is made (`where` names it, as in
+ * `createAskHandler: index`), so that a misconfigured index fails the build or the deploy
+ * rather than every question. A path or a URL in place of the JSON, JSON that is not an ondocs
+ * index, and an index this version does not read throw. A Promise is awaited on the first
+ * request. Its JSON text, a function and a `remoteIndex` are loaded on the first request, as
+ * before.
+ */
+export function indexSource(
+  source: GivenIndex,
+  where: string,
+): IndexSource | (() => IndexSource | Promise<IndexSource>) {
+  if ((source as unknown) === undefined || (source as unknown) === null) {
+    throw new TypeError(`${where} is missing: import index from './ask-index.json' and pass it.`);
+  }
+  if (typeof source === 'function') return source;
+  if (typeof source === 'string') {
+    if (source.trimStart().startsWith('{')) return source;
+    // A URL of any scheme: http(s) for remoteIndex, file: for readFileSync, or one like s3://.
+    if (/^(?:[a-z][a-z0-9+.-]*:\/\/|file:)\S+$/i.test(source.trim())) {
+      throw notAUrl(where, source.trim());
+    }
+    if (/^[^\s{]+$/.test(source.trim())) {
+      const path = source.trim();
+      const specifier = /^\.{0,2}\//.test(path) ? path : `./${path}`;
+      throw new TypeError(
+        `${where} takes the index's JSON, not a path: import index from '${specifier}', or read it with readFileSync('${path}', 'utf8').`,
+      );
+    }
+    throw new TypeError(`${where} is not an ondocs index's JSON: it does not start with {.`);
+  }
+  if (source instanceof URL) throw notAUrl(where, source.href);
+  if (isThenable(source)) {
+    // Nothing awaits it before the first request: a rejection fails that request, not the process.
+    void source.then(undefined, () => undefined);
+    return () => source;
+  }
+  // The result of `loadIndex` is loaded already.
+  if ('bm25' in source && 'chunks' in source) return source;
+  // `import * as index` gives the module, with the JSON as its default.
+  const file: object =
+    !('format' in source) && 'default' in source && typeof source.default === 'object'
+      ? (source.default ?? source)
+      : source;
+  if (!('format' in file)) {
+    throw new TypeError(
+      `${where} is not an ondocs index: it has no format. Pass the ask-index.json that \`ondocs index\` or a plugin built.`,
+    );
+  }
+  if (file.format !== INDEX_FORMAT) {
+    throw new TypeError(
+      `${where} has format ${JSON.stringify(file.format)}, which ondocs ${version} does not read (it reads "${INDEX_FORMAT}"). If a newer ondocs built it, upgrade the endpoint's (npm i ondocs@latest); if an older one did, rebuild the index.`,
+    );
+  }
+  try {
+    validateIndexFile(file);
+  } catch (error) {
+    throw new TypeError(`${where} is not a valid ondocs index: ${(error as Error).message}`, {
+      cause: error,
+    });
+  }
+  return source;
 }
 
 const feedbackSchema = z.object({
@@ -413,6 +536,17 @@ function totalTokens(usage: LanguageModelUsage | undefined): number | undefined 
 export function createAskHandler(
   options: AskHandlerOptions,
 ): (request: Request) => Promise<Response> {
+  // Checked as the handler is made, so the build or the deploy fails, not every question.
+  if ((options.model as unknown) === undefined || (options.model as unknown) === null) {
+    throw new TypeError(
+      "createAskHandler: model is missing: pass the language model that answers, such as openai('gpt-5.4-mini') from @ai-sdk/openai, or an AI Gateway id such as 'openai/gpt-5.4-mini'.",
+    );
+  }
+  const source = indexSource(options.index, 'createAskHandler: index');
+  const localeSources = Object.entries(options.indexes ?? {}).map(
+    ([locale, given]) =>
+      [locale, indexSource(given, `createAskHandler: indexes.${locale}`)] as const,
+  );
   const siteName = options.siteName ?? 'this site';
   const maxQuestionLength = options.maxQuestionLength ?? 500;
   const { maxContextChars: contextChars, ...retrievalSettings } = options.retrieval ?? {};
@@ -432,6 +566,16 @@ export function createAskHandler(
     ((error: unknown) => {
       console.error('[ondocs]', error);
     });
+  // A remote index's failed checks go to `onError`, when there is one; else it logs them itself.
+  if (options.onError) {
+    for (const given of [options.index, ...Object.values(options.indexes ?? {})]) {
+      reportRemoteIndexErrors(given, options.onError);
+    }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- its name before 0.14, still read
+  const oldFailureMode = options.rateLimitFailure;
+  if (oldFailureMode !== undefined) warnDeprecated('rateLimitFailure', 'failureMode');
+  const failureMode = options.failureMode ?? oldFailureMode;
   const rateLimit =
     options.rateLimit === undefined
       ? defaultRateLimit(DEFAULT_RATE_LIMIT, 'questions', reportError)
@@ -447,13 +591,13 @@ export function createAskHandler(
     }
   };
 
-  const getIndex = indexLoader(options.index, options.embeddingModel);
+  const getIndex = indexLoader(source, options.embeddingModel);
   const localeIndexes = new Map(
-    Object.entries(options.indexes ?? {}).map(([locale, source]) => [
-      locale,
-      indexLoader(source, options.embeddingModel),
-    ]),
+    localeSources.map(([locale, given]) => [locale, indexLoader(given, options.embeddingModel)]),
   );
+  // The embedding models of the indexes this handler searches by keywords only, as it has no
+  // embeddingModel: each is mentioned once, not again for each new copy of a remote index.
+  const keywordOnly = new Set<string>();
 
   const json = (status: number, body: AskErrorBody, headers?: Record<string, string>): Response =>
     Response.json(body, { status, headers: { ...baseHeaders, ...headers } });
@@ -489,7 +633,7 @@ export function createAskHandler(
     : null;
   const guard = requestGuard({
     rateLimit,
-    failure: options.rateLimitFailure,
+    failure: failureMode,
     maxBodyBytes,
     report: reportError,
     now: options.budget?.now,
@@ -516,7 +660,7 @@ export function createAskHandler(
   /**
    * Runs a budget check: `{ response }` turns the request away, with a 429 once the day's budget
    * is spent or a 503 when the store fails; `{ result }` lets it through (`result` is `null` when
-   * the store failed and `rateLimitFailure` is `"open"`).
+   * the store failed and `failureMode` is `"open"`).
    */
   const overBudget = async <T extends { allowed: boolean; resetAt?: number }>(
     check: () => Promise<T>,
@@ -603,6 +747,15 @@ export function createAskHandler(
     } catch (error) {
       return misconfigured(request, error);
     }
+    // A warning, not an error for onError: an endpoint may leave the model out on purpose, as
+    // the GitHub Pages Worker does for an index embedded with a model Workers AI does not run.
+    const embeddedWith = index.vectors && index.embedding?.model;
+    if (!options.embeddingModel && embeddedWith && !keywordOnly.has(embeddedWith)) {
+      keywordOnly.add(embeddedWith);
+      console.warn(
+        `[ondocs] The index was embedded with "${embeddedWith}", but createAskHandler has no embeddingModel, so questions are matched on keywords only. Pass embeddingModel, the model the index was built with, for semantic search.`,
+      );
+    }
 
     const rewritten = await rewriteFollowUp(request, asked);
     if (rewritten instanceof Response) return rewritten;
@@ -670,7 +823,7 @@ export function createAskHandler(
       if (request.signal.aborted) return new Response(null, { status: CLIENT_CLOSED });
       // As for the rate limiter: failing closed by default, so an outage cannot switch it off.
       reportError(error);
-      if (options.rateLimitFailure !== 'open') return unavailable();
+      if (failureMode !== 'open') return unavailable();
       passed = true;
     }
     if (passed) return null;

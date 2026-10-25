@@ -12,7 +12,8 @@
  *   Docusaurus and Starlight llms plugins write them. It starts with a pointer to `llms.txt`.
  */
 import { mapLinkDestinations } from './text/links';
-import { parseAtxHeading } from './text/markdown';
+import { linkLabel, parseAtxHeading } from './text/markdown';
+import { trimSlashes, trimTrailingSlashes } from './text/slashes';
 import { plainHeading } from './text/slug';
 
 /** A page to write: what the index was built from, with its content as Markdown. */
@@ -72,7 +73,7 @@ export interface LlmsFile {
 export function markdownPath(url: string, base = '/'): string | null {
   const path = pathUnder(url, base);
   if (path === null) return null;
-  return `${decoded(path.replace(/(?:\/index)?\.html?$/i, '').replace(/^\/+|\/+$/g, '')) || 'index'}.md`;
+  return `${decoded(trimSlashes(path.replace(/(?:\/index)?\.html?$/i, ''))) || 'index'}.md`;
 }
 
 /**
@@ -89,7 +90,7 @@ export function pathUnder(url: string, base = '/'): string | null {
     }
   }
   path = path.split(/[?#]/)[0] ?? path;
-  const prefix = base.replace(/\/+$/, '');
+  const prefix = trimTrailingSlashes(base);
   if (prefix && (path === prefix || path.startsWith(`${prefix}/`)))
     path = path.slice(prefix.length);
   return path;
@@ -166,7 +167,7 @@ export function resolveMarkdownLinks(
 
 /** `path` (relative to `base`) from the site's root: `/docs/` and `intro.md` → `/docs/intro.md`. */
 export function rootedPath(path: string, base = '/'): string {
-  const prefix = `/${base.replace(/^\/+|\/+$/g, '')}/`.replace(/^\/\/$/, '/');
+  const prefix = `/${trimSlashes(base)}/`.replace(/^\/\/$/, '/');
   return `${prefix}${path}`;
 }
 
@@ -335,7 +336,7 @@ export function buildLlmsFiles(
       for (const page of group) {
         const copy = copies.get(page);
         const href = copy ? siteHref(copy, site) : pageHref(page.url, site);
-        const label = oneLine(page.title).replace(/[[\]]/g, '\\$&');
+        const label = linkLabel(oneLine(page.title));
         const note = page.description?.trim() ? `: ${oneLine(page.description)}` : '';
         lines.push(`- [${label}](${href})${note}`);
       }

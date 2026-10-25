@@ -7,7 +7,7 @@ order: 10
 
 The `ondocs/docusaurus` plugin adds ondocs to a Docusaurus 3 site with one line of config. After every `docusaurus build` it indexes the pages the site serves, and in the browser it adds the dialog with a floating "Ask AI" button.
 
-Live demo: [these docs as a Docusaurus site](https://ondocs-docusaurus.vercel.app), with the plugin, on Vercel.
+Live demo: [these docs as a Docusaurus site](https://ondocs-docusaurus.vercel.app), with the plugin, on Vercel ([source](https://github.com/dgesteves/ondocs/tree/main/examples/docusaurus)).
 
 ## Install the plugin
 
@@ -30,6 +30,18 @@ export default {
 ```
 
 The dialog posts questions to `/api/ask` on your site. Set `endpoint` for another path or host, as in `['ondocs/docusaurus', { endpoint: 'https://ask.example.com/api/ask' }]`; an endpoint on another origin must send CORS headers for your site's origin, as in [Cross-origin requests](/docs/security#cross-origin-requests). The `ASK_ENDPOINT` environment variable, when it is set as the site builds or starts, overrides both, which is how [local development](/docs/local-development) points the dialog at `ondocs dev`.
+
+## See it working in Docusaurus, with no key
+
+With the plugin in the config, three commands show the dialog answering on your machine, with no API key: build the site, start `ondocs dev`, which answers from the index the build wrote, and, in a second terminal, start the site pointed at it.
+
+```sh
+npm run build                                          # writes build/ask-index.json
+npx ondocs dev                                         # serves http://localhost:8787/api/ask
+ASK_ENDPOINT=http://localhost:8787/api/ask npm start   # in a second terminal
+```
+
+Then press ⌘I (Ctrl+I outside macOS), or click "Ask AI", and ask in words from your pages. Without a key, the build makes a keyword-only index unless you set `embedding: 'mock'`, and says so ("No embedding model: building a keyword-only index"), which is expected here. `ondocs dev` answers with the mock model either way: it quotes your pages, with citations. `docusaurus start` reminds you when the dialog posts to a path it does not serve. For answers on the live site, [deploy the endpoint](/docs/docusaurus#deploy-the-endpoint-for-docusaurus).
 
 ## What the plugin indexes
 
@@ -74,10 +86,6 @@ npx ondocs init
 ```
 
 On Vercel it writes `api/ask.ts` and `api/mcp.ts` and bundles `build/ask-index.json` with them in `vercel.json`; on Netlify and Cloudflare, their equivalents. On GitHub Pages, where Docusaurus sites often live and nothing runs but files, it writes a Cloudflare Worker that reads the index from the live site and answers with Workers AI, with no API key, and the dialog posts to it: set `endpoint` to its URL. See [Workers AI](/docs/workers-ai). The endpoints on Vercel, Netlify and Cloudflare embed questions with OpenAI's `text-embedding-3-small`, the plugin's default; each has a rate limit and a daily budget. See [Deploying](/docs/deployment) for what it writes on each host.
-
-## Try the Docusaurus plugin locally
-
-Build the site once, run `npx ondocs dev` in its folder, which answers from `build/ask-index.json`, and start the site with `ASK_ENDPOINT=http://localhost:8787/api/ask npm start`. Without a key, the build makes a keyword-only index unless you set `embedding: 'mock'`, and `ondocs dev` answers with the mock model either way. `docusaurus start` reminds you when the dialog posts to a path it does not serve.
 
 ## Docusaurus plugin options
 

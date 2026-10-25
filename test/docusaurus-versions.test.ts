@@ -145,6 +145,35 @@ describe('ondocs/docusaurus with versioned docs', () => {
     ]);
   });
 
+  it('reads version paths without their trailing slashes, and quickly on a long run of slashes', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const s = await site();
+    const slashed = docsPlugin('default', [
+      ['current', '/docs/next/', false],
+      ['2.0', '/docs//', true],
+      ['1.0', '/docs/1.0///', false],
+    ]);
+    const expected = ['/blog/release', '/community/support', '/docs/intro', '/docs/nextjs'];
+    expect(await build({ ...s, plugins: [slashed, ...s.plugins.slice(1)] })).toEqual(expected);
+
+    // A version path with 100,000 slashes inside it took about 15 s before.
+    const long = docsPlugin('default', [
+      ['current', '/docs/next', false],
+      ['2.0', '/docs', true],
+      ['0.1', `/docs/a${'/'.repeat(100_000)}x`, false],
+    ]);
+    const start = performance.now();
+    expect(await build({ ...s, plugins: [long, ...s.plugins.slice(1)] })).toEqual([
+      '/blog/release',
+      '/community/support',
+      '/docs/1.0/intro',
+      '/docs/intro',
+      '/docs/nextjs',
+    ]);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
+
   it('indexes every version when the docs plugin’s versions cannot be read', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);

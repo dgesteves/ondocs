@@ -6,7 +6,7 @@ For teams that run their own developer docs, at product, API and platform compan
 
 [![CI](https://img.shields.io/github/actions/workflow/status/dgesteves/ondocs/ci.yml?branch=main&label=CI&style=flat-square&labelColor=181c22)](https://github.com/dgesteves/ondocs/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ondocs?style=flat-square&labelColor=181c22&color=0e7490)](https://www.npmjs.com/package/ondocs)
-[![Script tag: 3.2 KB gzipped](https://img.shields.io/badge/script_tag-3.2_KB_gzipped-0e7490?style=flat-square&labelColor=181c22)](https://ondocs.vercel.app/docs/script-tag)
+[![Script tag: 3.5 KB gzipped](https://img.shields.io/badge/script_tag-3.5_KB_gzipped-0e7490?style=flat-square&labelColor=181c22)](https://ondocs.vercel.app/docs/script-tag)
 [![License: MIT](https://img.shields.io/badge/license-MIT-0e7490?style=flat-square&labelColor=181c22)](./LICENSE)
 [![Types](https://img.shields.io/badge/types-included-0e7490?style=flat-square&labelColor=181c22)](https://ondocs.vercel.app/docs/api)
 
@@ -28,9 +28,11 @@ For teams that run their own developer docs, at product, API and platform compan
 
 **Website: [ondocs.vercel.app](https://ondocs.vercel.app)**, whose [docs](https://ondocs.vercel.app/docs) answer with OpenAI and serve agents at `/api/mcp`. Formerly `ask-my-site` ([what changed](https://ondocs.vercel.app/docs/migrating)).
 
+**Feedback wanted:** say where it breaks in the [launch feedback thread](https://github.com/dgesteves/ondocs/discussions/220), see what's next in the [roadmap](https://github.com/dgesteves/ondocs/blob/main/ROADMAP.md), or pick up a [good first issue](https://github.com/dgesteves/ondocs/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22). If ondocs is useful to you, a star helps other people find it.
+
 <!-- npm-readme:video -->
 
-https://github.com/user-attachments/assets/2491c5ea-de70-471c-b11e-30591c074e6f
+https://github.com/user-attachments/assets/6922d183-beeb-4c0b-bea3-2e1aba1eee56
 
 <sub>The <a href="https://ondocs.vercel.app">live demo</a>: a streamed answer with citations, one opening the section it came from, then the one-line setups.</sub>
 
@@ -129,7 +131,7 @@ npx ondocs init --out public                       # plain HTML needs --out; Hug
 On a GitHub Pages project site, at `https://user.github.io/repo`, add `--base-url /repo` to the index command.
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/ondocs@0.13/dist/embed.global.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/ondocs@0.14/dist/embed.global.js" defer></script>
 ```
 
 **Try it without a key.** `npx ondocs index ./docs -e mock`, then `npx ondocs dev`, serves the ask endpoint and MCP server on localhost, with a mock model that quotes your docs. See [Try it locally](https://ondocs.vercel.app/docs/local-development).

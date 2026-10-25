@@ -344,6 +344,52 @@ describe('tools/call', () => {
     expect(body.error?.code).toBe(-32602);
   });
 
+  it('refuses an id or prefix longer than the 2,048 characters its schema allows, as a long query', async () => {
+    const { call, rpc } = setup();
+    const { body } = await rpc('tools/list');
+    const tools = (body.result?.tools ?? []) as {
+      name: string;
+      inputSchema: { properties: Record<string, { maxLength?: number }> };
+    }[];
+    for (const [tool, key] of [
+      ['fetch', 'id'],
+      ['list_pages', 'prefix'],
+    ] as const) {
+      const schema = tools.find((entry) => entry.name === tool)?.inputSchema.properties[key];
+      expect(schema?.maxLength).toBe(2048);
+      const refused = await call(tool, { [key]: `/${'x'.repeat(2048)}` });
+      expect(refused.isError).toBe(true);
+      expect(refused.content[0]?.text).toBe(`${key} is limited to 2048 characters.`);
+      // At the limit, the tool runs: no such page, and no pages under that prefix.
+      const ran = await call(tool, { [key]: `/${'x'.repeat(2047)}` });
+      expect(ran.content[0]?.text).not.toMatch(/limited to/);
+    }
+  });
+
+  it('treats null optional strings as omitted, while still rejecting null required strings', async () => {
+    const { call } = setup({ index: english, indexes: { fr: french } });
+    const all = await call('list_pages', {});
+    for (const args of [{ prefix: null }, { locale: null }, { prefix: null, locale: null }]) {
+      expect(await call('list_pages', args)).toEqual(all);
+    }
+    expect(await call('list_pages', { prefix: null, locale: 'fr' })).toEqual(
+      await call('list_pages', { locale: 'fr' }),
+    );
+    expect(await call('search', { query: 'Install the package', locale: null })).toEqual(
+      await call('search', { query: 'Install the package' }),
+    );
+    for (const [tool, args, key] of [
+      ['search', { query: null }, 'query'],
+      ['fetch', { id: null }, 'id'],
+    ] as const) {
+      const result = await call(tool, args);
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toBe(`${key} must be a non-empty string.`);
+    }
+    expect((await call('list_pages', { prefix: 42 })).isError).toBe(true);
+    expect((await call('list_pages', { locale: false })).isError).toBe(true);
+  });
+
   it('calls onToolCall with what was called and found, never the visitor’s IP', async () => {
     const { call, onToolCall } = setup();
     await call('search', { query: 'int8 vectors' });

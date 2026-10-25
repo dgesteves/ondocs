@@ -14,17 +14,17 @@ Add this tag to your base template, before `</body>` or in `<head>`:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.13/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.14/dist/embed.global.js"
   data-endpoint="/api/ask"
   defer
 ></script>
 ```
 
-The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.13.1`, in production.
+The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.14.1`, in production.
 
 ## Script size
 
-The embed script, `embed.global.js`, is 3.2 KB gzipped: the button, the shortcut and their styles. The dialog, with React and its styles, is a second file next to it, `embed-dialog.global.js` (97 KB gzipped), which the script loads the first time the dialog is wanted: a pointer over or focus on the button, the shortcut, or `open()`. A shortcut pressed while it loads still opens the dialog once it arrives. The page needs nothing else, and `defer` loads the script without blocking the page.
+The embed script, `embed.global.js`, is 3.5 KB gzipped: the button, the shortcut and their styles. The dialog, with React and its styles, is a second file next to it, `embed-dialog.global.js` (97 KB gzipped), which the script loads the first time the dialog is wanted: a pointer over or focus on the button, the shortcut, or `open()`. A shortcut pressed while it loads still opens the dialog once it arrives. The page needs nothing else, and `defer` loads the script without blocking the page.
 
 If you host the script yourself, copy both files to the same folder, or point at the dialog's file with `data-dialog-src`.
 
@@ -74,7 +74,7 @@ Any element with a `data-ondocs-open` attribute opens the dialog, and its value,
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.13/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.14/dist/embed.global.js"
   data-endpoint="/api/ask"
   data-launcher="false"
   defer

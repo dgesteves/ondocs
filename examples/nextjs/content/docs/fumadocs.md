@@ -5,6 +5,8 @@ section: Integrations
 order: 13.1
 ---
 
+Fumadocs has AI features of its own: `create-fumadocs-app --ai-chat` adds a chat route and panel, and `fumadocs-core/mcp` serves the docs to agents with `list_pages`, `get_page` and `search` tools. If they do what you need, keep them: they are native to the framework. Add ondocs for an Ask box with its limits and citations built in. It answers with one model call, where Fumadocs's chat route gives the model a search tool to call over several steps, and stops most questions the docs don't cover before the model. Questions are rate-limited by default, with a daily `budget` to set, and answers cite the sections they come from, at their anchors. Agents search the same index over [MCP](/docs/mcp) with no model call, and `ondocs eval` scores retrieval against questions whose answers you know, in CI.
+
 A Fumadocs site is a Next.js app, so ondocs is the same three pieces as in [Next.js](/docs/nextjs): an index built by the CLI from `content/docs`, route handlers for the ask and MCP endpoints, and the `<AskDialog />` component. The CLI reads `content/docs` as Fumadocs does, so every citation links to a page Fumadocs serves. This page follows a site made with `npm create fumadocs-app` and its Next.js template.
 
 ## Install for Fumadocs

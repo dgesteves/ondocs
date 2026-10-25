@@ -6,11 +6,11 @@ label: Indexing
 order: 20
 ---
 
-Indexing turns your pages into chunks, embeds each chunk and writes everything to one JSON file. The CLI does it for any folder; the Docusaurus, Astro and Starlight plugins do it after every build.
+Indexing turns your pages into chunks, embeds each chunk and writes everything to one JSON file. The CLI does it for any folder; the Docusaurus, Astro, Starlight and VitePress plugins do it after every build.
 
 ## Supported content
 
-The CLI reads `.md`, `.mdx`, `.markdown`, `.html` and `.htm` files recursively, and skips dot-folders and `node_modules`. MDX is reduced to text without being evaluated, so code fences stay as they are but components that render content from props are invisible to the index. HTML is read from each page's `<main>`, then its `<article>`s, then `<body>`, with navigation, scripts, forms and other chrome stripped and heading `id`s kept.
+The CLI reads `.md`, `.mdx`, `.markdown`, `.html` and `.htm` files recursively, and skips dot-folders, `node_modules` and the 404 page a generator writes: `404.html`, `404.htm` or `404/index.html`, at any depth. A page such as `404-errors.html` is still indexed. MDX is reduced to text without being evaluated, so code fences stay as they are but components that render content from props are invisible to the index. HTML is read from each page's `<main>`, then its `<article>`s, then `<body>`, with navigation, scripts, forms and other chrome stripped and heading `id`s kept.
 
 For content that is not on disk, such as a CMS, pass `{ id, url, title, content }` records through the `documents` field of a [config file](/docs/cli#the-config-file), or call `buildIndex` yourself.
 

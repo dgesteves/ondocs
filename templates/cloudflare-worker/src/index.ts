@@ -34,7 +34,11 @@ type Handler = (request: Request) => Promise<Response>;
 let handlers: Promise<{ ask: Handler; mcp: Handler }> | undefined;
 
 /** The site's URL, with a trailing slash, as a base for its files' URLs. */
-const siteOf = (env: Env): URL => new URL(`${env.SITE_URL.replace(/\/+$/, '')}/`);
+const siteOf = (env: Env): URL => {
+  let end = env.SITE_URL.length;
+  while (env.SITE_URL[end - 1] === '/') end -= 1;
+  return new URL(`${env.SITE_URL.slice(0, end)}/`);
+};
 
 /** CORS for the site's origin, and only for it. The dialog reads Retry-After on a 429. */
 const corsFor = (env: Env): Record<string, string> => ({

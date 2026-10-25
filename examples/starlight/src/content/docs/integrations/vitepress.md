@@ -8,7 +8,7 @@ sidebar:
 
 The `ondocs/vitepress` plugin adds ondocs to a VitePress site by wrapping its config. After every `vitepress build` it indexes the pages the site serves, writes `llms.txt` and the pages' Markdown copies, and adds the dialog to every page with a floating "Ask AI" button. It works with VitePress 1 and the VitePress 2 alphas, with the default theme or a theme of your own, and needs no theme file.
 
-Live demo: [these docs as a VitePress site](https://ondocs-vitepress.vercel.app), with the plugin, on Vercel.
+Live demo: [these docs as a VitePress site](https://ondocs-vitepress.vercel.app), with the plugin, on Vercel ([source](https://github.com/dgesteves/ondocs/tree/main/examples/vitepress)).
 
 ## Install for VitePress
 
@@ -41,13 +41,25 @@ Options go in a second argument: `withOndocs(defineConfig({ ... }), { endpoint: 
 
 `withOndocs` takes the config in any shape VitePress does, and returns it in the same shape: an object, a Promise of one, or a function of `{ command, mode }` that returns either. So it can wrap another wrapper that returns a Promise, such as `withPwa` from `@vite-pwa/vitepress`, or go inside it: `withOndocs(withPwa(defineConfig({ ... })))` and `withPwa(withOndocs(defineConfig({ ... })))` both work.
 
+## See it working in VitePress, with no key
+
+With the plugin in the config, three commands show the dialog answering on your machine, with no API key: build the site, start `ondocs dev`, which answers from the index the build wrote, and, in a second terminal, start `vitepress dev` pointed at it. `docs:build` and `docs:dev` are the scripts `vitepress init` adds:
+
+```sh
+npm run docs:build                                            # writes .vitepress/dist/ask-index.json
+npx ondocs dev                                                # serves http://localhost:8787/api/ask
+ASK_ENDPOINT=http://localhost:8787/api/ask npm run docs:dev   # in a second terminal
+```
+
+Then press ⌘I (Ctrl+I outside macOS), or click "Ask AI", and ask in words from your pages. Without a key, the build makes a keyword-only index unless you set `embedding: 'mock'`, and says so ("No embedding model: building a keyword-only index"), which is expected here. `ondocs dev` answers with the mock model either way: it quotes your pages, with citations. With the site in `docs/`, the index is `docs/.vitepress/dist/ask-index.json`, where `ondocs dev` finds it too. For answers on the live site, [deploy the endpoint](/integrations/vitepress/#deploy-the-endpoint-for-vitepress).
+
 ## What VitePress indexes
 
 After `vitepress build`, the index is written to `.vitepress/dist/ask-index.json`, or `docs/.vitepress/dist/ask-index.json` when the site is in `docs/`. It is at the URLs VitePress serves: under `base`, with or without `.html` as `cleanUrls` has it, at the paths `rewrites` give the pages, and with a page for each path of a dynamic route. Files in `srcExclude` are not pages, so they are not indexed, and neither are pages with `search: false` in their frontmatter, which VitePress's local search leaves out too, or with `<meta name="robots" content="noindex">`. To keep a site out of search engines and still index it, send an `X-Robots-Tag: noindex` header from the host rather than the meta tag.
 
 With `cleanUrls`, the index and citations have `/guide/setup`, and the host must serve `guide/setup.html` there. On Vercel, set `"cleanUrls": true` in `vercel.json`. Without it, VitePress moves between pages without loading them, so the site looks fine, but a page loaded at its URL is a 404: a citation opened in a new tab, a shared link, a reload.
 
-The plugin reads each page's Markdown as the default theme renders it, the `.vp-doc` element, without the navigation, sidebar, outline, edit link or pagination, and without the heading anchors and code blocks' language labels. A home page with only a hero has no Markdown, so it is skipped. A theme of your own that does not use `.vp-doc` names its content with `content: '.my-content'` (a tag, `#id`, `.class` or `[attribute]`, or a comma-separated list), and `ignore: '.toc'` leaves parts out. A page's title is its `<h1>`, else its title without the site's, and its description is its frontmatter `description`. Unchanged pages reuse their vectors from the previous build, cached in `node_modules/.cache/ondocs`.
+The plugin reads each page's Markdown as the default theme renders it, the `.vp-doc` element, without the navigation, sidebar, outline, edit link or pagination, and without the heading anchors and code blocks' language labels. A home page with only a hero has no Markdown, so it is skipped. A theme of your own that does not use `.vp-doc` names its content with `contentSelector: '.my-content'` (a tag, `#id`, `.class` or `[attribute]`, or a comma-separated list), and `ignoreSelector: '.toc'` leaves parts out. A page's title is its `<h1>`, else its title without the site's, and its description is its frontmatter `description`. Unchanged pages reuse their vectors from the previous build, cached in `node_modules/.cache/ondocs`.
 
 ## The dialog in VitePress
 
@@ -81,8 +93,6 @@ A VitePress site is static, so the endpoint is a function on its host. Write it 
 
 `llms.txt` links pages absolutely when the plugin knows the site's URL: `sitemap.hostname`, or the `siteUrl` option. When vitepress-plugin-llms is in your Vite plugins, the plugin leaves the llms files to it.
 
-To try it locally, build the site once, run `npx ondocs dev`, which answers from `.vitepress/dist/ask-index.json` or `docs/.vitepress/dist/ask-index.json`, and start `vitepress dev` with `ASK_ENDPOINT=http://localhost:8787/api/ask`.
-
 ## VitePress options
 
 | Option                                       | Default                            | What it does                                                                                           |
@@ -91,7 +101,7 @@ To try it locally, build the site once, run `npx ondocs dev`, which answers from
 | `embedding`, `dimensions`                    | OpenAI when a key is set           | The embedding model, named as the CLI names it.                                                        |
 | `embeddingModel`, `embeddingProviderOptions` | none                               | An AI SDK model object and its options, instead of `embedding`.                                        |
 | `chunking`                                   | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                                 |
-| `content`, `ignore`                          | `.vp-doc`                          | What to read from each page, and what to skip besides heading anchors and code labels.                 |
+| `contentSelector`, `ignoreSelector`          | `.vp-doc`                          | What to read from each page, and what to skip besides heading anchors and code labels.                 |
 | `indexFile`                                  | `ask-index.json`                   | Where the index is written in `.vitepress/dist/` and served from.                                      |
 | `exclude`                                    | `[]`                               | Path prefixes to leave out, relative to `base` and the locale.                                         |
 | `dialog`                                     |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar`, `theme`, `labels`, `locales`. |
