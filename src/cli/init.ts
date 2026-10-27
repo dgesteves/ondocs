@@ -6,6 +6,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { parse as parseYaml } from 'yaml';
+
 import { version } from '../../package.json' with { type: 'json' };
 import { REMOVED_IN } from '../deprecation';
 import {
@@ -52,7 +54,8 @@ Options:
       --out <dir>          --build-dir's name before 0.14, which works until 1.0
       --no-mcp             Write the ask endpoint only
       --dry-run            Print what it would write, and write nothing
-  -y, --yes                Overwrite files that differ without asking
+  -y, --yes                Overwrite files that differ, and use a host's config in a folder
+                           above the site's, without asking
   -h, --help               Show this help`;
 
 class InitError extends Error {}
@@ -171,9 +174,32 @@ function flatConfigString(source: string | null, key: string): string | undefine
 }
 
 /**
- * Calls `visit` with each character of JS source from `from` that is outside a string or a
- * comment, and the depth of the brackets around it (a closing bracket has its opening one's),
- * until `visit` returns true. Returns that character's index, or -1.
+ * The characters after which a `/` starts a regular expression rather than a division: where an
+ * expression can start, as after an operator or an arrow's `=>`, or the start of the source.
+ */
+const BEFORE_REGEX = new Set([...'(,=:[!&|?{};<>+-*%~^'.split(''), '']);
+
+/**
+ * The end of the regular expression literal whose opening `/` is at `open`: the index of its
+ * closing `/`, or -1 when there is none on its line, so the `/` is not one.
+ */
+function regexEnd(source: string, open: number): number {
+  let inClass = false;
+  for (let i = open + 1; i < source.length; i += 1) {
+    const char = source.charAt(i);
+    if (char === '\\') i += 1;
+    else if (char === '\n') return -1;
+    else if (char === '[') inClass = true;
+    else if (char === ']') inClass = false;
+    else if (char === '/' && !inClass) return i;
+  }
+  return -1;
+}
+
+/**
+ * Calls `visit` with each character of JS source from `from` that is outside a string, a comment
+ * or a regular expression literal, and the depth of the brackets around it (a closing bracket has
+ * its opening one's), until `visit` returns true. Returns that character's index, or -1.
  */
 function scanCode(
   source: string,
@@ -181,44 +207,131 @@ function scanCode(
   visit: (char: string, at: number, depth: number) => boolean,
 ): number {
   let depth = 0;
+  // The code before a `/`, which tells a regular expression from a division: the last character
+  // that is not a space, where it is, and whether a line has started since.
+  let previous = '';
+  let previousAt = -1;
+  let lineStart = true;
   for (let i = from; i < source.length; i += 1) {
     const char = source.charAt(i);
+    const next = source.charAt(i + 1);
     if (char === "'" || char === '"' || char === '`') {
       let end = i + 1;
       while (end < source.length && source.charAt(end) !== char) {
         end += source.charAt(end) === '\\' ? 2 : 1;
       }
+      previous = char;
+      previousAt = end;
+      lineStart = false;
       i = end;
-    } else if (char === '/' && source.charAt(i + 1) === '/') {
+      continue;
+    }
+    if (char === '/' && next === '/') {
       const end = source.indexOf('\n', i);
+      lineStart = true;
       i = end === -1 ? source.length : end;
-    } else if (char === '/' && source.charAt(i + 1) === '*') {
+      continue;
+    }
+    if (char === '/' && next === '*') {
       const end = source.indexOf('*/', i + 2);
       i = end === -1 ? source.length : end + 1;
-    } else {
-      if (char === '}' || char === ']' || char === ')') depth -= 1;
-      if (visit(char, i, depth)) return i;
-      if (char === '{' || char === '[' || char === '(') depth += 1;
+      continue;
     }
+    if (
+      char === '/' &&
+      (lineStart ||
+        BEFORE_REGEX.has(previous) ||
+        /(?:^|[^\w$])(?:return|typeof)$/.test(
+          source.slice(Math.max(0, previousAt - 6), previousAt + 1),
+        ))
+    ) {
+      const end = regexEnd(source, i);
+      if (end !== -1) {
+        // A value, as a string is: a `/` after it divides.
+        previous = '/';
+        previousAt = end;
+        lineStart = false;
+        i = end;
+        continue;
+      }
+    }
+    if (char === '\n') lineStart = true;
+    else if (!/\s/.test(char)) {
+      previous = char;
+      previousAt = i;
+      lineStart = false;
+    }
+    if (char === '}' || char === ']' || char === ')') depth -= 1;
+    if (visit(char, i, depth)) return i;
+    if (char === '{' || char === '[' || char === '(') depth += 1;
   }
   return -1;
 }
 
+/** Where a position in JS source is, when it is code. */
+interface CodePlace {
+  /** The depth of the brackets around it. */
+  depth: number;
+  /** The code character before it, past spaces and comments, and where that is. */
+  previous: string;
+  previousAt: number;
+  /**
+   * The innermost bracket around it: `{` for an object or a block, `names` for the `{` of an
+   * import's, an export's or a declaration's names, `[` or `(`, or '' at the top level.
+   */
+  bracket: '{' | 'names' | '[' | '(' | '';
+}
+
 /**
- * The bracket depth at `at` in JS source, and the code character before it, past spaces and
- * comments; null when `at` is in a string or a comment.
+ * For each of `positions`, in ascending order, where it is in JS source as code, or null when it
+ * is in a string, a comment or a regular expression. One pass over the source, however many
+ * positions there are.
  */
-function codeAt(source: string, at: number): { depth: number; previous: string } | null {
-  const found = { depth: -1, previous: '' };
-  const stop = scanCode(source, 0, (char, i, depth) => {
-    if (i >= at) {
-      found.depth = depth;
-      return true;
+function codePlaces(source: string, positions: readonly number[]): (CodePlace | null)[] {
+  const places: (CodePlace | null)[] = positions.map(() => null);
+  if (positions.length === 0) return places;
+  const brackets: CodePlace['bracket'][] = [];
+  let next = 0;
+  let previous = '';
+  let previousAt = -1;
+  scanCode(source, 0, (char, i, depth) => {
+    // A position the scan went past is in a string or a comment.
+    while (next < positions.length && (positions[next] ?? 0) < i) next += 1;
+    if (positions[next] === i) {
+      places[next] = { depth, previous, previousAt, bracket: brackets.at(-1) ?? '' };
+      next += 1;
     }
-    if (!/\s/.test(char)) found.previous = char;
-    return false;
+    if (char === '}' || char === ']' || char === ')') brackets.pop();
+    else if (char === '[' || char === '(') brackets.push(char);
+    else if (char === '{') {
+      const names = /\b(?:import|export|const|let|var)\s+(?:type\s+)?$/.test(
+        source.slice(Math.max(0, i - 24), i),
+      );
+      brackets.push(names ? 'names' : '{');
+    }
+    if (!/\s/.test(char)) {
+      previous = char;
+      previousAt = i;
+    }
+    return next >= positions.length;
   });
-  return stop === at ? found : null;
+  return places;
+}
+
+/** The matches of `pattern` in JS source that are code, with where each is. */
+function codeMatches(
+  source: string,
+  pattern: RegExp,
+): { match: RegExpExecArray; place: CodePlace }[] {
+  const matches = [...source.matchAll(new RegExp(pattern.source, 'g'))];
+  const places = codePlaces(
+    source,
+    matches.map((match) => match.index),
+  );
+  return matches.flatMap((match, i) => {
+    const place = places[i];
+    return place ? [{ match, place }] : [];
+  });
 }
 
 /**
@@ -246,7 +359,16 @@ function literalEntries(source: string, open: number): string[] {
 /** Reads a file next to the config, by a path relative to the config's folder. */
 type ReadRelative = (path: string) => string | null;
 
-/** A literal in a config: the source it is in, where its `{` or `[` is, and how to read imports. */
+/** Reads a file the config `file` imports, by its path from the config's folder. Never an .env file. */
+const nextTo =
+  (p: Project, file: string | undefined): ReadRelative =>
+  (path) =>
+    file && !/(?:^|\/)\.env/.test(path) ? p.read(posix.join(posix.dirname(file), path)) : null;
+
+/**
+ * A literal in a config: the source it is in, where it starts (its `{`, its `[` or its quote), and
+ * how to read imports.
+ */
 interface Literal {
   source: string;
   at: number;
@@ -266,7 +388,7 @@ const LOCALE = /^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*$/;
 function valueAt(source: string, from: number, read: ReadRelative, hops: number): Value {
   const rest = source.slice(from).replace(/^\s+/, '');
   const at = source.length - rest.length;
-  if (rest.startsWith('{') || rest.startsWith('[')) return { source, at, read };
+  if (/^[{['"`]/.test(rest)) return { source, at, read };
   const required = /^require\(\s*(['"])(\.{1,2}\/[^'"]+)\1\s*\)/.exec(rest);
   if (required) return exported(required[2] ?? '', 'default', read, hops);
   const name = /^([A-Za-z_$][\w$]*)\s*(?:[,;})\]]|$)/.exec(rest)?.[1];
@@ -274,22 +396,23 @@ function valueAt(source: string, from: number, read: ReadRelative, hops: number)
 }
 
 /** The first match of `pattern` in JS source that is code, not a string or a comment. */
-function codeMatch(source: string, pattern: RegExp): RegExpExecArray | undefined {
-  for (const match of source.matchAll(new RegExp(pattern.source, 'g'))) {
-    if (codeAt(source, match.index)) return match;
-  }
-  return undefined;
-}
+const codeMatch = (source: string, pattern: RegExp): RegExpExecArray | undefined =>
+  codeMatches(source, pattern)[0]?.match;
 
-const escapeName = (name: string): string => name.replace(/\$/g, '\\$');
+/** Text for a regular expression that matches it as it is. */
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** A JS identifier, such as the name an import gives. */
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
 /** The literal the variable `name` holds in JS source: declared there, or imported. */
 function declared(source: string, name: string, read: ReadRelative, hops: number): Value {
-  if (hops > 3) return UNREAD;
-  const id = escapeName(name);
+  if (hops > 3 || !IDENTIFIER.test(name)) return UNREAD;
+  const id = escapeRegExp(name);
+  // A type annotation, as in `const locales: Locales = {`, is on the line of its name.
   const declaration = codeMatch(
     source,
-    new RegExp(`(?<![\\w$.])(?:const|let|var)\\s+${id}\\s*(?::[^=]*)?=(?!=)\\s*`),
+    new RegExp(`(?<![\\w$.])(?:const|let|var)\\s+${id}\\s*(?::[^=;\\n]*)?=(?!=)\\s*`),
   );
   if (declaration) {
     return valueAt(source, declaration.index + declaration[0].length, read, hops + 1);
@@ -299,12 +422,13 @@ function declared(source: string, name: string, read: ReadRelative, hops: number
     new RegExp(`\\bimport\\s+${id}\\s+from\\s*(['"])(\\.{1,2}\\/[^'"]+)\\1`),
   );
   if (imported) return exported(imported[2] ?? '', 'default', read, hops + 1);
-  for (const match of source.matchAll(
-    /\bimport\s*\{([^}]*)\}\s*from\s*(['"])(\.{1,2}\/[^'"]+)\2/g,
-  )) {
-    for (const specifier of (match[1] ?? '').split(',')) {
+  const named = codeMatches(source, /\bimport\s*\{([^{}]*)\}\s*from\s*(['"])(\.{1,2}\/[^'"]+)\2/);
+  for (const { match } of named) {
+    // The names, without comments: `{ /* the site's */ i18n as locales }`.
+    const names = (match[1] ?? '').replace(/\/\/[^\n]*|\/\*[\s\S]*?(?:\*\/|$)/g, ' ');
+    for (const specifier of names.split(',')) {
       const [original, alias] = specifier.trim().split(/\s+as\s+/);
-      if (original && (alias ?? original) === name) {
+      if (original && IDENTIFIER.test(original) && (alias ?? original) === name) {
         return exported(match[3] ?? '', original, read, hops + 1);
       }
     }
@@ -314,7 +438,7 @@ function declared(source: string, name: string, read: ReadRelative, hops: number
 
 /** The literal a relative file exports as `name` (or as its default export). */
 function exported(path: string, name: string, read: ReadRelative, hops: number): Value {
-  if (hops > 3) return UNREAD;
+  if (hops > 3 || !IDENTIFIER.test(name)) return UNREAD;
   const extensions = ['', '.js', '.mjs', '.cjs', '.ts', '.mts', '.cts', '.json'];
   const candidates = [
     ...extensions.map((extension) => `${path}${extension}`),
@@ -329,14 +453,14 @@ function exported(path: string, name: string, read: ReadRelative, hops: number):
       const at = source.search(/[{[]/);
       return at === -1 ? UNREAD : { source, at, read: near };
     }
-    const id = escapeName(name);
+    const id = escapeRegExp(name);
     const start =
       name === 'default'
         ? codeMatch(source, /\bexport\s+default\s+|\bmodule\.exports\s*=\s*/)
         : codeMatch(
             source,
             new RegExp(
-              `\\bexport\\s+(?:const|let|var)\\s+${id}\\s*(?::[^=]*)?=\\s*|\\b(?:module\\.)?exports\\.${id}\\s*=\\s*`,
+              `\\bexport\\s+(?:const|let|var)\\s+${id}\\s*(?::[^=;\\n]*)?=\\s*|\\b(?:module\\.)?exports\\.${id}\\s*=\\s*`,
             ),
           );
     if (start) return valueAt(source, start.index + start[0].length, near, hops + 1);
@@ -346,44 +470,77 @@ function exported(path: string, name: string, read: ReadRelative, hops: number):
   return UNREAD;
 }
 
+/** Where an object literal is in its source: from its `{` to its `}`. */
+type Within = readonly [number, number];
+
 /**
- * The value `key` is set to in JS source, at the shallowest depth it is set at: `key: …` or the
- * shorthand `{ key }`, followed to its literal. `null` when `key` is not set.
+ * Where `key` is set in JS source, or in the object literal `within` it, at the shallowest depth
+ * it is set at: `key: …`, with where its value starts, or the shorthand `{ key }`. `null` when
+ * `key` is not set.
  */
-function propertyValue(source: string, key: string, read: ReadRelative): Value | null {
-  let best: { depth: number; value: Value } | null = null;
-  const pattern = new RegExp(
-    `(?<![\\w$.]|(?:const|let|var)\\s+)${key}(?:\\s*:(?!:)\\s*|(?=\\s*[,}]))`,
-    'g',
-  );
-  for (const match of source.matchAll(pattern)) {
-    const code = codeAt(source, match.index);
-    if (!code || (best && code.depth >= best.depth)) continue;
+function propertyAt(
+  source: string,
+  key: string,
+  within?: Within,
+): { shorthand: boolean; value: number } | null {
+  let best: { depth: number; shorthand: boolean; value: number } | null = null;
+  const pattern = new RegExp(`(?<![\\w$.])${escapeRegExp(key)}(?:\\s*:(?!:)\\s*|(?=\\s*[,}]))`);
+  for (const { match, place } of codeMatches(source, pattern)) {
+    if (within && (match.index <= within[0] || match.index >= within[1])) continue;
+    if (best && place.depth >= best.depth) continue;
+    // Not a declaration's name: `const key = …`.
+    const before = source.slice(Math.max(0, place.previousAt - 5), place.previousAt + 1);
+    if (/(?:^|[^\w$])(?:const|let|var)$/.test(before)) continue;
     const shorthand = !match[0].includes(':');
     // `{ key }` is an object's shorthand, but not an import's, an export's or a destructuring.
     if (
       shorthand &&
-      ((code.previous !== '{' && code.previous !== ',') ||
-        /\b(?:import|export|const|let|var)\s+(?:type\s+)?\{[^{}]*$/.test(
-          source.slice(0, match.index),
-        ))
+      (place.bracket !== '{' || (place.previous !== '{' && place.previous !== ','))
     ) {
       continue;
     }
-    best = {
-      depth: code.depth,
-      value: shorthand
-        ? declared(source, key, read, 0)
-        : valueAt(source, match.index + match[0].length, read, 0),
-    };
+    best = { depth: place.depth, shorthand, value: match.index + match[0].length };
   }
-  return best?.value ?? null;
+  return best && { shorthand: best.shorthand, value: best.value };
 }
 
-/** The text of the literal at `literal.at`, brackets included. */
-const literalText = ({ source, at }: Literal): string => {
+/**
+ * The value `key` is set to in JS source, at the shallowest depth it is set at: `key: …` or the
+ * shorthand `{ key }`, followed to its literal. `null` when `key` is not set.
+ */
+function propertyValue(
+  source: string,
+  key: string,
+  read: ReadRelative,
+  within?: Within,
+): Value | null {
+  const found = propertyAt(source, key, within);
+  if (!found) return null;
+  return found.shorthand ? declared(source, key, read, 0) : valueAt(source, found.value, read, 0);
+}
+
+/** The string `key` is set to in JS source, as `propertyValue` finds it, if it is one. */
+function propertyString(
+  source: string | null,
+  key: string,
+  read: ReadRelative,
+  within?: Within,
+): string | undefined {
+  const value = source ? propertyValue(source, key, read, within) : null;
+  if (value === null || value === UNREAD) return undefined;
+  const text = /^(['"`])([^'"`\\]*)\1/.exec(value.source.slice(value.at, value.at + 2048))?.[2];
+  // A template literal with an expression in it is not a string init can read.
+  return text?.includes('${') ? undefined : text;
+}
+
+/** Whether JS source sets `key`, as `propertyValue` finds it: to a literal, or to anything else. */
+const propertySet = (source: string | null, key: string): boolean =>
+  !!source && propertyAt(source, key) !== null;
+
+/** Where the literal at `literal.at` is, from its opening bracket to its closing one. */
+const literalSpan = ({ source, at }: Literal): Within => {
   const close = scanCode(source, at, (_, i, depth) => i > at && depth === 0);
-  return close === -1 ? source.slice(at) : source.slice(at, close + 1);
+  return [at, close === -1 ? source.length : close];
 };
 
 /** The string a `key: '…'` entry gives, if it is one. */
@@ -429,16 +586,17 @@ function readLocales(
   // Docusaurus's and Astro's `i18n`, or, without one, the config's own `locales`.
   const i18n = propertyValue(source, 'i18n', read);
   if (i18n === UNREAD) return { locales: [], unread: true };
+  // The keys of the i18n object, wherever it is declared, or of the whole config.
   const scope =
     i18n?.source.charAt(i18n.at) === '{'
-      ? { source: literalText(i18n), read: i18n.read }
+      ? { source: i18n.source, read: i18n.read, within: literalSpan(i18n) }
       : { source, read };
-  const list = propertyValue(scope.source, 'locales', scope.read);
+  const list = propertyValue(scope.source, 'locales', scope.read, scope.within);
   if (list === null) return none;
   if (list === UNREAD || list.source.charAt(list.at) !== '[') {
     return { locales: [], unread: list === UNREAD };
   }
-  const defaultLocale = configString(scope.source, 'defaultLocale');
+  const defaultLocale = propertyString(scope.source, 'defaultLocale', scope.read, scope.within);
   const locales = literalEntries(list.source, list.at).flatMap((entry) => {
     const quoted = /^(['"`])([^'"`]+)\1/.exec(entry)?.[2];
     if (quoted) return [{ path: quoted, codes: [quoted] }];
@@ -547,7 +705,8 @@ function detectSite(
         indexFile: `${outDir}/ask-index.json`,
         indexPath: '/ask-index.json',
         ...(adapter ? { adapter } : {}),
-        ...(configSets(source, ['site']) ? { urlInConfig: true } : {}),
+        // `site: …`, or the shorthand `site,` from a const, as Starlight's own docs have it.
+        ...(propertySet(source, 'site') ? { urlInConfig: true } : {}),
         ...siteLocales(p, astro, source, starlight, `${outDir}/ask-index.json`),
         ...pluginIn(
           astro,
@@ -557,7 +716,7 @@ function detectSite(
             : /['"`]ondocs\/astro['"`]/,
         ),
       },
-      url(joinUrl(configString(source, 'site'), configString(source, 'base'))),
+      url(joinUrl(propertyString(source, 'site', nextTo(p, astro)), configString(source, 'base'))),
     );
   }
 
@@ -720,10 +879,7 @@ function siteLocales(
   indexFile: string,
 ): { locales?: string[]; warnings?: string[] } {
   const config = file ?? 'the config';
-  // A file the config imports, by its path from the config's folder. Never an .env file.
-  const read: ReadRelative = (path) =>
-    file && !/(?:^|\/)\.env/.test(path) ? p.read(posix.join(posix.dirname(file), path)) : null;
-  const named = readLocales(source, starlight, read);
+  const named = readLocales(source, starlight, nextTo(p, file));
   const built = builtLocales(p, indexFile);
   const dir = `${posix.dirname(indexFile)}/`;
   const warnings: string[] = [];
@@ -799,35 +955,27 @@ const pathFrom = (from: string, to: string): string => relative(from, to).split(
  * (package.json's `workspaces`), when `p` is a workspace's root, else null.
  */
 function workspacePatterns(p: Project): string[] | null {
+  const strings = (list: unknown): string[] =>
+    Array.isArray(list) ? list.filter((item): item is string => typeof item === 'string') : [];
   const yaml = p.read('pnpm-workspace.yaml');
   if (yaml !== null) {
-    const inline = /^packages\s*:\s*\[([^\]\n]*)\]/m.exec(yaml)?.[1];
-    if (inline !== undefined) {
-      return inline
-        .split(',')
-        .map((item) => item.trim().replace(/^(['"])(.*)\1$/, '$2'))
-        .filter(Boolean);
+    try {
+      // A broken file throws; its warnings are not this command's to print.
+      const parsed: unknown = parseYaml(yaml, { logLevel: 'error' });
+      return strings(
+        parsed && typeof parsed === 'object' ? (parsed as { packages?: unknown }).packages : null,
+      );
+    } catch {
+      // Still a workspace's root, whose packages init cannot list.
+      return [];
     }
-    // A block list under `packages:`, up to the next key.
-    const lines = yaml.split('\n');
-    const start = lines.findIndex((line) => /^packages\s*:/.test(line));
-    const patterns: string[] = [];
-    for (const line of start === -1 ? [] : lines.slice(start + 1)) {
-      if (/^\s*(?:#.*)?$/.test(line)) continue;
-      const item = /^\s+-\s*(['"]?)([^'"#\s]+)\1\s*(?:#.*)?$/.exec(line)?.[2];
-      if (!item) break;
-      patterns.push(item);
-    }
-    return patterns;
   }
   const workspaces = p.pkg?.workspaces;
   const list: unknown =
     workspaces && typeof workspaces === 'object' && !Array.isArray(workspaces)
       ? (workspaces as { packages?: unknown }).packages
       : workspaces;
-  return Array.isArray(list)
-    ? list.filter((item): item is string => typeof item === 'string')
-    : null;
+  return Array.isArray(list) ? strings(list) : null;
 }
 
 /** A workspace pattern, such as `packages/*`, as a regular expression for a package's folder. */
@@ -1042,22 +1190,46 @@ function hostBase(host: Host, at: Project, p: Project): Project {
  * deploy` script: every new Docusaurus site has one, wherever it is hosted.
  */
 function deploysToPages(p: Project): boolean {
+  return pagesPackage(p) || pagesWorkflow(p) !== undefined;
+}
+
+/** Whether the package.json has the gh-pages package or a script that runs it. */
+function pagesPackage(p: Project): boolean {
   const scripts = Object.values(p.pkg?.scripts ?? {}).filter((s) => typeof s === 'string');
-  if (p.deps.has('gh-pages') || scripts.some((s) => /\bgh-pages\b/.test(s))) {
-    return true;
-  }
-  const dir = join(p.root, '.github', 'workflows');
+  return p.deps.has('gh-pages') || scripts.some((s) => /\bgh-pages\b/.test(s));
+}
+
+/** The GitHub Actions workflow that deploys to GitHub Pages, as `.github/workflows/docs.yml`. */
+function pagesWorkflow(p: Project): string | undefined {
   let files: string[];
   try {
-    files = readdirSync(dir).filter((file) => /\.ya?ml$/.test(file));
+    files = readdirSync(join(p.root, '.github', 'workflows')).filter((file) =>
+      /\.ya?ml$/.test(file),
+    );
   } catch {
-    return false;
+    return undefined;
   }
-  return files.some((file) =>
-    /actions\/deploy-pages|actions\/upload-pages-artifact|peaceiris\/actions-gh-pages|JamesIves\/github-pages-deploy-action/.test(
-      p.read(join('.github', 'workflows', file)) ?? '',
-    ),
-  );
+  return files
+    .map((file) => `.github/workflows/${file}`)
+    .find((file) =>
+      /actions\/deploy-pages|actions\/upload-pages-artifact|peaceiris\/actions-gh-pages|JamesIves\/github-pages-deploy-action/.test(
+        p.read(file) ?? '',
+      ),
+    );
+}
+
+/** The file in the folder `at` that names `host`: `netlify.toml`, `.github/workflows/docs.yml`. */
+function hostFile(host: Host, at: Project): string | undefined {
+  switch (host) {
+    case 'vercel':
+      return first(at, ['vercel.json', '.vercel']);
+    case 'netlify':
+      return first(at, ['netlify.toml', '.netlify']);
+    case 'cloudflare':
+      return first(at, WRANGLER);
+    case 'github-pages':
+      return pagesWorkflow(at) ?? (pagesPackage(at) ? 'package.json' : undefined);
+  }
 }
 
 /** Cloudflare Pages (`pages_build_output_dir`, or no wrangler config) or a Worker with assets. */
@@ -1532,12 +1704,7 @@ function planFor(
   }
 
   // The host's config file, which init found in a folder above the site's.
-  const config =
-    host === 'cloudflare'
-      ? first(hostAt, WRANGLER)
-      : host === 'vercel'
-        ? first(hostAt, ['vercel.json', '.vercel'])
-        : first(hostAt, ['netlify.toml', '.netlify']);
+  const config = host === 'github-pages' ? undefined : hostFile(host, hostAt);
   const builds =
     host === 'cloudflare'
       ? ''
@@ -1545,7 +1712,7 @@ function planFor(
   const reads =
     host === 'cloudflare'
       ? ''
-      : `, and read the index as ${hosted.indexFile}${elsewhere ? ', its path from there' : ''}`;
+      : `, with the index bundled as ${hosted.indexFile}${elsewhere ? ', its path from there' : ''}`;
   const where =
     hostAt === p || site.kind === 'next' || host === 'github-pages' || !config
       ? undefined
@@ -1662,9 +1829,11 @@ async function chooseHost(found: FoundHost[], p: Project, io: CliIO): Promise<Ho
   }
 }
 
-async function confirm(io: CliIO, question: string): Promise<boolean> {
+/** Asks a yes-or-no question; an empty answer is `byDefault`. No without a terminal to ask in. */
+async function confirm(io: CliIO, question: string, byDefault = false): Promise<boolean> {
   if (!io.prompt) return false;
-  return /^y(es)?$/i.test((await io.prompt(`${question} [y/N] `)).trim());
+  const answer = (await io.prompt(`${question} ${byDefault ? '[Y/n]' : '[y/N]'} `)).trim();
+  return answer === '' ? byDefault : /^y(es)?$/i.test(answer);
 }
 
 /** Runs `ondocs init`. Returns the exit code: 0 done, 1 something left undone, 2 usage. */
@@ -1700,7 +1869,7 @@ export async function init(args: string[], io: CliIO): Promise<number> {
     const site = detectSite(p, flags);
     const above = foldersAbove(p);
     const ctx = installer(p, above);
-    const detected = findHosts(p, above);
+    let detected = findHosts(p, above);
 
     // Astro with an adapter: the integration serves the endpoints itself, on any host.
     if ((site.kind === 'astro' || site.kind === 'starlight') && site.adapter) {
@@ -1723,6 +1892,19 @@ export async function init(args: string[], io: CliIO): Promise<number> {
       return 0;
     }
 
+    // A host configured only in a folder above can serve another of the workspace's apps, and
+    // init would write at that folder: it asks first, or takes --yes or --host.
+    const only = detected.length === 1 ? detected[0] : undefined;
+    if (only && only.at !== p && !flags.host && !flags.yes) {
+      const file = `${pathFrom(p.root, only.at.root)}/${hostFile(only.host, only.at) ?? ''}`;
+      const found = `${HOST_LABELS[only.host]} is configured in ${file}, above the site's folder.`;
+      if (!io.prompt) {
+        throw new InitError(
+          `${found} If it serves this site, run init again with --yes; if not, pass --host ${HOSTS.join('|')}.`,
+        );
+      }
+      if (!(await confirm(io, `${found} Does it serve this site?`, true))) detected = [];
+    }
     const host =
       flags.host ??
       (detected.length === 1 && detected[0] ? detected[0].host : await chooseHost(detected, p, io));

@@ -31,9 +31,9 @@ Run it again whenever you like. Files that are already as it would write them ar
 
 ### In a monorepo
 
-Run init in the docs site's package, such as `website/` or `docs/`. At the workspace's root it writes nothing: it lists the packages that have a site's config and says which folder to run it in.
+Run init in the docs site's package, such as `website/` or `docs/`. At a workspace's root with no site config of its own, it writes nothing: it lists the packages that have a site's config and says which folder to run it in.
 
-The host's config can be in a folder above the site's, up to the workspace's or the repository's root, and init finds it there. A root `netlify.toml` that builds from the root, as `base = "/"` with `publish = "website/build"`, gets the functions in the root's `netlify/functions`, reading the index as `website/build/ask-index.json`, and the `included_files` for it. A `base` that names the site's folder keeps the functions in the site's folder. A root `vercel.json` gets them in the root's `api/`, and a root wrangler config gets the Worker or the Pages Functions next to it. When the site's folder configures one host and a folder above it another, init asks which one serves the site, or takes `--host`.
+The host's config can be in a folder above the site's, up to the workspace's or the repository's root, and init finds it there. As that config can deploy another of the workspace's apps, init asks whether it serves the site before it uses it; without a terminal to ask in, pass `--yes` to use it, or `--host` to name the host. A root `netlify.toml` that builds from the root, as `base = "/"` with `publish = "website/build"`, gets the functions in the root's `netlify/functions`, with `included_files` for `website/build/ask-index.json`. A `base` that names the site's folder keeps the functions in the site's folder. A root `vercel.json` gets them in the root's `api/`, and a root wrangler config gets the Worker or the Pages Functions next to it. When the site's folder configures one host and a folder above it another, init asks which one serves the site, or takes `--host`.
 
 The install steps use the package manager of the workspace's lockfile: `pnpm --filter <package> add` or `yarn workspace <package> add` for the site's package. Functions at the root import `ondocs/server` and `@ai-sdk/openai` from there, so a step installs them at the root too, with `pnpm add -w`, or `yarn add` run in the root.
 
@@ -115,12 +115,11 @@ On Netlify, `init` writes a function at `netlify/functions/ask.mts` that rate-li
 ```ts
 // netlify/functions/ask.mts
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { openai } from '@ai-sdk/openai';
 import { createAskHandler, memoryRateLimit } from 'ondocs/server';
 
 export default createAskHandler({
-  index: () => readFile(join(process.cwd(), 'build/ask-index.json'), 'utf8'),
+  index: () => readFile(new URL('../../build/ask-index.json', import.meta.url), 'utf8'),
   model: openai('gpt-5.4-mini'),
   embeddingModel: openai.embedding('text-embedding-3-small'),
   rateLimit: memoryRateLimit({
@@ -139,6 +138,8 @@ Include the index in the function's bundle with `netlify.toml`:
 [functions.ask]
   included_files = ["build/ask-index.json"]
 ```
+
+The function reads the index by its path from its own file, not from the working directory. Netlify runs a function from the root of its bundle, and in a workspace that installs its dependencies at its root, the bundle's root is the workspace's, not the base directory.
 
 ## Deploy to Cloudflare
 

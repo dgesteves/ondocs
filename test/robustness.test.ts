@@ -10,6 +10,7 @@ import {
   fromMarkdown,
   slugify,
 } from '../src';
+import { configLocales } from '../src/cli/init';
 import { nextHeadingIds } from '../src/node/next';
 import { dropHeadingFootnotes } from '../src/text/markdown';
 import type { SourceDocument } from '../src';
@@ -281,6 +282,24 @@ describe('linear-time loaders on unclosed constructs', () => {
     ],
   ])('%s', (_, parse) => {
     expect(timed(parse)).toBeLessThan(BUDGET_MS);
+  });
+});
+
+describe('linear-time reading of a site config by init', () => {
+  // A megabyte of config, as a site's config file with a large sidebar can be. When each match
+  // was checked from the start of the source, the first two took 11.7 s and 14.3 s at 128 KB,
+  // and the third 35 s.
+  const megabyte = (unit: string) => unit.repeat(Math.ceil(2 ** 20 / unit.length));
+  it.each([
+    ['many `locales:` properties', `export default { ${megabyte('locales: x, ')} };`, false],
+    ['many `{ i18n }` shorthands', `export default [${megabyte('{ i18n }, ')}];`, false],
+    [
+      'many commented-out locales',
+      `${megabyte("// locales: { fr: { label: 'Français' } },\n")}export default {};`,
+      true,
+    ],
+  ])('%s', (_, config, starlight) => {
+    expect(timed(() => configLocales(config, starlight))).toBeLessThan(BUDGET_MS);
   });
 });
 

@@ -46,6 +46,9 @@ describe('the example packages', () => {
       .split('\n')
       .filter((file) => /\.(?:json|ya?ml|mjs|js|ts|md)$/.test(file))
       .filter((file) => !file.endsWith('CHANGELOG.md') && existsSync(join(root, file)))
+      // Not the tests: their fixtures are workspaces of their own, and the commands init prints
+      // for them filter on those workspaces' packages, which this repository does not have.
+      .filter((file) => !file.startsWith('test/'))
       .flatMap((file) =>
         read(file)
           .split('\n')
