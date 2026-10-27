@@ -144,13 +144,24 @@ export interface McpHandlerOptions {
   /**
    * Which `Origin`s may call the endpoint, as `['https://app.example.com']`, or `'*'` for any,
    * with the CORS headers a page on them needs. With a list, a request from any other origin gets
-   * a 403 (MCP's check against DNS rebinding); include the origins of hosted clients you use, as
-   * claude.ai's servers send one. By default every origin is answered but none gets CORS headers,
-   * so a page on another site cannot read the answers, while hosted clients and those outside a
-   * browser work: the docs are public, and a server on the public internet gains nothing from
-   * the check.
+   * a 403; include the origins of hosted clients you use, as claude.ai's servers send one. A
+   * request from the endpoint's own origin is always allowed, so against DNS rebinding set
+   * `allowedHosts` too. By default every origin is answered but none gets CORS headers, so a page
+   * on another site cannot read the answers, while hosted clients and those outside a browser
+   * work: the docs are public, and a server on the public internet gains nothing from the check.
    */
   allowedOrigins?: AllowedOrigins;
+  /**
+   * The host names the endpoint answers for, as `['docs.internal.example']`, checked against each
+   * request's `Host` header before anything else: a request for any other host gets a 403. A
+   * name with a port, as `localhost:4000`, matches that port only. A page on another site can
+   * reach a server on a private network through a name of its own that resolves there (DNS
+   * rebinding); its requests then carry that name as both `Host` and `Origin`, which the Origin
+   * check reads as the endpoint's own. Set it for docs served on an intranet or on this machine,
+   * and leave `siteUrl` unset only with it, as result URLs are then built from `Host`. Default:
+   * any host.
+   */
+  allowedHosts?: readonly string[];
   /** Extra headers on every response. */
   headers?: Record<string, string>;
   /** Called after each tool call, e.g. to count agent traffic. Errors in it are reported, not raised. */
@@ -205,8 +216,29 @@ const UNSUPPORTED_VERSION = -32022;
 const DEFAULT_RATE_LIMIT = 60;
 
 /** What a browser client may send: 2026-07-28's routing headers, and 2025's session ones. */
-const CORS_HEADERS =
+export const CORS_HEADERS =
   'content-type, accept, authorization, mcp-protocol-version, mcp-method, mcp-name, mcp-session-id, last-event-id';
+
+/**
+ * Whether a request's `Host` is one of `allowed`, case-insensitively: a name with a port matches
+ * that port only, and one without matches any port. Everything passes without a list.
+ */
+function hostCheck(allowed: readonly string[] | undefined): (host: string) => boolean {
+  if (allowed === undefined) return () => true;
+  const hosts = allowed.map((host) => {
+    if (typeof host !== 'string' || !/^(?:[a-z\d.-]+|\[[\da-f:.]+\])(?::\d{1,5})?$/i.test(host)) {
+      throw new TypeError(
+        `allowedHosts takes host names, such as "docs.example.com" or "localhost:4000" (got ${JSON.stringify(host)}).`,
+      );
+    }
+    return host.toLowerCase();
+  });
+  return (host) => {
+    const given = host.toLowerCase();
+    const name = given.replace(/:\d+$/, '');
+    return hosts.some((entry) => entry === given || entry === name);
+  };
+}
 
 /** How the MCP endpoint words each refusal of the request guard, as a JSON-RPC error. */
 const REFUSALS: Record<RefusalReason, { code: number; message: string }> = {
@@ -271,6 +303,7 @@ export function createMcpHandler(
       `siteUrl must be an absolute URL (got ${JSON.stringify(options.siteUrl)}).`,
     );
   }
+  const hostAllowed = hostCheck(options.allowedHosts);
   const getIndex = indexLoader(source, options.embeddingModel);
   const localeIndexes = new Map(
     localeSources.map(([locale, given]) => [locale, indexLoader(given, options.embeddingModel)]),
@@ -340,8 +373,13 @@ export function createMcpHandler(
         extra?.headers,
       );
 
-    // MCP has HTTP servers check `Origin`, so a page on another site cannot reach a private
-    // server through a name that resolves to it (DNS rebinding); see `allowedOrigins`.
+    // A page on another site can reach a private server through a name of its own that resolves
+    // to it (DNS rebinding). Its requests carry that name as `Host`, and as `Origin`, which MCP
+    // has HTTP servers check: see `allowedHosts` and `allowedOrigins`.
+    const host = request.headers.get('host') ?? new URL(request.url).host;
+    if (!hostAllowed(host)) {
+      return rpcError(403, null, SERVER_ERROR, `Host ${host} is not allowed.`);
+    }
     const origin = request.headers.get('origin');
     if (origin !== null && !cors.allows(origin, request)) {
       return rpcError(403, null, SERVER_ERROR, `Origin ${origin} is not allowed.`);

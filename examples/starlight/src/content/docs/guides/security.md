@@ -65,7 +65,7 @@ The counts are kept in memory by default, so on a serverless platform each insta
 
 ## Check for bots
 
-A fleet of addresses gets past a per-client rate limit, and can use up the day's budget before your readers ask anything. `challenge: turnstile({ secretKey })` has each question carry a Cloudflare Turnstile token, which the dialog solves, invisibly for most visitors, and the endpoint checks before it spends anything. See [Bot check with Turnstile](/guides/bot-challenge/).
+A fleet of addresses gets past a per-client rate limit, and can use up the day's budget before your readers ask anything. `challenge: turnstile({ secretKey })` has each question carry a Cloudflare Turnstile token, which the dialog solves, invisibly for most visitors, and the endpoint checks before it spends anything. See [Bot check with Turnstile](/guides/bot-challenge/). For a widget that lists several hostnames, `turnstile({ secretKey, hostnames: ['docs.example.com'] })` also checks where each token was solved, and refuses one from any other hostname with `challenge_failed`.
 
 ## Cache repeated questions
 
@@ -77,6 +77,10 @@ The endpoint only accepts `application/json` bodies and answers anything else wi
 
 Each listed origin gets `access-control-allow-origin` with its own origin and `vary: origin`, its preflight is told it may post JSON, and the dialog on it can read `Retry-After` when a question is rate-limited. Any other origin gets no CORS headers. Its requests are still answered, so the site's own pages and clients outside a browser are never turned away, but a browser on it cannot get past the preflight. `'*'` allows every origin, and every site's visitors can then spend your budget. [This site's endpoint](https://github.com/dgesteves/ondocs/blob/main/examples/nextjs/lib/ask-handler.ts) lists its three live demos this way. When the pages on the other origin are a copy of the site's, `sourceUrls` sends the citations to their own pages; see [The ask dialog](/reference/ask-dialog/#citations-and-navigation).
 
+## MCP on a private network
+
+The [MCP endpoint](/integrations/mcp/) answers any `Origin` by default, with CORS headers for none, and with `allowedOrigins` it refuses the origins it does not list. A page on another site can still reach docs served on an intranet or on your machine through DNS rebinding: a name of its own that it points at the server's address. Its requests then carry that name as `Host`, and as `Origin`, which reads as the endpoint's own. `allowedHosts: ['docs.internal.example']` on `createMcpHandler` answers only requests for the hosts it lists, and gives any other a 403. Set `siteUrl` too, or result URLs are built from `Host`. `ondocs dev` checks `Host` by itself.
+
 ## Input limits
 
 Questions are limited to 500 characters (`maxQuestionLength`), and request bodies to 64 KiB (`maxBodyBytes`), counted while the body is read so a chunked upload cannot exhaust memory. The body is validated with zod, and malformed requests get a 400 with a JSON error.
@@ -85,10 +89,58 @@ Questions are limited to 500 characters (`maxQuestionLength`), and request bodie
 
 Sources and the question reach the model verbatim, inside tags that end in a random suffix drawn per request, such as `<sources-3f9a…>`. No text on your site or in a question can close the sources block or pose as the question, however it spells a tag, and the instructions tell the model to treat both as data. That stops injected text from forging structure, not from being read: index only content you trust.
 
+Text a reader never sees is the easiest to slip past a review of the rendered page, so the HTML loader leaves out elements hidden from readers: those with the `hidden` attribute, or an inline `display: none` or `visibility: hidden`. It keeps the inactive tabs' panels, `hidden="until-found"` and what a collapsed `<details>` holds, which readers open, and `aria-hidden` text, which sighted readers see. The Markdown loader indexes the text of raw HTML in a page, hidden or not, so review raw HTML in the source.
+
 ## How answers are rendered
 
-The answer is rendered from a small Markdown subset into React nodes, never as HTML. Links are allow-listed to http(s), mailto and relative URLs, and `[n]` becomes a link only if the server actually sent source `n`. If your pages could carry injected text, set the dialog's `links: 'sources'` (`data-links="sources"` on the script tag): links in an answer then stay links only when they point at one of its source pages, so a model talked into it cannot show visitors another site's login page. Model errors are masked in the stream, so provider details never reach the browser, and reported to `onError`.
+The answer is rendered from a small Markdown subset into React nodes, never as HTML. Links are allow-listed to http(s), mailto and relative URLs, and `[n]` becomes a link only if the server actually sent source `n`. By default (`links: 'sources'`), a link in an answer stays a link only when it points at one of the answer's source pages, at any anchor, so a model talked into it cannot show visitors another site's login page; any other link shows as its text. `links: 'all'` (`data-links="all"` on the script tag) keeps every allow-listed link, and opens other sites' in a new tab. Up to ondocs 0.15 that was the default: set it to keep answers' links to pages they do not cite. Model errors are masked in the stream, so provider details never reach the browser, and reported to `onError`.
+
+## Pin the script tag
+
+`ondocs@0.15` in the script tag's URL follows that minor version's patches, so a new patch reaches your pages without a change on your side. In production, pin an exact version and check both files with [Subresource Integrity](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity): the browser then runs them only if they are the bytes you checked. `integrity` covers `embed.global.js`, and `data-dialog-integrity` the dialog's file, `embed-dialog.global.js`, which the script adds to the page when the dialog is first wanted:
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.15.0/dist/embed.global.js"
+  integrity="sha384-…"
+  data-dialog-integrity="sha384-…"
+  crossorigin="anonymous"
+  data-endpoint="/api/ask"
+  defer
+></script>
+```
+
+Get the two hashes for the version you pin:
+
+```sh
+for file in embed.global.js embed-dialog.global.js; do
+  printf '%s sha384-' "$file"
+  curl -s "https://cdn.jsdelivr.net/npm/ondocs@0.15.0/dist/$file" | openssl dgst -sha384 -binary | openssl base64 -A
+  echo
+done
+```
+
+`crossorigin="anonymous"` is required: a browser checks a script from another origin only when it fetches it with CORS, which jsDelivr allows. The dialog's file is fetched the same way. Each release is also published to npm with a provenance attestation, which `npm view ondocs dist.attestations` points to: it says which commit and workflow built each version.
+
+## Content-Security-Policy
+
+On a page with a Content-Security-Policy, the dialog needs:
+
+| Directive                 | Add                                 | For                                                                                                                               |
+| ------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `script-src`              | `https://cdn.jsdelivr.net`          | The script tag, when it loads from jsDelivr.                                                                                      |
+| `connect-src`             | The endpoint's origin               | The questions, when the endpoint is on another origin than the page.                                                              |
+| `style-src`               | `'unsafe-inline'`                   | The `<style>` elements the script tag adds for the button and the dialog, and the dialog's scroll lock adds with any integration. |
+| `script-src`, `frame-src` | `https://challenges.cloudflare.com` | Turnstile's script and frame, with a [bot check](/guides/bot-challenge/).                                                         |
+
+For a page that loads the script tag from jsDelivr, asks an endpoint on another origin, and checks for bots:
+
+```http
+Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://challenges.cloudflare.com; connect-src 'self' https://ask.example.com; style-src 'self' 'unsafe-inline'; frame-src https://challenges.cloudflare.com
+```
+
+The dialog runs no inline script and no `eval`, so `script-src` needs neither `'unsafe-inline'` nor `'unsafe-eval'`.
 
 ## Privacy: what leaves your servers
 
-ondocs has no service of its own and sends no telemetry, so no third party sees your docs or your visitors' questions except the model provider you choose. The browser talks only to your endpoint. Your endpoint sends the question to your embedding provider, and the question with the retrieved excerpts to your language model provider, under your own API keys and their terms. Nothing else is sent anywhere. `onFinish` gives you each question and answer, and `onFeedback` each rating, if you want to log them; nothing is stored by default, and the dialog offers ratings only when `onFeedback` is set. See [Measure and improve answers](/guides/quality/).
+ondocs has no service of its own and sends no telemetry, so no third party sees your docs or your visitors' questions except the model provider you choose. The browser sends questions only to your endpoint. It also loads the script tag's files from jsDelivr when you use the script tag from its CDN, and Turnstile's script and frame from Cloudflare when the dialog has a `challenge`; neither gets the questions. Your endpoint sends the question to your embedding provider, and the question with the retrieved excerpts to your language model provider, under your own API keys and their terms. Nothing else is sent anywhere. `onFinish` gives you each question and answer, and `onFeedback` each rating, if you want to log them; nothing is stored by default, and the dialog offers ratings only when `onFeedback` is set. See [Measure and improve answers](/guides/quality/).

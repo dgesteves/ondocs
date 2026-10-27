@@ -169,7 +169,7 @@ See [MCP server](https://ondocs.vercel.app/docs/mcp) and [llms.txt and Markdown 
 - **An agent's search costs** no model call, or one embedding call with an `embeddingModel`.
 - **Rate limits are on by default**: 10 questions and 60 tool calls a minute per client IP, per server instance. Name your platform's client IP header outside Vercel.
 - **`budget`** caps questions and model tokens per UTC day for the whole endpoint, **`answerCache`** answers repeated questions without a model call, and **`challenge`** adds an optional Turnstile bot check.
-- **Requests** must be JSON and bodies are capped; model errors are masked, and answers render as text, never HTML, with links allow-listed.
+- **Requests** must be JSON and bodies are capped; model errors are masked; answers render as text, never HTML, and by default link only to their sources.
 - **Set a spend limit with your model provider.** It is the only hard cap. See [Rate limits and security](https://ondocs.vercel.app/docs/security).
 
 ## How it compares

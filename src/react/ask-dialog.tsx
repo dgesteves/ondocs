@@ -68,8 +68,8 @@ export interface AskDialogProps extends Omit<UseAskOptions, 'onFinish'> {
   /** Replaces the default footer. */
   footer?: ReactNode;
   /**
-   * Which links in an answer stay links: `"all"` (the default) or `"sources"`, only links to the
-   * pages the answer's sources are on. See `AskAnswer`.
+   * Which links in an answer stay links: `"sources"` (the default), only links to the pages the
+   * answer's sources are on, or `"all"`. See `AskAnswer`.
    */
   links?: AnswerLinks;
   /**

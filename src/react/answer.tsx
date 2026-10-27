@@ -12,10 +12,10 @@ export interface AskAnswerProps {
   onNavigate?: (url: string, event: MouseEvent<HTMLAnchorElement>) => void;
   className?: string;
   /**
-   * Which Markdown links in the answer stay links. `"all"` (the default): any http(s), mailto or
-   * relative URL. `"sources"`: only links to one of the pages in `sources` (at any anchor), so a
-   * model steered by injected text cannot put another site's link in front of visitors; any
-   * other link shows as its text. Citations (`[1]`) link to their source either way.
+   * Which Markdown links in the answer stay links. `"sources"` (the default): only links to one
+   * of the pages in `sources` (at any anchor), so a model steered by injected text cannot put
+   * another site's link in front of visitors; any other link shows as its text. `"all"`: any
+   * http(s), mailto or relative URL. Citations (`[1]`) link to their source either way.
    */
   links?: AnswerLinks;
   /**
@@ -145,7 +145,7 @@ export function AskAnswer({
   sources,
   onNavigate,
   className,
-  links = 'all',
+  links = 'sources',
   citationLabel = 'Source {n}: {title}',
   sourceUrls,
 }: AskAnswerProps): ReactNode {

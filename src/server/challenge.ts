@@ -19,6 +19,13 @@ export type ChallengeVerifier = (token: string, request: Request) => Promise<Cha
 export interface TurnstileOptions {
   /** The widget's secret key, from the Cloudflare dashboard: `TURNSTILE_SECRET_KEY` in the guides. */
   secretKey: string;
+  /**
+   * The host names a token may have been solved on, as `['docs.example.com']`, checked against
+   * the `hostname` siteverify reports; a token from any other gets a 403 with
+   * `challenge_failed`. For a widget that lists several hostnames, when only some of them may
+   * ask this endpoint. Default: any of the widget's.
+   */
+  hostnames?: readonly string[];
 }
 
 const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
@@ -44,12 +51,13 @@ const NOT_THE_TOKEN = new Set([
  * });
  * ```
  */
-export function turnstile({ secretKey }: TurnstileOptions): ChallengeVerifier {
+export function turnstile({ secretKey, hostnames }: TurnstileOptions): ChallengeVerifier {
   if (typeof secretKey !== 'string' || !secretKey.trim()) {
     throw new TypeError(
       "turnstile: secretKey is missing. Pass the widget's secret key from the Cloudflare dashboard, such as process.env.TURNSTILE_SECRET_KEY.",
     );
   }
+  const allowed = hostnames?.map((hostname) => hostname.toLowerCase());
   return async (token, request) => {
     const signals = [request.signal, AbortSignal.timeout(TIMEOUT_MS)];
     const response = await fetch(SITEVERIFY, {
@@ -61,8 +69,18 @@ export function turnstile({ secretKey }: TurnstileOptions): ChallengeVerifier {
     if (!response.ok) {
       throw new Error(`Turnstile's siteverify answered HTTP ${String(response.status)}.`);
     }
-    const body = (await response.json()) as { success?: unknown; 'error-codes'?: unknown };
-    if (body.success === true) return { success: true };
+    const body = (await response.json()) as {
+      success?: unknown;
+      'error-codes'?: unknown;
+      hostname?: unknown;
+    };
+    if (body.success === true) {
+      const solvedOn = typeof body.hostname === 'string' ? body.hostname.toLowerCase() : '';
+      if (allowed && !allowed.includes(solvedOn)) {
+        return { success: false, errorCodes: ['hostname-mismatch'] };
+      }
+      return { success: true };
+    }
     const errorCodes = Array.isArray(body['error-codes'])
       ? body['error-codes'].filter((code): code is string => typeof code === 'string')
       : [];

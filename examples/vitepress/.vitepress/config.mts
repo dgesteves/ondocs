@@ -6,6 +6,10 @@ import { sidebar } from './sidebar';
 import { sourceUrls } from './source-urls';
 import { suggestions } from './suggestions';
 
+// The website's Turnstile widget's site key, which is public: with it, the dialog solves the bot
+// check the website's endpoint asks for once its own keys are set (lib/ask-handler.ts there).
+const turnstile = process.env.TURNSTILE_SITE_KEY;
+
 /** The website's URL of each page here. */
 const website = new Map(
   Object.entries(sourceUrls.pages).map(([there, here]) => [here, `${sourceUrls.base}${there}`]),
@@ -53,8 +57,11 @@ export default withOndocs(
       navbar: true,
       suggestions,
       // The website's citations carry its URLs: these send them to the same pages here. An
-      // endpoint at ASK_ENDPOINT answers from this site's own index, at its own URLs.
-      ...(process.env.ASK_ENDPOINT ? {} : { sourceUrls }),
+      // endpoint at ASK_ENDPOINT answers from this site's own index, at its own URLs, with no bot
+      // check.
+      ...(process.env.ASK_ENDPOINT
+        ? {}
+        : { sourceUrls, ...(turnstile ? { challenge: { turnstile } } : {}) }),
     },
   },
 );

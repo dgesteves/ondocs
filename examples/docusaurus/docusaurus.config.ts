@@ -8,6 +8,9 @@ import { suggestions } from './suggestions';
 
 // The live demo's address, for llms.txt and the pages' own links.
 const url = process.env.SITE_URL ?? 'https://ondocs-docusaurus.vercel.app';
+// The website's Turnstile widget's site key, which is public: with it, the dialog solves the bot
+// check the website's endpoint asks for once its own keys are set (lib/ask-handler.ts there).
+const turnstile = process.env.TURNSTILE_SITE_KEY;
 
 // With OPENAI_API_KEY the plugin embeds with OpenAI (its default); without it, this example uses
 // the offline mock model so it builds anywhere.
@@ -24,8 +27,11 @@ const ondocs: OndocsOptions = {
     navbar: true,
     suggestions,
     // The website's citations carry its URLs: these send them to the same pages here. An
-    // endpoint at ASK_ENDPOINT answers from this site's own index, at its own URLs.
-    ...(process.env.ASK_ENDPOINT ? {} : { sourceUrls }),
+    // endpoint at ASK_ENDPOINT answers from this site's own index, at its own URLs, with no bot
+    // check.
+    ...(process.env.ASK_ENDPOINT
+      ? {}
+      : { sourceUrls, ...(turnstile ? { challenge: { turnstile } } : {}) }),
   },
 };
 
