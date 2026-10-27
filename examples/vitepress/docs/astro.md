@@ -20,6 +20,14 @@ npm i ondocs ai @ai-sdk/openai
 
 With ondocs 0.11.0 or earlier, the dialog renders with the site's React: also install `react`, `react-dom`, `@radix-ui/react-dialog` and `cmdk`.
 
+In a monorepo, run the install for the site's package from the repository's root, where `<site-package>` is the `name` in the site's `package.json`:
+
+```sh
+pnpm --filter <site-package> add ondocs ai @ai-sdk/openai
+yarn workspace <site-package> add ondocs ai @ai-sdk/openai
+npm install ondocs ai @ai-sdk/openai -w <site-package>
+```
+
 ## Add it to Starlight
 
 To add ondocs to Starlight, put the plugin in Starlight's `plugins` array in `astro.config.mjs`:
@@ -107,19 +115,19 @@ A static site, without an adapter, needs the endpoint as a function on its host,
 
 ## Astro and Starlight options
 
-| Option                                       | Default                            | What it does                                                                                                       |
-| -------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `endpoint`                                   | `ASK_ENDPOINT`, else `/api/ask`    | Where the dialog posts questions; `ASK_ENDPOINT` overrides it.                                                     |
-| `embedding`, `dimensions`                    | OpenAI when a key is set           | The embedding model, named as the CLI names it.                                                                    |
-| `embeddingModel`, `embeddingProviderOptions` | none                               | An AI SDK model object and its options, instead of `embedding`.                                                    |
-| `chunking`                                   | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                                             |
-| `indexFile`                                  | `ask-index.json`                   | Where the index is written in `dist/` and served from.                                                             |
-| `exclude`                                    | `[]`                               | Path prefixes to leave out, relative to `base` and the locale.                                                     |
-| `dialog`                                     |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar` (Starlight), `theme`, `labels`, `locales`. |
-| `route`                                      | on with an SSR adapter             | The endpoints the integration serves: `{ model, rateLimit, trustedHeader, budget, mcp }`, or `false`.              |
-| `contentSelector`, `ignoreSelector`          | `main`                             | Astro integration only: what to read from each page, and what to skip.                                             |
-| `mcp`                                        | the route it serves, with `site`   | The [MCP endpoint](/mcp)'s URL or path, for `llms.txt` and `McpInstall.astro`.                                     |
-| `llmsTxt`                                    | on                                 | Write [llms.txt, llms-full.txt and .md copies](/llms-txt); `false` turns them off.                                 |
+| Option                                       | Default                            | What it does                                                                                                                                           |
+| -------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `endpoint`                                   | `ASK_ENDPOINT`, else `/api/ask`    | Where the dialog posts questions; `ASK_ENDPOINT` overrides it.                                                                                         |
+| `embedding`, `dimensions`                    | OpenAI when a key is set           | The embedding model, named as the CLI names it.                                                                                                        |
+| `embeddingModel`, `embeddingProviderOptions` | none                               | An AI SDK model object and its options, instead of `embedding`.                                                                                        |
+| `chunking`                                   | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                                                                                 |
+| `indexFile`                                  | `ask-index.json`                   | Where the index is written in `dist/` and served from.                                                                                                 |
+| `exclude`                                    | `[]`                               | Path prefixes to leave out, relative to `base` and the locale.                                                                                         |
+| `dialog`                                     |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar` (Starlight), `theme`, `labels`, `locales`, `links`, `sourceUrls`, `challenge`. |
+| `route`                                      | on with an SSR adapter             | The endpoints the integration serves: `{ model, rateLimit, trustedHeader, budget, mcp }`, or `false`.                                                  |
+| `contentSelector`, `ignoreSelector`          | `main`                             | Astro integration only: what to read from each page, and what to skip.                                                                                 |
+| `mcp`                                        | the route it serves, with `site`   | The [MCP endpoint](/mcp)'s URL or path, for `llms.txt` and `McpInstall.astro`.                                                                         |
+| `llmsTxt`                                    | on                                 | Write [llms.txt, llms-full.txt and .md copies](/llms-txt); `false` turns them off.                                                                     |
 
 ## Locales in Starlight
 

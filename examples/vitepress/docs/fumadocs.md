@@ -29,7 +29,7 @@ Build the index before every build, and commit `ask-index.json`:
 }
 ```
 
-`--base-url /docs` is the `baseUrl` of the `loader()` in `lib/source.ts`. The CLI finds `next.config.mjs` above `content/docs` and follows Fumadocs's rules:
+`--base-url /docs` is the template's `docsRoute`, in `lib/shared.ts`, which `lib/source.ts` passes to `loader()` as its `baseUrl`. The CLI finds `next.config.mjs` above `content/docs` and follows Fumadocs's rules:
 
 - `index.mdx` is its folder's page: `guides/index.mdx` is `/docs/guides`.
 - `(group)` folders are left out: `(api)/reference.mdx` is `/docs/reference`.
@@ -97,6 +97,7 @@ export function Ask() {
     <AskDialog
       launcher
       shortcut="i"
+      title="Ask Acme Docs"
       theme={mounted ? (resolvedTheme === 'dark' ? 'dark' : 'light') : undefined}
       suggestions={['How do I install it?']}
       onNavigate={(url, event) => {
@@ -108,7 +109,19 @@ export function Ask() {
 }
 ```
 
-Then render `<Ask />` inside `<RootProvider>` in `app/layout.tsx`, after `{children}`, where next-themes is set up. `launcher` shows a floating "Ask AI" button, and `onNavigate` sends citations through the Next.js router instead of a full page load.
+Then render `<Ask />` inside `<RootProvider>` in `app/layout.tsx`, after `{children}`, where next-themes is set up. `launcher` shows a floating "Ask AI" button, and `onNavigate` sends citations through the Next.js router instead of a full page load. `title` names the dialog after your docs; without it, it is "Ask this site", as the endpoint's `siteName` stays on the server.
+
+## Add to your editor
+
+`McpInstall` from `ondocs/react` shows readers how to connect their AI tool to the MCP endpoint: "Add to Cursor", "Add to VS Code" and "Add to Claude" links, and the commands for Claude Code, Codex and Gemini CLI. Put it on a page of the docs, such as `content/docs/mcp.mdx`, with the endpoint's absolute URL and the name clients list it under:
+
+```mdx
+import { McpInstall } from 'ondocs/react';
+
+<McpInstall url="https://docs.acme.dev/api/mcp" name="acme-docs" />
+```
+
+It is plain markup, links and code blocks with `ask-mcp-*` classes, for your theme to style. See [Show it on your site](/mcp#show-it-on-your-site).
 
 ## llms.txt and Markdown pages
 

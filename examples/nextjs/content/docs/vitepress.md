@@ -19,6 +19,14 @@ npm i ondocs ai @ai-sdk/openai
 
 With ondocs 0.11.0 or earlier, the dialog renders with the site's React: also install `react`, `react-dom`, `@radix-ui/react-dialog` and `cmdk`.
 
+In a monorepo, run the install for the site's package from the repository's root, where `<site-package>` is the `name` in the site's `package.json`:
+
+```sh
+pnpm --filter <site-package> add ondocs ai @ai-sdk/openai
+yarn workspace <site-package> add ondocs ai @ai-sdk/openai
+npm install ondocs ai @ai-sdk/openai -w <site-package>
+```
+
 ## Add it to .vitepress/config.mts
 
 To add ondocs to VitePress, wrap the config in `withOndocs`:
@@ -62,7 +70,7 @@ The plugin reads each page's Markdown as the default theme renders it, the `.vp-
 
 ## The dialog in VitePress
 
-The plugin adds a floating "Ask AI" button and opens the dialog with ⌘I or Ctrl+I, so ⌘K stays with VitePress's search. The button takes the default theme's colors, and the button and the dialog follow VitePress's light and dark modes, as its appearance switch sets them. A page loads only the button, about 3 KB of JavaScript, and the dialog's stylesheet, 3.5 KB gzipped, which the plugin adds to the site's CSS. The dialog comes prebuilt with its own React, Radix and cmdk, from `ondocs/embed/standalone`, and loads the first time it is wanted: 95.6 KB of JavaScript, gzipped, on the VitePress example. Measured on an Apple M1 Max with `node scripts/js-weight.mjs vitepress`, in headless Chrome, and `gzip -9` of `ondocs/react/styles.css`. The plugin adds the button through VitePress's own client entry, so there is no theme file to write. With `mpa: true`, VitePress ships no client entry, and pages get no button: add the [script tag](/docs/script-tag) to `head` instead.
+The plugin adds a floating "Ask AI" button and opens the dialog with ⌘I or Ctrl+I, so ⌘K stays with VitePress's search. The button takes the default theme's colors, and the button and the dialog follow VitePress's light and dark modes, as its appearance switch sets them. A page loads only the button, about 3 KB of JavaScript, and the dialog's stylesheet, 3.5 KB gzipped, which the plugin adds to the site's CSS. The dialog comes prebuilt with its own React, Radix and cmdk, from `ondocs/embed/standalone`, and loads the first time it is wanted: 96.2 KB of JavaScript, gzipped, on the VitePress example. Measured on an Apple M1 Max with `node scripts/js-weight.mjs vitepress`, in headless Chrome, and `gzip -9` of `ondocs/react/styles.css`. The plugin adds the button through VitePress's own client entry, so there is no theme file to write. With `mpa: true`, VitePress ships no client entry, and pages get no button: add the [script tag](/docs/script-tag) to `head` instead.
 
 Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. `dialog: { links: 'sources' }` keeps only the answer's links to its source pages.
 
@@ -94,16 +102,16 @@ A VitePress site is static, so the endpoint is a function on its host. Write it 
 
 ## VitePress options
 
-| Option                                       | Default                            | What it does                                                                                           |
-| -------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `endpoint`                                   | `ASK_ENDPOINT`, else `/api/ask`    | Where the dialog posts questions; `ASK_ENDPOINT` overrides it.                                         |
-| `embedding`, `dimensions`                    | OpenAI when a key is set           | The embedding model, named as the CLI names it.                                                        |
-| `embeddingModel`, `embeddingProviderOptions` | none                               | An AI SDK model object and its options, instead of `embedding`.                                        |
-| `chunking`                                   | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                                 |
-| `contentSelector`, `ignoreSelector`          | `.vp-doc`                          | What to read from each page, and what to skip besides heading anchors and code labels.                 |
-| `indexFile`                                  | `ask-index.json`                   | Where the index is written in `.vitepress/dist/` and served from.                                      |
-| `exclude`                                    | `[]`                               | Path prefixes to leave out, relative to `base` and the locale.                                         |
-| `dialog`                                     |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar`, `theme`, `labels`, `locales`. |
-| `siteUrl`                                    | `sitemap.hostname`                 | The site's URL, for absolute links in `llms.txt` and an `mcp` path.                                    |
-| `mcp`                                        | none                               | The [MCP endpoint](/docs/mcp)'s URL or path, which `llms.txt` points agents at.                        |
-| `llmsTxt`                                    | on                                 | Write [llms.txt, llms-full.txt and .md copies](/docs/llms-txt); `false` turns them off.                |
+| Option                                       | Default                            | What it does                                                                                                                               |
+| -------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `endpoint`                                   | `ASK_ENDPOINT`, else `/api/ask`    | Where the dialog posts questions; `ASK_ENDPOINT` overrides it.                                                                             |
+| `embedding`, `dimensions`                    | OpenAI when a key is set           | The embedding model, named as the CLI names it.                                                                                            |
+| `embeddingModel`, `embeddingProviderOptions` | none                               | An AI SDK model object and its options, instead of `embedding`.                                                                            |
+| `chunking`                                   | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                                                                     |
+| `contentSelector`, `ignoreSelector`          | `.vp-doc`                          | What to read from each page, and what to skip besides heading anchors and code labels.                                                     |
+| `indexFile`                                  | `ask-index.json`                   | Where the index is written in `.vitepress/dist/` and served from.                                                                          |
+| `exclude`                                    | `[]`                               | Path prefixes to leave out, relative to `base` and the locale.                                                                             |
+| `dialog`                                     |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar`, `theme`, `labels`, `locales`, `links`, `sourceUrls`, `challenge`. |
+| `siteUrl`                                    | `sitemap.hostname`                 | The site's URL, for absolute links in `llms.txt` and an `mcp` path.                                                                        |
+| `mcp`                                        | none                               | The [MCP endpoint](/docs/mcp)'s URL or path, which `llms.txt` points agents at.                                                            |
+| `llmsTxt`                                    | on                                 | Write [llms.txt, llms-full.txt and .md copies](/docs/llms-txt); `false` turns them off.                                                    |

@@ -10,6 +10,27 @@ The index is one JSON file, `ask-index.json`, with your documents, their chunks 
 
 The file records its format (`ask-my-site/index@1`, under the package's name before it became ondocs, so indexes from either name are read by both), the embedding model and vector size it was built with, the chunking options, a content hash, the documents (`id`, `url`, `title`) and the chunks. Each chunk has its heading path, its anchor, its text, a hash of the text it was embedded from, and its vector.
 
+This is the whole file for one page with three sections, from `ondocs index docs --base-url /docs -e mock`, with each vector cut short: at 512 dimensions, a vector is 684 characters of base64. Written as it is on disk, one document or chunk per line:
+
+```
+{
+  "format": "ask-my-site/index@1",
+  "contentHash": "96df8011d99509f2e42312ba80dca8486923d25b66a463ba09efbf06b54104b0",
+  "chunking": {"maxChars":1200,"overlap":150},
+  "embedding": {"model":"mock-hash-512","dimensions":512},
+  "documents": [
+    {"id":"install.md","url":"/docs/install","title":"Install"}
+  ],
+  "chunks": [
+    {"id":"install.md#0","doc":0,"heading":"","text":"Add the package with your package manager.","hash":"fbdae180f1bd4c81","vector":"AAAAAAAAAAAA…"},
+    {"id":"install.md#1","doc":0,"heading":"Configure the cache","anchor":"configure-the-cache","text":"The cache keeps vectors between builds.","hash":"fba96b18a77f369a","vector":"AADBAAAAAAAA…"},
+    {"id":"install.md#2","doc":0,"heading":"Configure the cache › On Vercel","anchor":"on-vercel","text":"Vercel keeps node_modules/.cache between deployments.","hash":"d8da8128c295acc3","vector":"AAAAAAAAAAAA…"}
+  ]
+}
+```
+
+`doc` is the chunk's page, by its place in `documents`. `heading` is the path of headings above the chunk, empty for the text before the first one, and `anchor` is the section's, where citations link. `hash` is the start of a SHA-256 of the text the vector was embedded from.
+
 ## Compatibility
 
 The site that builds the index and the endpoint that reads it are often built apart: the Worker that `ondocs init --host github-pages` writes fetches the live site's `ask-index.json` and is upgraded on its own. So the format changes by these rules:

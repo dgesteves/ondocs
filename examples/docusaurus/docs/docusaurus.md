@@ -16,6 +16,14 @@ Install the package with the AI SDK, the OpenAI provider (the default embedding 
 npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
 ```
 
+In a monorepo, run the install for the site's package from the repository's root, where `<site-package>` is the `name` in the site's `package.json`:
+
+```sh
+pnpm --filter <site-package> add ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
+yarn workspace <site-package> add ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
+npm install ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk -w <site-package>
+```
+
 ## Add it to docusaurus.config.ts
 
 To add ondocs to Docusaurus, put the plugin in the `plugins` array of `docusaurus.config.ts`:
@@ -88,20 +96,20 @@ On Vercel it writes `api/ask.ts` and `api/mcp.ts` and bundles `build/ask-index.j
 
 ## Docusaurus plugin options
 
-| Option                     | Default                            | What it does                                                                                  |
-| -------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------- |
-| `endpoint`                 | `ASK_ENDPOINT`, else `/api/ask`    | Where the dialog posts questions; `ASK_ENDPOINT` overrides it.                                |
-| `embedding`                | OpenAI when a key is set           | Model spec: `openai:<model>`, `workers-ai:@cf/<model>`, `<provider>/<model>`, `mock`, `none`. |
-| `dimensions`               | the model's                        | Vector size, for models that support it.                                                      |
-| `embeddingModel`           | none                               | An AI SDK embedding model object, instead of `embedding`.                                     |
-| `embeddingProviderOptions` | none                               | Passed to the embedding model.                                                                |
-| `chunking`                 | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                        |
-| `indexFile`                | `ask-index.json`                   | Where the index is written in `build/` and served from.                                       |
-| `exclude`                  | `[]`                               | Path prefixes to leave out, relative to `baseUrl`.                                            |
-| `versions`                 | `'last'`                           | Docs versions to index: the last one, or `'all'`.                                             |
-| `dialog`                   |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar`, `labels`, `locales`. |
-| `mcp`                      | none                               | The [MCP endpoint](./mcp.md)'s URL or path, for `<OndocsMcp />`.                              |
-| `llmsTxt`                  | on                                 | Write [llms.txt, llms-full.txt and .md copies](./llms-txt.md); `false` turns them off.        |
+| Option                     | Default                            | What it does                                                                                                                      |
+| -------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `endpoint`                 | `ASK_ENDPOINT`, else `/api/ask`    | Where the dialog posts questions; `ASK_ENDPOINT` overrides it.                                                                    |
+| `embedding`                | OpenAI when a key is set           | Model spec: `openai:<model>`, `workers-ai:@cf/<model>`, `<provider>/<model>`, `mock`, `none`.                                     |
+| `dimensions`               | the model's                        | Vector size, for models that support it.                                                                                          |
+| `embeddingModel`           | none                               | An AI SDK embedding model object, instead of `embedding`.                                                                         |
+| `embeddingProviderOptions` | none                               | Passed to the embedding model.                                                                                                    |
+| `chunking`                 | `{ maxChars: 1200, overlap: 150 }` | Chunk size and overlap, in characters.                                                                                            |
+| `indexFile`                | `ask-index.json`                   | Where the index is written in `build/` and served from.                                                                           |
+| `exclude`                  | `[]`                               | Path prefixes to leave out, relative to `baseUrl`.                                                                                |
+| `versions`                 | `'last'`                           | Docs versions to index: the last one, or `'all'`.                                                                                 |
+| `dialog`                   |                                    | `title`, `placeholder`, `suggestions`, `shortcut`, `launcher`, `navbar`, `labels`, `locales`, `links`, `sourceUrls`, `challenge`. |
+| `mcp`                      | none                               | The [MCP endpoint](./mcp.md)'s URL or path, for `<OndocsMcp />`.                                                                  |
+| `llmsTxt`                  | on                                 | Write [llms.txt, llms-full.txt and .md copies](./llms-txt.md); `false` turns them off.                                            |
 
 ## Locales and versions
 
