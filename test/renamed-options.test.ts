@@ -2,6 +2,7 @@
 // and `rateLimitFailure`; and the CLI's config module, which takes `embedding` and `dimensions`
 // as the plugins do. Each old name still works, does what its new name does, and says once what
 // it is called now.
+/* eslint-disable @typescript-eslint/no-deprecated -- these tests pass the old names on purpose */
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';

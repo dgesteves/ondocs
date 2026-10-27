@@ -20,9 +20,10 @@ overrides:
   # Critical GHSA-5gmw-xhrv-c9v3 and GHSA-85c8-ppgw-ccpr. Docusaurus builds a site of more than 100
   # pages in a tinypool worker pool.
   tinypool@<2.1.2: ^2.1.2
-  # High GHSA-5c6j-r48x-rmvq and moderate GHSA-qj8w-gfj5-8c6v, through copy-webpack-plugin 11 and
+  # High GHSA-5c6j-r48x-rmvq, moderate GHSA-qj8w-gfj5-8c6v and low GHSA-m5mm-p8h7-m29v (an unescaped
+  # </script at the end of a serialized function body), through copy-webpack-plugin 11 and
   # css-minimizer-webpack-plugin 5. Their current majors ask for ^7.0.3.
-  serialize-javascript@<7.0.5: ^7.0.5
+  serialize-javascript@<7.1.3: ^7.1.3
   # High GHSA-587h-7wmj-h5pm and GHSA-fx2h-pf6j-xcff, in the dev server on Windows. VitePress 1.6.4,
   # its latest release, asks for vite ^5.4.14, no vite 5 release fixes them, and VitePress 2 is still
   # an alpha. Its @vitejs/plugin-vue 5 accepts vite 6, and the VitePress example builds with it.
