@@ -264,6 +264,7 @@ const dialogRules: OptionRules<OndocsDialogOptions> = {
   suggestions: strings,
   shortcut: oneOf(string, literal(false)),
   launcher: oneOf(boolean, string),
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- its name before 0.9, still checked
   buttonLabel: oneOf(string, literal(false)),
   links: literal('all', 'sources'),
   sourceUrls: shape<SourceUrls>({ pages: recordOf(string, 'an object of URLs'), base: string }),
@@ -279,6 +280,7 @@ const localeDialogRules = shape<LocaleDialogOptions>(
     placeholder: string,
     suggestions: strings,
     launcher: oneOf(boolean, string),
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- its name before 0.9, still checked
     buttonLabel: oneOf(string, literal(false)),
     title: string,
   },

@@ -278,8 +278,10 @@ const astroRules: OptionRules<OndocsOptions> = {
   route: oneOf(literal(false), routeRules),
   contentSelector: selector('main'),
   ignoreSelector: selector('.toc, .comments'),
+  /* eslint-disable @typescript-eslint/no-deprecated -- their names before 0.14, still checked */
   content: selector('main'),
   ignore: selector('.toc, .comments'),
+  /* eslint-enable @typescript-eslint/no-deprecated */
   indexFile: string,
   exclude: optionRules.exclude,
   dialog: shape(astroDialogRules, {

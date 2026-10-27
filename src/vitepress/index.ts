@@ -141,8 +141,10 @@ const OPTION_RULES = shape<OndocsOptions>(
     endpoint: string,
     contentSelector: selector('.vp-doc'),
     ignoreSelector: selector('.toc, .comments'),
+    /* eslint-disable @typescript-eslint/no-deprecated -- their names before 0.14, still checked */
     content: selector('.vp-doc'),
     ignore: selector('.toc, .comments'),
+    /* eslint-enable @typescript-eslint/no-deprecated */
     indexFile: string,
     exclude: optionRules.exclude,
     dialog: shape<OndocsDialogOptions>(
