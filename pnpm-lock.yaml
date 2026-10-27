@@ -285,7 +285,7 @@ importers:
         version: 7.1.1(eslint@10.13.0(jiti@1.21.7)(supports-color@7.2.0))(supports-color@7.2.0)
       geist:
         specifier: ^1.7.2
-        version: 1.7.2(next@16.4.1(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
+        version: 1.8.2(next@16.4.1(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
       globals:
         specifier: ^17.13.0
         version: 17.13.0
@@ -403,7 +403,7 @@ importers:
         version: 1.1.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       geist:
         specifier: ^1.7.2
-        version: 1.7.2(next@16.4.1(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
+        version: 1.8.2(next@16.4.1(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))
       marked:
         specifier: ^18.1.0
         version: 18.1.1
@@ -5870,8 +5870,8 @@ packages:
   function-bind@1.1.2:
     resolution: {integrity: sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==}
 
-  geist@1.7.2:
-    resolution: {integrity: sha512-Gu5lDFa3pLRyoBlBPf0QIFHVdWAnpco7fS1bJm41jyLPFoguBgiubseUN2oLXMgqZ7uxAxDoXcHMhCY/fOTTgg==}
+  geist@1.8.2:
+    resolution: {integrity: sha512-fRF4sbJ9qcCxPb35cVtKBAwYlTt1IbU9nkbPi0a+xyZqPIjCJ2BY8ekGhx6/SGSZKrR7/UuL57r/eeDQ1Xy11g==}
     peerDependencies:
       next: '>=13.2.0'
 
@@ -15736,7 +15736,7 @@ snapshots:
 
   function-bind@1.1.2: {}
 
-  geist@1.7.2(next@16.4.1(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)):
+  geist@1.8.2(next@16.4.1(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)):
     dependencies:
       next: 16.4.1(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
 
