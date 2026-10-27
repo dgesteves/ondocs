@@ -20,10 +20,10 @@ export interface TurnstileOptions {
   /** The widget's secret key, from the Cloudflare dashboard: `TURNSTILE_SECRET_KEY` in the guides. */
   secretKey: string;
   /**
-   * The host names a token may have been solved on, as `['docs.example.com']`, checked against
-   * the `hostname` siteverify reports; a token from any other gets a 403 with
-   * `challenge_failed`. For a widget that lists several hostnames, when only some of them may
-   * ask this endpoint. Default: any of the widget's.
+   * The host names a token may have been solved on, as `['docs.example.com']`: names only, with
+   * no scheme, port or path, as the `hostname` siteverify reports. A token from any other gets a
+   * 403 with `challenge_failed`. For a widget that lists several hostnames, when only some of them
+   * may ask this endpoint. Default: any of the widget's.
    */
   hostnames?: readonly string[];
 }
@@ -38,6 +38,23 @@ const NOT_THE_TOKEN = new Set([
   'bad-request',
   'internal-error',
 ]);
+
+/** `hostnames`, lowercased, or a clear error for a list that would fail every token. */
+function hostnameList(hostnames: readonly string[]): string[] {
+  if (!Array.isArray(hostnames) || hostnames.length === 0) {
+    throw new TypeError(
+      "turnstile: hostnames is empty, so every token would fail. List the host names a token may be solved on, such as ['docs.example.com'], or leave it out to accept any of the widget's.",
+    );
+  }
+  return hostnames.map((hostname: unknown) => {
+    if (typeof hostname !== 'string' || !/^[a-z\d.-]+$/i.test(hostname)) {
+      throw new TypeError(
+        `turnstile: hostnames takes host names with no scheme, port or path, such as "docs.example.com" (got ${JSON.stringify(hostname)}).`,
+      );
+    }
+    return hostname.toLowerCase();
+  });
+}
 
 /**
  * Cloudflare Turnstile, for `createAskHandler`'s `challenge`: checks each question's token with
@@ -57,7 +74,7 @@ export function turnstile({ secretKey, hostnames }: TurnstileOptions): Challenge
       "turnstile: secretKey is missing. Pass the widget's secret key from the Cloudflare dashboard, such as process.env.TURNSTILE_SECRET_KEY.",
     );
   }
-  const allowed = hostnames?.map((hostname) => hostname.toLowerCase());
+  const allowed = hostnames === undefined ? undefined : hostnameList(hostnames);
   return async (token, request) => {
     const signals = [request.signal, AbortSignal.timeout(TIMEOUT_MS)];
     const response = await fetch(SITEVERIFY, {

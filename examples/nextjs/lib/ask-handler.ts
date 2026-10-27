@@ -3,6 +3,7 @@ import {
   type BudgetStore,
   type ChallengeVerifier,
   createAskHandler,
+  memoryBudgetStore,
   memoryRateLimit,
   turnstile,
   upstashBudgetStore,
@@ -16,10 +17,35 @@ import { DEMO_ORIGINS, SITE_URL } from './site';
 
 type Env = Readonly<Record<string, string | undefined>>;
 
+/** `next build`, which asks the handler for the home page's sample answer (lib/sample-answer.ts). */
+const building = (env: Env): boolean => env.NEXT_PHASE === 'phase-production-build';
+
+/** How long an Upstash command may take before the budget is counted in memory instead. */
+export const UPSTASH_TIMEOUT_MS = 1_500;
+
+/**
+ * Why a command got no answer, naming Upstash and the command but never the database's URL or
+ * token: fetch's own message can quote the URL, and the cause's code (ECONNREFUSED) cannot.
+ */
+function unanswered(command: string, error: unknown): Error {
+  if (error instanceof Object && 'name' in error && error.name === 'TimeoutError') {
+    return new Error(
+      `Upstash did not answer ${command} within ${String(UPSTASH_TIMEOUT_MS / 1000)} s`,
+    );
+  }
+  const cause: unknown = error instanceof Error ? error.cause : undefined;
+  const code = cause instanceof Object && 'code' in cause ? cause.code : undefined;
+  return new Error(
+    `Upstash could not be reached for ${command}${typeof code === 'string' ? ` (${code})` : ''}`,
+  );
+}
+
 /**
  * Upstash Redis through its REST API, with the two commands `upstashBudgetStore` runs, so the
  * site needs no Redis client. Each command is a JSON array posted with the token, and Upstash
- * answers `{ result }`, or `{ error }` with an error status.
+ * answers `{ result }`, or `{ error }` with an error status. A command throws, with an error that
+ * names Upstash, on no answer within `UPSTASH_TIMEOUT_MS`, on an error, and for `INCRBY` on a
+ * result that is not a number.
  */
 export function upstashRest(
   url: string,
@@ -27,34 +53,98 @@ export function upstashRest(
   fetcher: typeof fetch = fetch,
 ): UpstashRedisCounterLike {
   const command = async (...args: (string | number)[]): Promise<unknown> => {
-    const response = await fetcher(url, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-      body: JSON.stringify(args.map(String)),
-      signal: AbortSignal.timeout(5_000),
-    });
-    const body = (await response.json().catch(() => ({}))) as { result?: unknown; error?: unknown };
+    const name = String(args[0]);
+    let response: Response;
+    let text: string;
+    try {
+      response = await fetcher(url, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify(args.map(String)),
+        // Never cached: Next.js would keep the replies, with the URL, in .next/cache.
+        cache: 'no-store',
+        signal: AbortSignal.timeout(UPSTASH_TIMEOUT_MS),
+      });
+      text = await response.text();
+    } catch (error) {
+      throw unanswered(name, error);
+    }
+    let body: { result?: unknown; error?: unknown } = {};
+    try {
+      body = (JSON.parse(text) as typeof body | null) ?? {};
+    } catch {
+      // Not JSON, as a proxy's error page: the status says the rest.
+    }
     if (!response.ok || body.error !== undefined) {
       const reason = typeof body.error === 'string' ? `: ${body.error}` : '';
-      throw new Error(`Upstash answered ${String(args[0])} with HTTP ${response.status}${reason}`);
+      throw new Error(`Upstash answered ${name} with HTTP ${String(response.status)}${reason}`);
     }
     return body.result;
   };
   return {
-    incrby: async (key, increment) => Number(await command('INCRBY', key, increment)),
+    incrby: async (key, increment) => {
+      const result = await command('INCRBY', key, increment);
+      // A count, as a number or a string of digits; anything else would count as NaN.
+      const total = typeof result === 'string' && /^-?\d+$/.test(result) ? Number(result) : result;
+      if (typeof total !== 'number' || !Number.isFinite(total)) {
+        throw new Error('Upstash answered INCRBY with a result that is not a number');
+      }
+      return total;
+    },
     expire: (key, seconds) => command('EXPIRE', key, seconds),
+  };
+}
+
+/** At most one line a minute about the shared store failing, per instance. */
+const FALLBACK_LOG_MS = 60_000;
+
+/**
+ * `shared`, with this instance's memory for each count it fails (Upstash errs, times out or
+ * answers something else than a count), so the endpoint keeps answering: those counts are per
+ * instance, as without the Upstash keys, and still capped. The next count tries `shared` again.
+ * Failures are logged, at most one line a minute. An `EXPIRE` that fails after its `INCRBY`
+ * counts that question in both, on the safe side.
+ */
+export function withMemoryFallback(
+  shared: BudgetStore,
+  { log = console.warn, now = Date.now }: { log?: (line: string) => void; now?: () => number } = {},
+): BudgetStore {
+  const memory = memoryBudgetStore({ now });
+  let loggedAt = -Infinity;
+  let failures = 0;
+  return {
+    async increment(key, amount, ttlSeconds) {
+      try {
+        return await shared.increment(key, amount, ttlSeconds);
+      } catch (error) {
+        failures++;
+        if (now() - loggedAt >= FALLBACK_LOG_MS) {
+          loggedAt = now();
+          const reason = error instanceof Error ? error.message : String(error);
+          const count = failures > 1 ? ` (${String(failures)} failures since the last line)` : '';
+          log(
+            `The Upstash budget store failed, so this instance counts in memory: ${reason}${count}.`,
+          );
+          failures = 0;
+        }
+        return memory.increment(key, amount, ttlSeconds);
+      }
+    },
   };
 }
 
 /**
  * Where the daily budget is counted: in the Upstash database when `KV_REST_API_URL` and
  * `KV_REST_API_TOKEN` are set (the names Vercel's Upstash integration gives them), so every
- * instance shares one budget; else in each instance's memory, as ondocs does by default.
+ * instance shares one budget, with this instance's memory for any count Upstash fails
+ * (`withMemoryFallback`); else in each instance's memory, as ondocs does by default. In memory
+ * while `next build` runs too, so building the site spends none of the live budget.
  */
 export function budgetStore(env: Env, fetcher?: typeof fetch): BudgetStore | undefined {
   const url = env.KV_REST_API_URL;
   const token = env.KV_REST_API_TOKEN;
-  return url && token ? upstashBudgetStore(upstashRest(url, token, fetcher)) : undefined;
+  if (!url || !token || building(env)) return undefined;
+  return withMemoryFallback(upstashBudgetStore(upstashRest(url, token, fetcher)));
 }
 
 /** The hostnames the site's Turnstile widget may be solved on: this site's and the demos'. */
@@ -74,7 +164,7 @@ export const TURNSTILE_HOSTNAMES = [SITE_URL, ...DEMO_ORIGINS].map(
 export function askChallenge(env: Env): ChallengeVerifier | undefined {
   const secretKey = env.TURNSTILE_SECRET_KEY;
   if (!secretKey || !env.NEXT_PUBLIC_TURNSTILE_SITE_KEY) return undefined;
-  if (env.NEXT_PHASE === 'phase-production-build') return undefined;
+  if (building(env)) return undefined;
   return turnstile({ secretKey, hostnames: TURNSTILE_HOSTNAMES });
 }
 
@@ -84,8 +174,8 @@ export function askChallenge(env: Env): ChallengeVerifier | undefined {
  * questions and 1M model tokens: an answer is about 3k tokens, so 5M leaves about 3,300 for each
  * of the 1,500 questions and the token cap does not run out first. Back to 300 and 1M after launch
  * week, from Thu 2026-10-29. With the Upstash keys set, the counts are one budget for every
- * instance (`budgetStore`); without them, each instance has its own. The hard cap is the spend
- * limit on the OpenAI project.
+ * instance (`budgetStore`); without them, or while Upstash fails, each instance has its own. The
+ * hard cap is the spend limit on the OpenAI project.
  */
 const store = budgetStore(process.env);
 export const ASK_BUDGET = {

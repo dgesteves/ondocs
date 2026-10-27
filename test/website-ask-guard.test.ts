@@ -33,7 +33,12 @@ interface AskHandlerModule {
   askChallenge: (env: Env) => ChallengeVerifier | undefined;
   budgetStore: (env: Env, fetcher?: typeof fetch) => BudgetStore | undefined;
   upstashRest: (url: string, token: string, fetcher?: typeof fetch) => UpstashRedisCounterLike;
+  withMemoryFallback: (
+    shared: BudgetStore,
+    options?: { log?: (line: string) => void; now?: () => number },
+  ) => BudgetStore;
   TURNSTILE_HOSTNAMES: string[];
+  UPSTASH_TIMEOUT_MS: number;
 }
 // Imported by path, so the typecheck does not follow it to the site's index.
 const handlerModule = 'lib/ask-handler.ts';
@@ -117,13 +122,188 @@ describe('the daily budget’s store', () => {
     ]);
   });
 
-  it('throws on an Upstash error, which the endpoint answers with a 503', async () => {
-    const redis = site.upstashRest(KV.KV_REST_API_URL, KV.KV_REST_API_TOKEN, () =>
-      Promise.resolve(Response.json({ error: 'WRONGPASS invalid password' }, { status: 401 })),
-    );
+  it('is each instance’s memory while next build runs, so the build spends none of it', () => {
+    expect(site.budgetStore({ ...KV, NEXT_PHASE: 'phase-production-build' })).toBeUndefined();
+    expect(site.budgetStore({ ...KV, NEXT_PHASE: 'phase-production-server' })).toBeDefined();
+  });
+
+  it('asks Upstash uncached, and throws an error naming Upstash and the command', async () => {
+    const redis = (answer: typeof fetch) =>
+      site.upstashRest(KV.KV_REST_API_URL, KV.KV_REST_API_TOKEN, answer);
+    const inits: RequestInit[] = [];
+    await redis((_, init) => {
+      inits.push(init ?? {});
+      return Promise.resolve(Response.json({ result: '7' }));
+    }).incrby('key', 1);
+    expect(inits[0]?.cache).toBe('no-store');
+    expect(inits[0]?.signal).toBeInstanceOf(AbortSignal);
+
+    for (const [answer, message] of [
+      [
+        () =>
+          Promise.resolve(Response.json({ error: 'WRONGPASS invalid password' }, { status: 401 })),
+        'Upstash answered INCRBY with HTTP 401: WRONGPASS invalid password',
+      ],
+      [
+        () => Promise.resolve(new Response('<html>oops</html>', { status: 500 })),
+        'Upstash answered INCRBY with HTTP 500',
+      ],
+      [
+        () => Promise.resolve(Response.json({ result: 'QUEUED' })),
+        'Upstash answered INCRBY with a result that is not a number',
+      ],
+      [
+        () => Promise.resolve(new Response('OK but not JSON')),
+        'Upstash answered INCRBY with a result that is not a number',
+      ],
+      [() => Promise.reject(refused()), 'Upstash could not be reached for INCRBY (ECONNREFUSED)'],
+    ] as const) {
+      const error = await redis(answer)
+        .incrby('key', 1)
+        .then(
+          () => undefined,
+          (thrown: unknown) => thrown,
+        );
+      expect(error, message).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe(message);
+      expect((error as Error).message).not.toMatch(/kv\.example|stand-in-token/);
+    }
+  });
+
+  it('gives up on Upstash after 1.5 s, and says so', async () => {
+    expect(site.UPSTASH_TIMEOUT_MS).toBe(1_500);
+    const redis = site.upstashRest(KV.KV_REST_API_URL, KV.KV_REST_API_TOKEN, hang);
+    const started = performance.now();
     await expect(redis.incrby('key', 1)).rejects.toThrow(
-      'Upstash answered INCRBY with HTTP 401: WRONGPASS invalid password',
+      'Upstash did not answer INCRBY within 1.5 s',
     );
+    expect(performance.now() - started).toBeGreaterThanOrEqual(1_400);
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
+  it('counts in memory while Upstash fails, logs it once a minute, and goes back to Upstash', async () => {
+    let time = 0;
+    let up = false;
+    let shared = 100;
+    const lines: string[] = [];
+    const store = site.withMemoryFallback(
+      {
+        increment: (_key, amount) =>
+          up
+            ? Promise.resolve((shared += amount))
+            : Promise.reject(new Error('Upstash did not answer INCRBY within 1.5 s')),
+      },
+      { log: (line) => lines.push(line), now: () => time },
+    );
+    const key = 'ask-my-site:budget:requests:2026-10-27';
+    // This instance's own count, from 0, as without the Upstash keys.
+    expect(await store.increment(key, 1, 172_800)).toBe(1);
+    expect(await store.increment(key, 1, 172_800)).toBe(2);
+    expect(lines).toEqual([
+      'The Upstash budget store failed, so this instance counts in memory: Upstash did not answer INCRBY within 1.5 s.',
+    ]);
+    // Upstash answers again: the next count is the shared one.
+    up = true;
+    expect(await store.increment(key, 1, 172_800)).toBe(101);
+    up = false;
+    time += 30_000;
+    expect(await store.increment(key, 1, 172_800)).toBe(3);
+    expect(lines).toHaveLength(1);
+    time += 30_000;
+    expect(await store.increment(key, 1, 172_800)).toBe(4);
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toMatch(/\(3 failures since the last line\)\.$/);
+  });
+});
+
+/** A connection refused, as fetch reports it: its message is fetch's, the cause has the code. */
+function refused(): Error {
+  return new TypeError('fetch failed', {
+    cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:4419'), {
+      code: 'ECONNREFUSED',
+    }),
+  });
+}
+
+/** Upstash that never answers: the request ends only when its signal aborts it, as fetch's does. */
+const hang: typeof fetch = (_, init) =>
+  new Promise((_resolve, reject) => {
+    const signal = init?.signal;
+    const abort = () => {
+      reject(signal?.reason instanceof Error ? signal.reason : new Error('aborted'));
+    };
+    if (signal?.aborted) abort();
+    signal?.addEventListener('abort', abort);
+  });
+
+describe('the website’s endpoint while Upstash fails', () => {
+  // A hang ends at the Upstash timeout: here at once, as AbortSignal.timeout(1_500) is already
+  // aborted, and the test before shows the real wait.
+  const instantTimeout = () => {
+    const timeout = AbortSignal.timeout.bind(AbortSignal);
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) =>
+      ms === site.UPSTASH_TIMEOUT_MS
+        ? AbortSignal.abort(
+            new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
+          )
+        : timeout(ms),
+    );
+  };
+  const upstashFailures: [string, typeof fetch, string][] = [
+    [
+      'refuses connections',
+      () => Promise.reject(refused()),
+      'Upstash could not be reached for INCRBY (ECONNREFUSED)',
+    ],
+    [
+      'answers 500',
+      () => Promise.resolve(new Response('<html>oops</html>', { status: 500 })),
+      'Upstash answered INCRBY with HTTP 500',
+    ],
+    ['hangs', hang, 'Upstash did not answer INCRBY within 1.5 s'],
+    [
+      'answers 200 without a count',
+      () => Promise.resolve(Response.json({ result: 'QUEUED' })),
+      'Upstash answered INCRBY with a result that is not a number',
+    ],
+  ];
+
+  it.each(upstashFailures)('answers from memory when Upstash %s', async (_, upstash, reason) => {
+    instantTimeout();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetcher = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== KV.KV_REST_API_URL) return Promise.reject(new Error(`unexpected ${url}`));
+      return upstash(input, init);
+    });
+    vi.stubGlobal('fetch', fetcher);
+    for (const [name, value] of Object.entries(KV)) vi.stubEnv(name, value);
+    for (const name of Object.keys(KEYS)) vi.stubEnv(name, '');
+    vi.resetModules();
+    const { askHandler } = await load();
+    const ask = (question: string) =>
+      askHandler(
+        new Request('https://ondocs.vercel.app/api/ask', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-forwarded-for': '2001:db8:7::1' },
+          body: JSON.stringify({ question }),
+        }),
+      );
+    const answered = await ask('How do I install with pnpm?');
+    expect(answered.status).toBe(200);
+    await answered.text();
+    // It asked Upstash for the question and the tokens, and logged one line.
+    expect(fetcher.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(warn.mock.calls).toEqual([
+      [`The Upstash budget store failed, so this instance counts in memory: ${reason}.`],
+    ]);
+    // A second question, uncached, tries Upstash again, and is answered too.
+    const calls = fetcher.mock.calls.length;
+    const again = await ask('How do I build the index?');
+    expect(again.status).toBe(200);
+    await again.text();
+    expect(fetcher.mock.calls.length).toBeGreaterThan(calls);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -225,7 +225,12 @@ export const CORS_HEADERS =
  */
 function hostCheck(allowed: readonly string[] | undefined): (host: string) => boolean {
   if (allowed === undefined) return () => true;
-  const hosts = allowed.map((host) => {
+  if (!Array.isArray(allowed) || allowed.length === 0) {
+    throw new TypeError(
+      'allowedHosts is empty, so every request would be refused. List the host names the endpoint answers for, such as ["docs.example.com"], or leave it out to answer any host.',
+    );
+  }
+  const hosts = allowed.map((host: unknown) => {
     if (typeof host !== 'string' || !/^(?:[a-z\d.-]+|\[[\da-f:.]+\])(?::\d{1,5})?$/i.test(host)) {
       throw new TypeError(
         `allowedHosts takes host names, such as "docs.example.com" or "localhost:4000" (got ${JSON.stringify(host)}).`,
@@ -378,7 +383,12 @@ export function createMcpHandler(
     // has HTTP servers check: see `allowedHosts` and `allowedOrigins`.
     const host = request.headers.get('host') ?? new URL(request.url).host;
     if (!hostAllowed(host)) {
-      return rpcError(403, null, SERVER_ERROR, `Host ${host} is not allowed.`);
+      return rpcError(
+        403,
+        null,
+        SERVER_ERROR,
+        `Host ${host} is not allowed; to answer it, add it to allowedHosts.`,
+      );
     }
     const origin = request.headers.get('origin');
     if (origin !== null && !cors.allows(origin, request)) {

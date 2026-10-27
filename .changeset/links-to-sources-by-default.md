@@ -7,8 +7,8 @@
 Hardening, all opt-in or invisible to readers:
 
 - With the bot check on, a question passed in as the dialog opens (`question`, `data-ondocs-open="…"`, `openAskDialog(q)`, `window.Ondocs.open(q)`) waits for the Turnstile widget and its token. It was sent without one, and the endpoint refused it with `challenge_required` until the reader pressed Retry.
-- The HTML loader leaves out elements readers never see: those with the `hidden` attribute, or an inline `display: none` or `visibility: hidden`. Inactive tab panels, `hidden="until-found"`, what a collapsed `<details>` holds and `aria-hidden` text are kept.
-- `turnstile({ secretKey, hostnames })` refuses a token solved on a hostname not in the list, for a widget that lists several.
+- The HTML loader leaves out elements readers never see: those with the `hidden` attribute, or an inline `display: none` or `visibility: hidden`. Inactive tab panels, `hidden="until-found"`, the wrapper of a collapsed `<details>`, the segments React streams in hidden and `aria-hidden` text are kept.
+- `turnstile({ secretKey, hostnames })` refuses a token solved on a hostname not in the list, for a widget that lists several. Like `allowedHosts`, it throws on an empty list or an entry that is not a host name.
 - `createMcpHandler({ allowedHosts })` answers only requests whose `Host` is listed, for docs on a private network or on localhost: an `Origin` check alone reads a request after DNS rebinding as the endpoint's own.
 - The script tag takes `data-dialog-integrity`, the Subresource Integrity hash of `embed-dialog.global.js`, so a page that pins `embed.global.js` with `integrity` pins the dialog's file too. See "Pin the script tag" in the security guide.
 - `ondocs dev` lets a browser MCP client send `Mcp-Method` and `Mcp-Name` in its preflight, lets the dialog on another port read `Retry-After`, and explains a refused `Origin: null` instead of suggesting a flag that refuses it too.

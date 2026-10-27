@@ -407,34 +407,42 @@ function* select(
 const HIDDEN_STYLE =
   /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)\s*(?:!important\s*)?(?:;|$)/i;
 
+/** A segment React streams in hidden and then moves into place, as `<div hidden id="S:1f">`. */
+const REACT_SEGMENT = /^S:[\da-f]+$/;
+
 /**
  * The outermost elements in `html` that readers never see on the rendered page, left to right,
  * each up to its own closing tag: those with the `hidden` attribute, or an inline `display: none`
  * or `visibility: hidden`. Text in them would reach the model and agents unseen by anyone who
  * reviews the rendered page. Kept: tab panels (the inactive ones are hidden, and hold real
- * content), `hidden="until-found"`, which the browser's find-in-page opens, and what a
- * `<details>` holds, which Docusaurus renders with `display: none` until it is opened.
- * `aria-hidden` hides text from screen readers only, so it is kept too. One scan.
+ * content), `hidden="until-found"`, which the browser's find-in-page opens, the segments React
+ * streams in hidden and then shows, and the wrapper a `<details>` has as its child, which
+ * Docusaurus renders with `display: none` until it is opened. `aria-hidden` hides text from
+ * screen readers only, so it is kept too. One scan, with a stack of the open elements.
  */
 function* hiddenElements(html: string): Generator<{ start: number; end: number }> {
   const { tags, closer } = pairedTags(html);
   let after = 0;
-  let detailsEnd = -1;
+  // The elements around the current tag, innermost last, each with where its closing tag starts.
+  const open: { name: string; closesAt: number }[] = [];
   for (let i = 0; i < tags.length; i++) {
     const tag = tags[i];
     if (!tag || tag.close || tag.start < after) continue;
     const end = tags[closer[i] ?? -1];
     if (!end) continue;
-    const inDetails = tag.start < detailsEnd;
-    if (tag.name === 'details') detailsEnd = Math.max(detailsEnd, end.end);
+    while ((open[open.length - 1]?.closesAt ?? Infinity) <= tag.start) open.pop();
+    const parent = open[open.length - 1]?.name;
+    open.push({ name: tag.name, closesAt: end.start });
     if (!/hidden|style/i.test(tag.attributes)) continue;
     const attributes = attributesOf(tag.attributes);
     if (attributes.get('role') === 'tabpanel') continue;
     const hidden = attributes.get('hidden');
     const style = attributes.get('style');
     if (
-      (hidden !== undefined && hidden.toLowerCase() !== 'until-found') ||
-      (!inDetails && style !== undefined && HIDDEN_STYLE.test(style))
+      (hidden !== undefined &&
+        hidden.toLowerCase() !== 'until-found' &&
+        !REACT_SEGMENT.test(attributes.get('id') ?? '')) ||
+      (parent !== 'details' && style !== undefined && HIDDEN_STYLE.test(style))
     ) {
       yield { start: tag.start, end: end.end };
       after = end.end;

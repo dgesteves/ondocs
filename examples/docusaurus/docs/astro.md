@@ -77,7 +77,7 @@ Both add a floating "Ask AI" button and open the dialog with ⌘I or Ctrl+I, so 
 
 The dialog comes prebuilt with its own React, Radix and cmdk, from `ondocs/embed/standalone`, also on a site with React islands of its own. Vite splits it off into a chunk that loads the first time it is wanted: 92.6 KB of JavaScript, gzipped, on the Starlight example. Before then, a page carries only the button and the shortcut, and the dialog's stylesheet, 3.5 KB gzipped, which the plugin adds to the site's CSS. Measured on an Apple M1 Max with `node scripts/js-weight.mjs starlight`, in headless Chrome, and `gzip -9` of `ondocs/react/styles.css`.
 
-Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. `dialog: { links: 'sources' }` keeps only the answer's links to its source pages.
+Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. Answers link only to their source pages; `dialog: { links: 'all' }` keeps every safe link.
 
 ## Ask AI in the Starlight header
 

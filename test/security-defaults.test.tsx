@@ -133,6 +133,43 @@ describe('the HTML loader', () => {
     }
   });
 
+  it('leaves out an element hidden inside a <details>, keeping only its wrapper', () => {
+    // Docusaurus's build of a collapsed <details> (minified: the <p> is never closed), whose
+    // Markdown hides a <div> in it, and one with its wrapper still hidden.
+    const text = index(
+      [
+        '<details class="details_UPdX alert alert--info" data-collapsed=true><summary>SUMMARY</summary>',
+        '<div><div class=collapsibleContent_ySBU><p>BODY inside the collapsed details.',
+        '<div style=display:none>HIDDEN-IN-DETAILS</div></div></div></details>',
+        '<details><summary>More</summary><div style="display:none;overflow:hidden;height:0px">',
+        '<div><p>WRAPPED</p><span style="display: none">HIDDEN-IN-WRAPPER</span></div></div></details>',
+      ].join(''),
+    );
+    for (const marker of ['SUMMARY', 'BODY', 'WRAPPED']) expect(text, marker).toContain(marker);
+    for (const marker of ['HIDDEN-IN-DETAILS', 'HIDDEN-IN-WRAPPER']) {
+      expect(text, marker).not.toContain(marker);
+    }
+  });
+
+  it('keeps the segments React streams in hidden, on a page without <main>', () => {
+    // React's server rendering sends a Suspense boundary's content late, in a hidden <div> that
+    // a script then moves into place: readers see it.
+    const page = [
+      '<!DOCTYPE html><html><head><title>Streamed</title></head><body>',
+      '<h1>Streamed</h1><template id="B:0"></template><p>Loading…</p>',
+      '<div hidden id="S:0"><p>SEGMENT-ZERO</p></div>',
+      '<div hidden id="S:1f"><p>SEGMENT-HEX</p></div>',
+      '<div hidden id="S:other"><p>NOT-A-SEGMENT</p></div>',
+      '<script>$RC("B:0","S:0")</script></body></html>',
+    ].join('');
+    for (const markdown of [false, true]) {
+      const text = fromHtml(page, { id: 's.html', url: '/s', markdown })?.content ?? '';
+      expect(text).toContain('SEGMENT-ZERO');
+      expect(text).toContain('SEGMENT-HEX');
+      expect(text).not.toContain('NOT-A-SEGMENT');
+    }
+  });
+
   it('leaves out a hidden element with the elements nested in it, and only it', () => {
     const text = index(
       '<div hidden><div><p>INNER</p></div><p>MORE</p></div><div><p>AFTER</p></div><p hidden>LAST</p>',
@@ -253,7 +290,7 @@ describe('the MCP endpoint with allowedHosts', () => {
     const refused = await call(handler, rebound, rebinding);
     expect(refused.status).toBe(403);
     expect(((await refused.json()) as { error: { message: string } }).error.message).toBe(
-      'Host rebind.evil.example:8000 is not allowed.',
+      'Host rebind.evil.example:8000 is not allowed; to answer it, add it to allowedHosts.',
     );
     // The listed hosts: any port for a name without one, case aside; only its own for one with.
     const ok = 'https://docs.internal.example/api/mcp';
@@ -263,10 +300,15 @@ describe('the MCP endpoint with allowedHosts', () => {
     expect((await call(handler, 'http://localhost:4001/api/mcp')).status).toBe(403);
   });
 
-  it('takes host names only', () => {
+  it('takes host names only, and at least one', () => {
     for (const bad of ['https://docs.example.com', 'docs.example.com/api', '']) {
-      expect(() => createMcpHandler({ index, allowedHosts: [bad] }), bad).toThrow(/allowedHosts/);
+      expect(() => createMcpHandler({ index, allowedHosts: [bad] }), bad).toThrow(
+        /^allowedHosts takes host names/,
+      );
     }
+    expect(() => createMcpHandler({ index, allowedHosts: [] })).toThrow(
+      /^allowedHosts is empty, so every request would be refused/,
+    );
   });
 });
 
@@ -293,5 +335,22 @@ describe('turnstile with hostnames', () => {
     // Without hostnames, any of the widget's.
     answer({ success: true, hostname: 'other.example' });
     expect(await turnstile({ secretKey: 'secret' })('token', request)).toEqual({ success: true });
+  });
+
+  it('takes host names only, and at least one, as a list that fails every token is a mistake', () => {
+    for (const bad of [
+      'https://docs.example.com',
+      'docs.example.com:443',
+      'docs.example.com/',
+      '',
+    ]) {
+      expect(() => turnstile({ secretKey: 'secret', hostnames: [bad] }), bad).toThrow(
+        /^turnstile: hostnames takes host names with no scheme, port or path/,
+      );
+    }
+    expect(() => turnstile({ secretKey: 'secret', hostnames: [] })).toThrow(
+      /^turnstile: hostnames is empty, so every token would fail/,
+    );
+    expect(() => turnstile({ secretKey: 'secret', hostnames: ['Docs.Example.com'] })).not.toThrow();
   });
 });
