@@ -95,35 +95,47 @@ export function upstashRest(
   };
 }
 
+/** How long the counts stay in memory after Upstash fails, without asking it. */
+export const FALLBACK_COOL_OFF_MS = 30_000;
 /** At most one line a minute about the shared store failing, per instance. */
 const FALLBACK_LOG_MS = 60_000;
 
 /**
- * `shared`, with this instance's memory for each count it fails (Upstash errs, times out or
- * answers something else than a count), so the endpoint keeps answering: those counts are per
- * instance, as without the Upstash keys, and still capped. The next count tries `shared` again.
+ * `shared`, with this instance's memory while it fails (Upstash errs, times out or answers
+ * something else than a count), so the endpoint keeps answering: those counts are per instance,
+ * as without the Upstash keys, and still capped. After a failure, the counts go to memory for
+ * `FALLBACK_COOL_OFF_MS` without asking `shared`, so a hang costs one wait, not one per count;
+ * the first count after that asks `shared` again, and a count it answers ends the cool-off.
  * Failures are logged, at most one line a minute. An `EXPIRE` that fails after its `INCRBY`
  * counts that question in both, on the safe side.
  */
 export function withMemoryFallback(
   shared: BudgetStore,
-  { log = console.warn, now = Date.now }: { log?: (line: string) => void; now?: () => number } = {},
+  {
+    log = console.warn,
+    now = () => Date.now(),
+  }: { log?: (line: string) => void; now?: () => number } = {},
 ): BudgetStore {
   const memory = memoryBudgetStore({ now });
+  let coolOffUntil = -Infinity;
   let loggedAt = -Infinity;
   let failures = 0;
   return {
     async increment(key, amount, ttlSeconds) {
+      if (now() < coolOffUntil) return memory.increment(key, amount, ttlSeconds);
       try {
-        return await shared.increment(key, amount, ttlSeconds);
+        const total = await shared.increment(key, amount, ttlSeconds);
+        coolOffUntil = -Infinity;
+        return total;
       } catch (error) {
+        coolOffUntil = now() + FALLBACK_COOL_OFF_MS;
         failures++;
         if (now() - loggedAt >= FALLBACK_LOG_MS) {
           loggedAt = now();
           const reason = error instanceof Error ? error.message : String(error);
           const count = failures > 1 ? ` (${String(failures)} failures since the last line)` : '';
           log(
-            `The Upstash budget store failed, so this instance counts in memory: ${reason}${count}.`,
+            `The Upstash budget store failed, so this instance counts in memory for ${String(FALLBACK_COOL_OFF_MS / 1000)} s: ${reason}${count}.`,
           );
           failures = 0;
         }
@@ -136,7 +148,7 @@ export function withMemoryFallback(
 /**
  * Where the daily budget is counted: in the Upstash database when `KV_REST_API_URL` and
  * `KV_REST_API_TOKEN` are set (the names Vercel's Upstash integration gives them), so every
- * instance shares one budget, with this instance's memory for any count Upstash fails
+ * instance shares one budget, with this instance's memory for 30 s after Upstash fails
  * (`withMemoryFallback`); else in each instance's memory, as ondocs does by default. In memory
  * while `next build` runs too, so building the site spends none of the live budget.
  */

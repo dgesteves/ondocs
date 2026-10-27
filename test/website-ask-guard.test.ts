@@ -39,6 +39,7 @@ interface AskHandlerModule {
   ) => BudgetStore;
   TURNSTILE_HOSTNAMES: string[];
   UPSTASH_TIMEOUT_MS: number;
+  FALLBACK_COOL_OFF_MS: number;
 }
 // Imported by path, so the typecheck does not follow it to the site's index.
 const handlerModule = 'lib/ask-handler.ts';
@@ -181,38 +182,107 @@ describe('the daily budget’s store', () => {
     expect(performance.now() - started).toBeLessThan(3_000);
   });
 
-  it('counts in memory while Upstash fails, logs it once a minute, and goes back to Upstash', async () => {
+  it('counts in memory for 30 s after Upstash fails, then asks it again, and logs once a minute', async () => {
+    expect(site.FALLBACK_COOL_OFF_MS).toBe(30_000);
     let time = 0;
     let up = false;
     let shared = 100;
+    let asked = 0;
     const lines: string[] = [];
     const store = site.withMemoryFallback(
       {
-        increment: (_key, amount) =>
-          up
+        increment: (_key, amount) => {
+          asked++;
+          return up
             ? Promise.resolve((shared += amount))
-            : Promise.reject(new Error('Upstash did not answer INCRBY within 1.5 s')),
+            : Promise.reject(new Error('Upstash did not answer INCRBY within 1.5 s'));
+        },
       },
       { log: (line) => lines.push(line), now: () => time },
     );
-    const key = 'ask-my-site:budget:requests:2026-10-27';
+    const count = () => store.increment('ask-my-site:budget:requests:2026-10-27', 1, 172_800);
     // This instance's own count, from 0, as without the Upstash keys.
-    expect(await store.increment(key, 1, 172_800)).toBe(1);
-    expect(await store.increment(key, 1, 172_800)).toBe(2);
+    expect(await count()).toBe(1);
     expect(lines).toEqual([
-      'The Upstash budget store failed, so this instance counts in memory: Upstash did not answer INCRBY within 1.5 s.',
+      'The Upstash budget store failed, so this instance counts in memory for 30 s: Upstash did not answer INCRBY within 1.5 s.',
     ]);
-    // Upstash answers again: the next count is the shared one.
-    up = true;
-    expect(await store.increment(key, 1, 172_800)).toBe(101);
-    up = false;
-    time += 30_000;
-    expect(await store.increment(key, 1, 172_800)).toBe(3);
+    // The cool-off: memory, without asking Upstash.
+    expect(await count()).toBe(2);
+    time = 29_999;
+    expect(await count()).toBe(3);
+    expect(asked).toBe(1);
+    // Then the next count asks again: failing, it starts another cool-off, unlogged this minute.
+    time = 30_000;
+    expect(await count()).toBe(4);
+    expect(asked).toBe(2);
     expect(lines).toHaveLength(1);
-    time += 30_000;
-    expect(await store.increment(key, 1, 172_800)).toBe(4);
+    // Upstash answers again: the shared count, from every count on.
+    up = true;
+    time = 60_000;
+    expect(await count()).toBe(101);
+    expect(await count()).toBe(102);
+    expect(asked).toBe(4);
+    up = false;
+    expect(await count()).toBe(5);
     expect(lines).toHaveLength(2);
-    expect(lines[1]).toMatch(/\(3 failures since the last line\)\.$/);
+    expect(lines[1]).toMatch(/\(2 failures since the last line\)\.$/);
+  });
+
+  it('ends the cool-off when a count Upstash was already answering succeeds', async () => {
+    const pending: { resolve: (total: number) => void; reject: (error: Error) => void }[] = [];
+    let asked = 0;
+    const store = site.withMemoryFallback(
+      {
+        increment: () => {
+          asked++;
+          return new Promise<number>((resolve, reject) => pending.push({ resolve, reject }));
+        },
+      },
+      { log: () => undefined, now: () => 0 },
+    );
+    const count = () => store.increment('ask-my-site:budget:tokens:2026-10-27', 1, 172_800);
+    const failing = count();
+    const succeeding = count();
+    pending[0]?.reject(new Error('Upstash answered INCRBY with HTTP 500'));
+    expect(await failing).toBe(1);
+    expect(await count()).toBe(2);
+    expect(asked).toBe(2);
+    pending[1]?.resolve(50);
+    expect(await succeeding).toBe(50);
+    void count();
+    expect(asked).toBe(3);
+  });
+
+  it('sends no request to Upstash during the cool-off, and one after it, whatever the failure', async () => {
+    vi.useFakeTimers();
+    try {
+      for (const [failure, upstash] of [
+        ['refused', () => Promise.reject(refused())],
+        ['500', () => Promise.resolve(new Response('<html>oops</html>', { status: 500 }))],
+        ['timeout', () => Promise.reject(timedOut())],
+        ['not a number', () => Promise.resolve(Response.json({ result: 'QUEUED' }))],
+      ] as const) {
+        let up = false;
+        const fetcher = vi.fn(() =>
+          up ? Promise.resolve(Response.json({ result: 7 })) : upstash(),
+        );
+        const store = site.budgetStore(KV, fetcher);
+        const count = () => store?.increment('ask-my-site:budget:requests:2026-10-27', 1, 172_800);
+        expect(await count(), failure).toBe(1);
+        for (let i = 2; i <= 5; i++) expect(await count(), failure).toBe(i);
+        vi.advanceTimersByTime(29_999);
+        expect(await count(), failure).toBe(6);
+        expect(fetcher, failure).toHaveBeenCalledTimes(1);
+        vi.advanceTimersByTime(1);
+        up = true;
+        expect(await count(), failure).toBe(7);
+        expect(fetcher, failure).toHaveBeenCalledTimes(2);
+        expect(await count(), failure).toBe(7);
+        expect(fetcher, failure).toHaveBeenCalledTimes(3);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -223,6 +293,11 @@ function refused(): Error {
       code: 'ECONNREFUSED',
     }),
   });
+}
+
+/** What fetch rejects with when its AbortSignal.timeout fires. */
+function timedOut(): DOMException {
+  return new DOMException('The operation was aborted due to timeout', 'TimeoutError');
 }
 
 /** Upstash that never answers: the request ends only when its signal aborts it, as fetch's does. */
@@ -242,11 +317,7 @@ describe('the website’s endpoint while Upstash fails', () => {
   const instantTimeout = () => {
     const timeout = AbortSignal.timeout.bind(AbortSignal);
     vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) =>
-      ms === site.UPSTASH_TIMEOUT_MS
-        ? AbortSignal.abort(
-            new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
-          )
-        : timeout(ms),
+      ms === site.UPSTASH_TIMEOUT_MS ? AbortSignal.abort(timedOut()) : timeout(ms),
     );
   };
   const upstashFailures: [string, typeof fetch, string][] = [
@@ -292,17 +363,16 @@ describe('the website’s endpoint while Upstash fails', () => {
     const answered = await ask('How do I install with pnpm?');
     expect(answered.status).toBe(200);
     await answered.text();
-    // It asked Upstash for the question and the tokens, and logged one line.
-    expect(fetcher.mock.calls.length).toBeGreaterThanOrEqual(2);
+    // It asked Upstash once, for the question; the tokens went to memory, and one line was logged.
+    expect(fetcher).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls).toEqual([
-      [`The Upstash budget store failed, so this instance counts in memory: ${reason}.`],
+      [`The Upstash budget store failed, so this instance counts in memory for 30 s: ${reason}.`],
     ]);
-    // A second question, uncached, tries Upstash again, and is answered too.
-    const calls = fetcher.mock.calls.length;
+    // A second question, uncached, within the 30 s: answered from memory, without asking Upstash.
     const again = await ask('How do I build the index?');
     expect(again.status).toBe(200);
     await again.text();
-    expect(fetcher.mock.calls.length).toBeGreaterThan(calls);
+    expect(fetcher).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledTimes(1);
   });
 });
