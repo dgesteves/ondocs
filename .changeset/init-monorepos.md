@@ -1,0 +1,9 @@
+---
+'ondocs': patch
+---
+
+`ondocs init` works in monorepos. At a workspace's root it lists the packages that have a site's config and says which folder to run it in, instead of taking a dependency of the root's for an Astro site. In the site's package, it finds a `netlify.toml`, `vercel.json` or wrangler config in a folder above, up to the workspace's or the repository's root, and writes the functions where that host builds from (Netlify's `base`), with the index's path from there, such as `website/build/ask-index.json`. Before, it found no host there, and with `--host netlify` it wrote a second `netlify.toml` and the functions in the site's folder, which Netlify ignores. The install steps use the workspace's package manager: `pnpm --filter <package> add` or `yarn workspace <package> add` for the site, and `pnpm add -w` or `yarn add` at the root for functions there, where init said `npm i` because the lockfile was not in the site's folder.
+
+init finds more of a site's locales, so their pages are not answered from the default locale's index: Starlight's `locales,` from a const in the same file, as Starlight's own docs have it, Docusaurus's `i18n` imported from another file, as Jest's site has it, and the locales the last build wrote an index for, with a warning where those and the config disagree, or when the config makes its locales in code init does not read. A VitePress locale that only links to another site gets no index, and Astro's `{ path, codes }` locales are read by their path, once each, where init wrote a duplicate key and a `pt-BR` index that never exists.
+
+On a Cloudflare Worker's `wrangler.json`, an empty `"assets": {}` gets the binding without a trailing comma, which made the file invalid JSON, and only a top-level `"main"` counts as the Worker's own entry point, so an `env.staging.main` no longer stops init.
