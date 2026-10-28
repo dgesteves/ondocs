@@ -274,6 +274,8 @@ describe('the ask endpoint page', () => {
     expect(notes).toContain('after 10 seconds (`timeoutSeconds`)');
   });
 
+  // Its own timeout, well under the suite's: each answer ends within about 300 ms, so a stream
+  // left open fails here fast.
   it('says the first-word limit holds OpenAI’s Responses models but not its Chat Completions ones, which hand over their stream at the first word', async () => {
     // OpenAI streams whose first word comes 300 ms after the opening events, past a first-word
     // limit of 100 ms. The Chat Completions provider hands its stream to the AI SDK only once that
@@ -286,6 +288,12 @@ describe('the ask endpoint page', () => {
           new Response(
             new ReadableStream({
               async start(controller) {
+                // As fetch does, the body fails with the abort's reason once the request is
+                // aborted. ai 7.0.95, the peer range's floor, waits for that to end the answer.
+                const signal = init?.signal;
+                signal?.addEventListener('abort', () => {
+                  controller.error(signal.reason);
+                });
                 const send = (events: readonly object[]) => {
                   for (const event of events) {
                     controller.enqueue(
@@ -295,8 +303,8 @@ describe('the ask endpoint page', () => {
                 };
                 send(before);
                 await new Promise((resolve) => setTimeout(resolve, 300));
-                // The answer was cut off by then, and the request aborted.
-                if (init?.signal?.aborted) return;
+                // The answer was cut off by then, and the body failed.
+                if (signal?.aborted) return;
                 send(after);
                 if (done) controller.enqueue(new TextEncoder().encode(done));
                 controller.close();
@@ -382,7 +390,7 @@ describe('the ask endpoint page', () => {
     const errors = section('ask-endpoint', 'Errors');
     expect(errors).toContain('`openai.chat(…)`');
     expect(errors).toMatch(/only the 90 seconds apply/);
-  });
+  }, 5_000);
 });
 
 describe('the troubleshooting page', () => {
