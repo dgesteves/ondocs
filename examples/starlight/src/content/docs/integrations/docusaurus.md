@@ -64,7 +64,7 @@ There is nothing to commit. The index is rebuilt with the site, and unchanged pa
 
 In the browser the plugin adds a floating "Ask AI" button beside the back-to-top button, and opens the dialog with ⌘I or Ctrl+I. ⌘K stays with your search, and text fields keep ⌘I for italic. The dialog follows the site's light or dark mode, and citations route through Docusaurus without a page reload.
 
-DocSearch's own Ask AI panel also opens with ⌘I. Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. `dialog: { links: 'sources' }` keeps only the answer's links to its source pages.
+DocSearch's own Ask AI panel also opens with ⌘I. Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. Answers link only to their source pages; `dialog: { links: 'all' }` keeps every safe link.
 
 ## Ask AI in the Docusaurus navbar
 

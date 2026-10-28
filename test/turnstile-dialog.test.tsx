@@ -194,6 +194,56 @@ describe('the dialog with challenge: { turnstile }', () => {
     });
   });
 
+  // A question given as the dialog opens (`question`, data-ondocs-open="…", openAskDialog(q),
+  // window.Ondocs.open(q)) is asked before the widget has rendered: it waits for the widget and
+  // its first token, rather than going without one.
+  it('waits for the widget with a question passed in as the dialog opens', async () => {
+    const turnstile = fakeTurnstile();
+    const { fetch, bodies } = endpoint();
+    render(
+      <AskDialog
+        open
+        onOpenChange={() => undefined}
+        question={QUESTION}
+        challenge={{ turnstile: SITE_KEY }}
+        fetch={fetch}
+      />,
+    );
+    const dialog = await screen.findByRole('dialog');
+    await loadScript(turnstile.api);
+    await waitFor(() => {
+      expect(turnstile.widgets).toHaveLength(1);
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    const token = turnstile.solve();
+    await within(dialog).findByText(/maps to 127/);
+    expect(bodies).toEqual([{ question: QUESTION, challenge: token }]);
+    expect(within(dialog).queryByRole('alert')).toBeNull();
+  });
+
+  it('waits for the widget when a closed dialog opens with a question, and Turnstile is loaded', async () => {
+    const turnstile = fakeTurnstile();
+    // The page has Turnstile already, and it solves a token as soon as a widget renders.
+    window.turnstile = {
+      ...turnstile.api,
+      render: (container, options) => {
+        const id = turnstile.api.render(container, options);
+        queueMicrotask(() => {
+          turnstile.solve();
+        });
+        return id;
+      },
+    };
+    const { fetch, bodies } = endpoint();
+    const props = { onOpenChange: () => undefined, challenge: { turnstile: SITE_KEY }, fetch };
+    const { rerender } = render(<AskDialog open={false} {...props} />);
+    rerender(<AskDialog open question={QUESTION} {...props} />);
+    const dialog = await screen.findByRole('dialog');
+    await within(dialog).findByText(/maps to 127/);
+    expect(bodies).toEqual([{ question: QUESTION, challenge: 'token-1' }]);
+    expect(scriptTags()).toHaveLength(0);
+  });
+
   it('removes the widget when the dialog closes, and renders a new one when it opens again', async () => {
     const user = userEvent.setup();
     const turnstile = fakeTurnstile();

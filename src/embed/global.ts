@@ -9,7 +9,8 @@
 // Once the page has loaded it mounts with its tag's `data-*` attributes (see `scriptOptions`),
 // unless the tag has `data-manual`. `window.Ondocs.mount(options)` mounts it by hand, and
 // `window.Ondocs.open(question?)` opens it, as a `data-ondocs-open` element does.
-// `data-dialog-src` gives the dialog's URL, for a copy hosted elsewhere.
+// `data-dialog-src` gives the dialog's URL, for a copy hosted elsewhere, and
+// `data-dialog-integrity` its Subresource Integrity hash, as `integrity` pins this file's.
 import launcherStyles from './launcher.css';
 import {
   mountWithLoader,
@@ -41,6 +42,8 @@ const script = document.currentScript instanceof HTMLScriptElement ? document.cu
 const dialogSrc =
   script?.dataset.dialogSrc ??
   (script?.src ? new URL('embed-dialog.global.js', script.src).href : 'embed-dialog.global.js');
+// The dialog file's hash, so a page that pins this file with `integrity` pins the second one too.
+const dialogIntegrity = script?.dataset.dialogIntegrity;
 
 let dialog: Promise<DialogRenderer> | null = null;
 
@@ -54,6 +57,11 @@ function loadDialog(): Promise<DialogRenderer> {
     const tag = document.createElement('script');
     tag.src = dialogSrc;
     tag.async = true;
+    if (dialogIntegrity) {
+      tag.integrity = dialogIntegrity;
+      // A cross-origin script is checked only when it is fetched with CORS, as jsDelivr allows.
+      tag.crossOrigin = script.crossOrigin ?? 'anonymous';
+    }
     tag.addEventListener('load', () => {
       if (window.OndocsDialog) resolve(window.OndocsDialog);
       else reject(new Error(`${dialogSrc} did not define the dialog.`));

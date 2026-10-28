@@ -26,7 +26,7 @@ description: 'AskDialog props, the Ask button for your header, the launcher butt
 | `title`                               | "Ask this site"                 | The dialog's accessible name.                                                                                                       |
 | `placeholder`                         | "Ask a question…"               | The input's placeholder.                                                                                                            |
 | `footer`                              | a disclaimer and keyboard hints | Replaces the footer.                                                                                                                |
-| `links`                               | `"all"`                         | `"sources"` keeps only the answer's links to its source pages; citations always link.                                               |
+| `links`                               | `"sources"`                     | Answers link only to their source pages, and citations always link; `"all"` keeps every safe link.                                  |
 | `sourceUrls`                          | none                            | `{ pages, base }`: where citations and links go when the endpoint answers from another site's index.                                |
 | `labels`                              | English                         | Every string the dialog and its button show or announce; see [Labels and languages](#labels-and-languages).                         |
 | `locale`                              | none                            | The page's locale, sent with each question, for an endpoint with an index per locale.                                               |

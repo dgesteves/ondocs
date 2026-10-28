@@ -17,6 +17,7 @@ import { importOptional } from '../node/optional';
 import { workersAiEmbedding } from '../node/workers-ai';
 import type { RetrievalOptions } from '../search/retrieve';
 import { createAskHandler, createMcpHandler, memoryRateLimit } from '../server';
+import { CORS_HEADERS as MCP_CORS_HEADERS } from '../server/mcp';
 import type { CliIO } from './main';
 
 export const DEV_USAGE = `Usage: ondocs dev [options]
@@ -328,13 +329,18 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
     return current;
   };
 
-  const cors = (request: IncomingMessage): Record<string, string> => {
+  const cors = (request: IncomingMessage, path?: string): Record<string, string> => {
     const origin = request.headers.origin;
     const allowed = anyOrigin ? '*' : origin && originAllowed(origin) ? origin : undefined;
+    const mcp = path === '/api/mcp';
     return {
       ...(allowed ? { 'access-control-allow-origin': allowed } : {}),
       'access-control-allow-methods': 'POST, OPTIONS',
-      'access-control-allow-headers': 'content-type, mcp-protocol-version',
+      // A browser MCP client sends the headers the MCP handler allows, Mcp-Method and Mcp-Name
+      // among them on 2026-07-28.
+      'access-control-allow-headers': mcp ? MCP_CORS_HEADERS : 'content-type, mcp-protocol-version',
+      // The dialog reads how long to wait after a 429, and an MCP client the version answered.
+      'access-control-expose-headers': mcp ? 'mcp-protocol-version, retry-after' : 'retry-after',
       ...(allowed === '*' ? {} : { vary: 'origin' }),
     };
   };
@@ -378,7 +384,9 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
     const origin = request.headers.origin;
     if (origin !== undefined && !originAllowed(origin)) {
       options.error(
-        `  ✗ Refused a request from ${origin}: pass --allow-origin ${origin} to allow it.`,
+        origin === 'null'
+          ? '  ✗ Refused a request from origin null: a page opened from a file, or in a sandboxed frame, has no origin to allow. Serve it over http://localhost.'
+          : `  ✗ Refused a request from ${origin}: pass --allow-origin ${origin} to allow it.`,
       );
       refuse(request, response, 403, 'forbidden', `Origin ${origin} is not allowed.`);
       return;
@@ -433,7 +441,10 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
         ...(method === 'GET' || method === 'HEAD' ? {} : { body }),
       }),
     );
-    response.writeHead(answer.status, { ...Object.fromEntries(answer.headers), ...cors(request) });
+    response.writeHead(answer.status, {
+      ...Object.fromEntries(answer.headers),
+      ...cors(request, url.pathname),
+    });
     if (answer.body) {
       for await (const chunk of answer.body) response.write(chunk);
     }

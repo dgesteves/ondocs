@@ -250,6 +250,7 @@ describe('AskAnswer', () => {
       <AskAnswer
         text={'<img src=x onerror=alert(1)> [click](javascript:alert(1)) [ok](https://example.com)'}
         sources={[]}
+        links="all"
       />,
     );
     expect(document.querySelector('img')).toBeNull();
@@ -274,8 +275,12 @@ describe('AskAnswer', () => {
     expect(screen.getByRole('link', { name: 'Source 1: A' })).toBeTruthy();
     unmount();
 
-    // The default keeps every safe link.
-    render(<AskAnswer text={text} sources={sources} />);
+    // The default, too; links="all" keeps every safe link.
+    const { unmount: unmountDefault } = render(<AskAnswer text={text} sources={sources} />);
+    expect(screen.queryByRole('link', { name: 'a login page' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'the setup' })).toBeTruthy();
+    unmountDefault();
+    render(<AskAnswer text={text} sources={sources} links="all" />);
     expect(screen.getByRole('link', { name: 'a login page' })).toBeTruthy();
   });
 

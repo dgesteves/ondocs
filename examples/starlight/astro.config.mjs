@@ -5,6 +5,10 @@ import { defineConfig } from 'astro/config';
 import { sourceUrls } from './source-urls.mjs';
 import { suggestions } from './suggestions.mjs';
 
+// The website's Turnstile widget's site key, which is public: with it, the dialog solves the bot
+// check the website's endpoint asks for once its own keys are set (lib/ask-handler.ts there).
+const turnstile = process.env.TURNSTILE_SITE_KEY;
+
 export default defineConfig({
   // The live demo's address, for llms.txt and the pages' own links.
   site: process.env.SITE_URL ?? 'https://ondocs-starlight.vercel.app',
@@ -47,8 +51,11 @@ export default defineConfig({
             navbar: true,
             suggestions,
             // The website's citations carry its URLs: these send them to the same pages here.
-            // An endpoint at ASK_ENDPOINT answers from this site's own index, at its own URLs.
-            ...(process.env.ASK_ENDPOINT ? {} : { sourceUrls }),
+            // An endpoint at ASK_ENDPOINT answers from this site's own index, at its own URLs,
+            // with no bot check.
+            ...(process.env.ASK_ENDPOINT
+              ? {}
+              : { sourceUrls, ...(turnstile ? { challenge: { turnstile } } : {}) }),
           },
         }),
       ],
