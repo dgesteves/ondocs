@@ -174,6 +174,8 @@ describe('the VitePress sizes', () => {
 
   it('give what the plugin adds to a page as the benchmarks table measures it', () => {
     const quoted = /([\d.]+) KB with VitePress/.exec(page('ask-dialog'))?.[1];
+    expect(row).toBeDefined();
+    expect(quoted).toBeDefined();
     expect(Number(quoted)).toBe(+(withOndocs - own).toFixed(1));
   });
 
@@ -181,6 +183,8 @@ describe('the VitePress sizes', () => {
     const quoted = /: ([\d.]+) KB of JavaScript, gzipped, on the VitePress example/.exec(
       page('vitepress'),
     )?.[1];
+    expect(row).toBeDefined();
+    expect(quoted).toBeDefined();
     expect(Number(quoted)).toBe(onOpen);
   });
 });
@@ -270,43 +274,110 @@ describe('the ask endpoint page', () => {
     expect(notes).toContain('after 10 seconds (`timeoutSeconds`)');
   });
 
-  it('says the first-word limit does not hold OpenAI’s Chat Completions models, which hand over their stream at the first word', async () => {
-    // A Chat Completions stream whose first word comes after 300 ms, past a first-word limit of
-    // 100 ms: the provider hands the stream to the AI SDK only once that word has arrived.
-    const chunk = (delta: object, finish: string | null = null) =>
-      `data: ${JSON.stringify({ id: 'c', created: 0, model: 'gpt-5.4-mini', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
-    const slow = () =>
-      Promise.resolve(
-        new Response(
-          new ReadableStream({
-            async start(controller) {
-              const send = (text: string) => {
-                controller.enqueue(new TextEncoder().encode(text));
-              };
-              send(chunk({ role: 'assistant', content: '' }));
-              await new Promise((resolve) => setTimeout(resolve, 300));
-              send(chunk({ content: 'Run pnpm add ondocs [1].' }));
-              send(chunk({}, 'stop'));
-              send('data: [DONE]\n\n');
-              controller.close();
-            },
-          }),
-          { headers: { 'content-type': 'text/event-stream' } },
-        ),
-      );
-    const openai = createOpenAI({ apiKey: 'test', fetch: slow });
-    const { index } = await buildIndex({ documents: corpus, embeddingModel: null });
-    const onError = vi.fn();
-    const handler = createAskHandler({
-      index,
-      model: openai.chat('gpt-5.4-mini'),
-      rateLimit: false,
-      generation: { timeout: { firstChunkMs: 100, totalMs: 5_000 } },
-      onError,
+  it('says the first-word limit holds OpenAI’s Responses models but not its Chat Completions ones, which hand over their stream at the first word', async () => {
+    // OpenAI streams whose first word comes 300 ms after the opening events, past a first-word
+    // limit of 100 ms. The Chat Completions provider hands its stream to the AI SDK only once that
+    // word has arrived; the Responses one 50 ms after `response.in_progress`.
+    const ANSWER = 'Run pnpm add ondocs [1].';
+    const stalled =
+      (before: readonly object[], after: readonly object[], done = '') =>
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        Promise.resolve(
+          new Response(
+            new ReadableStream({
+              async start(controller) {
+                const send = (events: readonly object[]) => {
+                  for (const event of events) {
+                    controller.enqueue(
+                      new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`),
+                    );
+                  }
+                };
+                send(before);
+                await new Promise((resolve) => setTimeout(resolve, 300));
+                // The answer was cut off by then, and the request aborted.
+                if (init?.signal?.aborted) return;
+                send(after);
+                if (done) controller.enqueue(new TextEncoder().encode(done));
+                controller.close();
+              },
+            }),
+            { headers: { 'content-type': 'text/event-stream' } },
+          ),
+        );
+    const chunk = (delta: object, finish: string | null = null) => ({
+      id: 'c',
+      created: 0,
+      model: 'gpt-5.4-mini',
+      choices: [{ index: 0, delta, finish_reason: finish }],
     });
-    const body = await (await handler(post('How do I install with pnpm?'))).text();
-    expect(body).toContain('"delta":"Run pnpm add ondocs [1]."');
-    expect(onError).not.toHaveBeenCalled();
+    const chat = stalled(
+      [chunk({ role: 'assistant', content: '' })],
+      [chunk({ content: ANSWER }), chunk({}, 'stop')],
+      'data: [DONE]\n\n',
+    );
+    const response = { id: 'resp_1', created_at: 0, model: 'gpt-5.4-mini' };
+    const message = { type: 'message', id: 'msg_1' };
+    const responses = stalled(
+      [
+        { type: 'response.created', response },
+        { type: 'response.in_progress', response },
+      ],
+      [
+        { type: 'response.output_item.added', output_index: 0, item: message },
+        { type: 'response.output_text.delta', item_id: 'msg_1', output_index: 0, delta: ANSWER },
+        { type: 'response.output_item.done', output_index: 0, item: message },
+        { type: 'response.completed', response: { incomplete_details: null } },
+      ],
+    );
+
+    const { index } = await buildIndex({ documents: corpus, embeddingModel: null });
+    const answer = async (
+      model: Parameters<typeof createAskHandler>[0]['model'],
+      timeout: { firstChunkMs?: number; totalMs?: number },
+    ) => {
+      const onError = vi.fn();
+      const handler = createAskHandler({
+        index,
+        model,
+        rateLimit: false,
+        generation: { timeout },
+        onError,
+      });
+      const body = await (await handler(post('How do I install with pnpm?'))).text();
+      const types = body
+        .split('\n\n')
+        .map((event) => event.replace(/^data: /, ''))
+        .filter((event) => event.startsWith('{'))
+        .map((event) => (JSON.parse(event) as { type: string }).type);
+      return {
+        answered: body.includes(`"delta":"${ANSWER}"`),
+        aborted: types.includes('abort'),
+        reported: onError.mock.calls.map(([error]) => (error as Error).message),
+      };
+    };
+    const ABORTED = ['The answer was aborted before it finished.'];
+
+    // Chat Completions: the first-word limit never starts, so the answer arrives.
+    expect(
+      await answer(createOpenAI({ apiKey: 'test', fetch: chat }).chat('gpt-5.4-mini'), {
+        firstChunkMs: 100,
+        totalMs: 5_000,
+      }),
+    ).toEqual({ answered: true, aborted: false, reported: [] });
+    // The stall is long enough to cut an answer off: the total limit does, at 200 ms.
+    expect(
+      await answer(createOpenAI({ apiKey: 'test', fetch: chat }).chat('gpt-5.4-mini'), {
+        totalMs: 200,
+      }),
+    ).toEqual({ answered: false, aborted: true, reported: ABORTED });
+    // Responses: the same stall after `response.in_progress` trips the first-word limit.
+    expect(
+      await answer(createOpenAI({ apiKey: 'test', fetch: responses })('gpt-5.4-mini'), {
+        firstChunkMs: 100,
+        totalMs: 5_000,
+      }),
+    ).toEqual({ answered: false, aborted: true, reported: ABORTED });
 
     const errors = section('ask-endpoint', 'Errors');
     expect(errors).toContain('`openai.chat(…)`');

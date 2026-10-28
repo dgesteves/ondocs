@@ -8,7 +8,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 const RUNTIME_NEUTRAL =
-  'This code runs in edge runtimes, Workers and browsers, which have no Node.js built-ins: use a Web API, or move the code to src/node, src/integration or src/cli. See ARCHITECTURE.md.';
+  'This code runs in edge runtimes, Workers and browsers, which have no Node.js built-ins: use a Web API, or move the code to src/node, src/integration, src/cli or the build-time code of a plugin. See ARCHITECTURE.md.';
 
 // The example app is linted by its own `lint` script, after it is built: type-aware rules need
 // the package's dist types, the generated index and Next's route types, which a fresh clone lacks.
@@ -69,9 +69,19 @@ export default defineConfig(
   },
   {
     // The entries that run anywhere, edge runtimes, Workers and browsers included (ondocs,
-    // ondocs/server, ondocs/react, ondocs/embed and ondocs/mock), and what they import. tsdown
-    // builds them for the `node` platform, which only governs how built-ins resolve.
-    files: ['src/*.ts', 'src/{embed,loaders,mock,react,search,server,text}/**/*.{ts,tsx}'],
+    // ondocs/server, ondocs/react, ondocs/embed and ondocs/mock), and what they import. Also the
+    // plugins' code that runs on the site rather than at build time: the Astro endpoints
+    // (ondocs/astro/ask-route and ondocs/astro/mcp-route, served on Cloudflare Workers too) and
+    // the Docusaurus theme, which runs in the browser. tsdown builds them for the `node` platform,
+    // which only governs how built-ins resolve. The rule flags `import type` from a built-in as
+    // well: those types would reach the published .d.ts.
+    files: [
+      'src/*.ts',
+      'src/{embed,loaders,mock,react,search,server,text}/**/*.{ts,tsx}',
+      'src/astro/{ask-route,mcp-route,route,route-handlers}.ts',
+      'src/docusaurus/renamed.ts',
+      'src/docusaurus/theme/**/*.tsx',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',

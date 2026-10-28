@@ -8,31 +8,31 @@ description: 'AskDialog props, the Ask button for your header, the launcher butt
 
 ## AskDialog props
 
-| Prop                                  | Default                         | Notes                                                                                                       |
-| ------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `endpoint`                            | `/api/ask`                      | Where questions are posted.                                                                                 |
-| `headers`                             | none                            | Extra request headers, such as an auth token.                                                               |
-| `fetch`                               | the global `fetch`              | A `fetch` of your own, for tests or instrumentation.                                                        |
-| `open`, `defaultOpen`, `onOpenChange` | uncontrolled                    | Controlled or uncontrolled.                                                                                 |
-| `shortcut`                            | `"i"`                           | Opens the dialog with ⌘ or Ctrl; `false` disables it.                                                       |
-| `trigger`                             | none                            | An element that opens the dialog, such as a search button.                                                  |
-| `launcher`                            | `false`                         | `true` or a label: a floating "Ask AI" button with the shortcut on it.                                      |
-| `suggestions`                         | `[]`                            | Questions offered before typing, filtered as you type.                                                      |
-| `onNavigate`                          | browser navigation              | `(url, event)` for citations and sources; call `preventDefault()` to route yourself.                        |
-| `theme`                               | `"auto"`                        | Follows `data-theme` on `<html>`, then the system; `"light"` or `"dark"` to pin it.                         |
-| `classNames`                          | none                            | Extra classes per part: `overlay`, `content`, `input`, `list`, `item`, `answer`, `sources`, `footer`.       |
-| `title`                               | "Ask this site"                 | The dialog's accessible name.                                                                               |
-| `placeholder`                         | "Ask a question…"               | The input's placeholder.                                                                                    |
-| `footer`                              | a disclaimer and keyboard hints | Replaces the footer.                                                                                        |
-| `links`                               | `"all"`                         | `"sources"` keeps only the answer's links to its source pages; citations always link.                       |
-| `sourceUrls`                          | none                            | `{ pages, base }`: where citations and links go when the endpoint answers from another site's index.        |
-| `labels`                              | English                         | Every string the dialog and its button show or announce; see [Labels and languages](#labels-and-languages). |
-| `locale`                              | none                            | The page's locale, sent with each question, for an endpoint with an index per locale.                       |
-| `followUps`                           | `true`                          | Send the thread with each question, so the endpoint can answer follow-ups; `false` asks each alone.         |
-| `question`                            | none                            | Asked as the dialog opens with it, and when it changes while open, each time in a new thread.               |
-| `challenge`                           | none                            | `{ turnstile: '<site key>' }`: solve a [bot check](./bot-challenge.md) before each question.                |
-| `challengeToken`                      | none                            | A function returning a fresh [bot check](./bot-challenge.md) token per question, from your own widget.      |
-| `onFinish`                            | none                            | Called with the state `useAsk` returns, once an answer completes or fails.                                  |
+| Prop                                  | Default                         | Notes                                                                                                                                   |
+| ------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `endpoint`                            | `/api/ask`                      | Where questions are posted.                                                                                                             |
+| `headers`                             | none                            | Extra request headers, such as an auth token.                                                                                           |
+| `fetch`                               | the global `fetch`              | A `fetch` of your own, for tests or instrumentation.                                                                                    |
+| `open`, `defaultOpen`, `onOpenChange` | uncontrolled                    | Controlled or uncontrolled.                                                                                                             |
+| `shortcut`                            | `"i"`                           | Opens the dialog with ⌘ or Ctrl; `false` disables it.                                                                                   |
+| `trigger`                             | none                            | An element that opens the dialog, such as a search button.                                                                              |
+| `launcher`                            | `false`                         | `true` or a label: a floating "Ask AI" button with the shortcut on it.                                                                  |
+| `suggestions`                         | `[]`                            | Questions offered before typing, filtered as you type.                                                                                  |
+| `onNavigate`                          | browser navigation              | `(url, event)` for citations and sources; call `preventDefault()` to route yourself.                                                    |
+| `theme`                               | `"auto"`                        | Follows `data-theme` on `<html>`, then the system; `"light"` or `"dark"` to pin it.                                                     |
+| `classNames`                          | none                            | Extra classes per part: `overlay`, `content`, `input`, `list`, `item`, `answer`, `sources`, `footer`.                                   |
+| `title`                               | "Ask this site"                 | The dialog's accessible name.                                                                                                           |
+| `placeholder`                         | "Ask a question…"               | The input's placeholder.                                                                                                                |
+| `footer`                              | a disclaimer and keyboard hints | Replaces the footer.                                                                                                                    |
+| `links`                               | `"all"`                         | `"sources"` keeps only the answer's links to its source pages; citations always link.                                                   |
+| `sourceUrls`                          | none                            | `{ pages, base }`: where citations and links go when the endpoint answers from another site's index.                                    |
+| `labels`                              | English                         | Every string the dialog and its button show or announce; see [Labels and languages](#labels-and-languages).                             |
+| `locale`                              | none                            | The page's locale, sent with each question, for an endpoint with an index per locale.                                                   |
+| `followUps`                           | `true`                          | Send the thread with each question, so the endpoint can answer follow-ups; `false` asks each alone.                                     |
+| `question`                            | none                            | Asked as the dialog opens with it, and when it changes while open, each time in a new thread.                                           |
+| `challenge`                           | none                            | `{ turnstile: '<site key>' }`: solve a [bot check](./bot-challenge.md) before each question.                                            |
+| `challengeToken`                      | none                            | A function returning a fresh [bot check](./bot-challenge.md) token per question, from your own widget; ignored when `challenge` is set. |
+| `onFinish`                            | none                            | Called with the state `useAsk` returns, once an answer completes or fails.                                                              |
 
 ## Opening the dialog
 
