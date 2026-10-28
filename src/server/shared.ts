@@ -231,6 +231,43 @@ export interface CorsPolicy {
   preflight(request: Request): Record<string, string>;
 }
 
+/** An origin as a browser sends it in `Origin`: a scheme and a host, with a port or not. */
+const ORIGIN = /^[a-z][a-z\d+.-]*:\/\/[^/?#\s]+$/;
+
+/**
+ * `allowed`, checked as the handler is made: `'*'`, or a list of origins as a browser sends them,
+ * which is what each request's `Origin` is compared with. An entry with a trailing slash, a path,
+ * capitals or a default port matches no request, and a string other than `'*'` would be searched
+ * as text, so each fails here with what to write instead.
+ */
+function originList(allowed: AllowedOrigins | undefined): AllowedOrigins | undefined {
+  if (allowed === undefined || allowed === '*') return allowed;
+  const entries: unknown = allowed;
+  if (!Array.isArray(entries)) {
+    throw new TypeError(
+      `allowedOrigins takes '*' or a list of origins, such as ['https://blog.example.com'] (got ${JSON.stringify(allowed)}).`,
+    );
+  }
+  for (const entry of entries as unknown[]) {
+    if (entry === '*') {
+      throw new TypeError(
+        "allowedOrigins lists '*': pass allowedOrigins: '*' to allow any origin.",
+      );
+    }
+    // `new URL` writes an http(s) origin as browsers do: lowercase, without the default port.
+    const parsed = typeof entry === 'string' && URL.canParse(entry) ? new URL(entry) : null;
+    const web = parsed?.protocol === 'http:' || parsed?.protocol === 'https:';
+    if (typeof entry === 'string' && ORIGIN.test(entry) && (!web || parsed.origin === entry)) {
+      continue;
+    }
+    const fix = web ? `; use ${JSON.stringify(parsed.origin)}` : '';
+    throw new TypeError(
+      `allowedOrigins takes origins as browsers send them, such as "https://blog.example.com", with no path or trailing slash (got ${JSON.stringify(entry)}${fix}).`,
+    );
+  }
+  return allowed;
+}
+
 /**
  * CORS for the `allowed` origins: each gets `Access-Control-Allow-Origin` with its own origin
  * (and `Vary: Origin`), or `*` for `'*'`, and may read `exposeHeaders`; a preflight from one is
@@ -238,9 +275,10 @@ export interface CorsPolicy {
  * headers, so a browser on it can neither read the answer nor get past the preflight.
  */
 export function corsPolicy(
-  allowed: AllowedOrigins | undefined,
+  given: AllowedOrigins | undefined,
   cors: { methods: string; allowHeaders: string; exposeHeaders: string },
 ): CorsPolicy {
+  const allowed = originList(given);
   const ownOrigin = (request: Request): string => new URL(request.url).origin;
   const allows = (origin: string, request: Request): boolean =>
     allowed === undefined ||

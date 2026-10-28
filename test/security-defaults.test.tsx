@@ -310,6 +310,15 @@ describe('the MCP endpoint with allowedHosts', () => {
       /^allowedHosts is empty, so every request would be refused/,
     );
   });
+
+  it('checks allowedOrigins as it is made, as the ask endpoint does', () => {
+    expect(() => createMcpHandler({ index, allowedOrigins: ['https://claude.ai/'] })).toThrow(
+      'allowedOrigins takes origins as browsers send them, such as "https://blog.example.com", with no path or trailing slash (got "https://claude.ai/"; use "https://claude.ai").',
+    );
+    expect(() => createMcpHandler({ index, allowedOrigins: 'https://claude.ai' as '*' })).toThrow(
+      /^allowedOrigins takes '\*' or a list of origins/,
+    );
+  });
 });
 
 describe('turnstile with hostnames', () => {
