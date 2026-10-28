@@ -230,7 +230,11 @@ function ids(html) {
   for (const [, double, single, bare] of html.matchAll(
     /\sid=(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g,
   )) {
-    found.add((double ?? single ?? bare ?? '').replaceAll('&amp;', '&').replaceAll('&quot;', '"'));
+    // In one pass, so that `&amp;quot;` stays `&quot;`.
+    const id = (double ?? single ?? bare ?? '').replace(/&(amp|quot|#39);/g, (_, entity) =>
+      entity === 'amp' ? '&' : entity === 'quot' ? '"' : "'",
+    );
+    found.add(id);
   }
   return found;
 }
