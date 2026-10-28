@@ -209,6 +209,61 @@ describe('ondocs/astro with an SSR adapter', () => {
       "route.model must be openai:<model>, an AI Gateway id <provider>/<model>, or mock (got 'gpt-5')",
     );
   });
+
+  /**
+   * The middleware `astro dev` gets in `astro:server:setup`, for a site at `base`, and what it
+   * does with a request for `url`. Astro's own base middleware runs first: it strips `base` from
+   * `url`, and connect keeps the path as requested in `originalUrl`.
+   */
+  async function devRequest(base: string, requested: string) {
+    const client = pathToFileURL(`${root}/dist/client/`);
+    const site = integration();
+    setup(site, { base, command: 'dev', build: { client, server: client } });
+    const hooks = site.hooks as Record<string, (options: unknown) => unknown>;
+    const config = { root: pathToFileURL(`${root}/`), base, build: { client }, outDir: client };
+    await hooks['astro:config:done']?.({ config });
+    type Middleware = (
+      request: { url?: string; originalUrl?: string },
+      response: unknown,
+      next: () => void,
+    ) => void;
+    const middlewares: Middleware[] = [];
+    const warn = vi.fn();
+    await hooks['astro:server:setup']?.({
+      server: { middlewares: { use: (handler: Middleware) => middlewares.push(handler) } },
+      logger: { warn },
+    });
+    const prefix = base.replace(/\/+$/, '');
+    const url =
+      prefix && requested.startsWith(`${prefix}/`) ? requested.slice(prefix.length) : requested;
+    return new Promise<{ status: number; body?: string } | 'next'>((done) => {
+      const response = {
+        statusCode: 200,
+        setHeader: () => undefined,
+        end(body?: Buffer) {
+          done({ status: this.statusCode, ...(body ? { body: body.toString() } : {}) });
+        },
+      };
+      middlewares[0]?.({ url, originalUrl: requested }, response, () => {
+        done('next');
+      });
+    });
+  }
+
+  it('serves the last build’s index in astro dev, under base too', async () => {
+    await mkdir(join(root, 'dist/client'), { recursive: true });
+    await writeFile(join(root, 'dist/client/ask-index.json'), '{"built":true}');
+    for (const base of ['/', '/docs', '/docs/']) {
+      const prefix = base.replace(/\/+$/, '');
+      expect(await devRequest(base, `${prefix}/ask-index.json`), base).toEqual({
+        status: 200,
+        body: '{"built":true}',
+      });
+      expect(await devRequest(base, `${prefix}/guides/ask-index.json`), base).toBe('next');
+    }
+    // A request outside base, which Astro leaves as it is, is not the index.
+    expect(await devRequest('/docs', '/ask-index.json')).toBe('next');
+  });
 });
 
 describe('the module generated for the routes', () => {
