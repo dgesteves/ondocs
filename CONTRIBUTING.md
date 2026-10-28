@@ -32,11 +32,14 @@ packages/             docusaurus-plugin-ondocs and starlight-ondocs, which re-ex
                       ondocs/docusaurus and ondocs/starlight under the names people search for
 ```
 
+[ARCHITECTURE.md](./ARCHITECTURE.md) follows a site's pages into the index, and a question through the endpoint, file by file, with the rules the layout keeps.
+
 ## Checks
 
-`pnpm validate` runs what CI runs, except the fresh-site job:
+While you work, `pnpm test` runs the tests alone: some 1,500 of them, in about half a minute on an Apple M1 Max. Before you open a pull request, `pnpm validate` runs what CI runs, except the fresh-site job:
 
 ```bash
+pnpm test       # the tests
 pnpm validate   # lint, format, typecheck, test, build, publint and attw, and the four example builds
 ```
 
