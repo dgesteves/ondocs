@@ -44,17 +44,17 @@ The CLI reads `.env` and `.env.local` from the working directory, without overri
 
 `ondocs init [options]` writes the ask endpoint and the MCP endpoint for the site in the working directory and the host it deploys to: Vercel, Netlify, Cloudflare (Pages, or a Worker with static assets) or GitHub Pages, whose endpoint is a Cloudflare Worker of its own. It detects the site from its config (Docusaurus, Starlight, Astro, Next.js, VitePress, Hugo, MkDocs, Jekyll or Eleventy) and the host from `vercel.json`, `netlify.toml`, a wrangler config or a GitHub Pages workflow, and asks for the host when it cannot tell. A plain HTML site has no config to detect: name its folder with `--out`. [Deploying](/guides/deployment/#write-the-endpoint-with-init) shows what it writes for each.
 
-| Flag                 | Default                | What it does                                                                   |
-| -------------------- | ---------------------- | ------------------------------------------------------------------------------ |
-| `--host <name>`      | detected, else asked   | `vercel`, `netlify`, `cloudflare` or `github-pages`.                           |
-| `--provider <name>`  | `workers-ai`           | For `github-pages`: `workers-ai`, with no API key, or `openai`.                |
-| `--site-url <url>`   | from the site's config | The site's public URL with its base path, which the GitHub Pages Worker reads. |
-| `--site-name <text>` | the site's title       | The site's name, in the model's instructions.                                  |
-| `--out <dir>`        | detected               | A static site's build folder, where the index goes.                            |
-| `--no-mcp`           | the MCP endpoint is on | Write the ask endpoint only.                                                   |
-| `--dry-run`          | off                    | Print every file it would write, and write nothing.                            |
-| `-y, --yes`          | asks                   | Overwrite files that differ without asking.                                    |
-| `-h, --help`         |                        | Print the help.                                                                |
+| Flag                 | Default                | What it does                                                                            |
+| -------------------- | ---------------------- | --------------------------------------------------------------------------------------- |
+| `--host <name>`      | detected, else asked   | `vercel`, `netlify`, `cloudflare` or `github-pages`.                                    |
+| `--provider <name>`  | `workers-ai`           | For `github-pages`: `workers-ai`, with no API key, or `openai`.                         |
+| `--site-url <url>`   | from the site's config | The site's public URL with its base path, which the GitHub Pages Worker reads.          |
+| `--site-name <text>` | the site's title       | The site's name, in the model's instructions.                                           |
+| `--out <dir>`        | detected               | A static site's build folder, where the index goes.                                     |
+| `--no-mcp`           | the MCP endpoint is on | Write the ask endpoint only.                                                            |
+| `--dry-run`          | off                    | Print every file it would write, and write nothing.                                     |
+| `-y, --yes`          | asks                   | Overwrite files that differ, and use the host's config without asking: the nearest one. |
+| `-h, --help`         |                        | Print the help.                                                                         |
 
 It prints each file it created, updated or left unchanged, the environment variables to set and where, and the steps left: the packages to install, the dialog to add (or the options to give a plugin the site's config already adds) and the deploy. It exits with 0 when everything is written, 1 when it left a file as it was or an edit for you to make by hand, and 2 on a usage error. It reads no `.env` file and no credential, and it deploys nothing. An Astro site with an SSR adapter gets no file: its integration serves the endpoints.
 

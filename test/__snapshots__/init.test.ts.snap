@@ -13,20 +13,20 @@ exports[`ondocs init: what it writes per host > Docusaurus in three locales on N
 // you like, and init asks before it overwrites it.
 //
 // It answers from build/ask-index.json, which the build writes and netlify.toml bundles with this
-// function. Set OPENAI_API_KEY in the site's environment variables: the build embeds the pages with
-// it, and this function embeds questions and calls the model.
+// function, read by its path from this file. Set OPENAI_API_KEY in the site's environment
+// variables: the build embeds the pages with it, and this function embeds questions and calls the
+// model.
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
 import { openai } from '@ai-sdk/openai';
 import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 export default createAskHandler({
-  index: () => readFile(join(process.cwd(), 'build/ask-index.json'), 'utf8'),
+  index: () => readFile(new URL('../../build/ask-index.json', import.meta.url), 'utf8'),
   // Each locale's index, which the dialog asks for on that locale's pages.
   indexes: {
-    fr: () => readFile(join(process.cwd(), 'build/fr/ask-index.json'), 'utf8'),
-    'pt-BR': () => readFile(join(process.cwd(), 'build/pt-BR/ask-index.json'), 'utf8'),
+    fr: () => readFile(new URL('../../build/fr/ask-index.json', import.meta.url), 'utf8'),
+    'pt-BR': () => readFile(new URL('../../build/pt-BR/ask-index.json', import.meta.url), 'utf8'),
   },
   model: openai('gpt-5.4-mini'),
   // The model the plugins and the CLI embed pages with when OPENAI_API_KEY is set as the site
@@ -53,15 +53,14 @@ export const config = { path: '/api/ask' };
   "netlify/functions/mcp.mts": "// The MCP endpoint, /api/mcp, as a Netlify Function. Written by \`npx ondocs init\`: edit it as you
 // like, and init asks before it overwrites it.
 //
-// It serves build/ask-index.json to agents as search, fetch and list_pages tools. Search is
-// keyword-only, so it calls no model: the agent brings its own.
+// It serves build/ask-index.json, read by its path from this file, to agents as search, fetch and
+// list_pages tools. Search is keyword-only, so it calls no model: the agent brings its own.
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
 import { createMcpHandler, memoryRateLimit } from 'ondocs/server';
 
 export default createMcpHandler({
-  index: () => readFile(join(process.cwd(), 'build/ask-index.json'), 'utf8'),
+  index: () => readFile(new URL('../../build/ask-index.json', import.meta.url), 'utf8'),
   siteName: 'Acme Docs',
   // 60 tool calls a minute per client, keyed on x-nf-client-connection-ip, the client IP Netlify sets.
   rateLimit: memoryRateLimit({ limit: 60, windowMs: 60_000, trustedHeader: 'x-nf-client-connection-ip' }),
@@ -419,16 +418,16 @@ exports[`ondocs init: what it writes per host > Docusaurus on Netlify 1`] = `
 // you like, and init asks before it overwrites it.
 //
 // It answers from build/ask-index.json, which the build writes and netlify.toml bundles with this
-// function. Set OPENAI_API_KEY in the site's environment variables: the build embeds the pages with
-// it, and this function embeds questions and calls the model.
+// function, read by its path from this file. Set OPENAI_API_KEY in the site's environment
+// variables: the build embeds the pages with it, and this function embeds questions and calls the
+// model.
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
 import { openai } from '@ai-sdk/openai';
 import { createAskHandler, memoryRateLimit, turnstile } from 'ondocs/server';
 
 export default createAskHandler({
-  index: () => readFile(join(process.cwd(), 'build/ask-index.json'), 'utf8'),
+  index: () => readFile(new URL('../../build/ask-index.json', import.meta.url), 'utf8'),
   model: openai('gpt-5.4-mini'),
   // The model the plugins and the CLI embed pages with when OPENAI_API_KEY is set as the site
   // builds. The index records its model, and a different one here fails loudly. An index built
@@ -454,15 +453,14 @@ export const config = { path: '/api/ask' };
   "netlify/functions/mcp.mts": "// The MCP endpoint, /api/mcp, as a Netlify Function. Written by \`npx ondocs init\`: edit it as you
 // like, and init asks before it overwrites it.
 //
-// It serves build/ask-index.json to agents as search, fetch and list_pages tools. Search is
-// keyword-only, so it calls no model: the agent brings its own.
+// It serves build/ask-index.json, read by its path from this file, to agents as search, fetch and
+// list_pages tools. Search is keyword-only, so it calls no model: the agent brings its own.
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 
 import { createMcpHandler, memoryRateLimit } from 'ondocs/server';
 
 export default createMcpHandler({
-  index: () => readFile(join(process.cwd(), 'build/ask-index.json'), 'utf8'),
+  index: () => readFile(new URL('../../build/ask-index.json', import.meta.url), 'utf8'),
   siteName: 'Acme Docs',
   // 60 tool calls a minute per client, keyed on x-nf-client-connection-ip, the client IP Netlify sets.
   rateLimit: memoryRateLimit({ limit: 60, windowMs: 60_000, trustedHeader: 'x-nf-client-connection-ip' }),

@@ -10,6 +10,7 @@ import {
   fromMarkdown,
   slugify,
 } from '../src';
+import { configLocales, wranglerWorkerConfig } from '../src/cli/init';
 import { nextHeadingIds } from '../src/node/next';
 import { dropHeadingFootnotes } from '../src/text/markdown';
 import type { SourceDocument } from '../src';
@@ -281,6 +282,51 @@ describe('linear-time loaders on unclosed constructs', () => {
     ],
   ])('%s', (_, parse) => {
     expect(timed(parse)).toBeLessThan(BUDGET_MS);
+  });
+});
+
+describe('linear-time reading of a site config by init', () => {
+  // A megabyte of config, as a site's config file with a large sidebar can be. When each match
+  // was checked from the start of the source, the first two took 11.7 s and 14.3 s at 128 KB,
+  // and the third 35 s.
+  const megabyte = (unit: string) => unit.repeat(Math.ceil(2 ** 20 / unit.length));
+  it.each([
+    ['many `locales:` properties', `export default { ${megabyte('locales: x, ')} };`, false],
+    ['many `{ i18n }` shorthands', `export default [${megabyte('{ i18n }, ')}];`, false],
+    [
+      'many commented-out locales',
+      `${megabyte("// locales: { fr: { label: 'Français' } },\n")}export default {};`,
+      true,
+    ],
+    // Each `/` after a `[` looked like a regular expression, read to the end of its line: 8.4 s
+    // at 64 KB.
+    [
+      'a line of `/`s that start no regular expression',
+      `${megabyte('[/')}\nexport default { i18n: { locales: ['en', 'fr'] } };`,
+      false,
+    ],
+    // Each `const L:` read to the end of its line for an `=`: 0.77 s at 64 KB.
+    [
+      'a line of declarations without an `=`',
+      `export default { i18n: L };\n${megabyte('const L: ')}`,
+      false,
+    ],
+  ])('%s', (_, config, starlight) => {
+    expect(timed(() => configLocales(config, starlight))).toBeLessThan(BUDGET_MS);
+  });
+
+  it('a line of exports without an `=`, in an imported file', () => {
+    // As above, in the file the config imports its locales from: 0.87 s at 64 KB.
+    const imported = megabyte('export const L: ');
+    const read = (path: string) => (path === './i18n.mjs' ? imported : null);
+    const config = "import { L } from './i18n.mjs';\nexport default { i18n: L };";
+    expect(timed(() => configLocales(config, false, read))).toBeLessThan(BUDGET_MS);
+  });
+
+  it('a wrangler.jsonc of keys without commas', () => {
+    // Each key was looked for from the last comma: 1.2 s at 64 KB.
+    const config = `{\n${megabyte('"key": 1\n')}}\n`;
+    expect(timed(() => wranglerWorkerConfig('wrangler.jsonc', config))).toBeLessThan(BUDGET_MS);
   });
 });
 

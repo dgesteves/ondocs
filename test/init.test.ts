@@ -9,7 +9,7 @@ import { join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { version } from '../package.json' with { type: 'json' };
-import { placeholderUrl, wranglerWorkerConfig } from '../src/cli/init';
+import { configLocales, placeholderUrl, wranglerWorkerConfig } from '../src/cli/init';
 import { comment, workerName } from '../src/cli/init-templates';
 import { main } from '../src/cli/main';
 
@@ -38,14 +38,14 @@ async function site(contents: Record<string, string>): Promise<void> {
   }
 }
 
-async function run(args: string[], answers?: string[]) {
+async function run(args: string[], answers?: string[], dir = '') {
   const stdout: string[] = [];
   const stderr: string[] = [];
   const asked: string[] = [];
   const env: Record<string, string | undefined> = {};
   const queue = [...(answers ?? [])];
   const code = await main(['init', ...args], {
-    cwd,
+    cwd: join(cwd, dir),
     env,
     stdout: (line) => stdout.push(line),
     stderr: (line) => stderr.push(line),
@@ -537,6 +537,15 @@ describe('ondocs init', () => {
         starlight("\n  // site: 'https://docs.acme.dev',\n  "),
         `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${siteFirst}`,
       ],
+      // As Starlight's own config has it: the shorthand `site,`, from a const.
+      [
+        {
+          ...starlight(''),
+          'astro.config.mjs':
+            "import starlight from '@astrojs/starlight';\nconst site = process.env.SITE_URL ?? 'https://docs.acme.dev';\nexport default { site, integrations: [starlight({ title: 'Acme' })] };\n",
+        },
+        `ondocs({ mcp: '/api/mcp' })], from 'ondocs/starlight' ${named}`,
+      ],
       [vitepress(", sitemap: { hostname: 'https://acme.dev' }"), `${withOndocs} ${named}`],
       [vitepress(', sitemap: { hostname: process.env.SITE_URL }'), `${withOndocs} ${named}`],
       [
@@ -702,7 +711,597 @@ describe('ondocs init', () => {
   });
 });
 
+const nextSteps = (stdout: string): string => stdout.slice(stdout.lastIndexOf('\nNext:'));
+
+describe('ondocs init: locales', () => {
+  it('follows a Starlight config’s locales to the const that declares them', async () => {
+    // As Starlight's own docs have it: `locales,` in starlight(), from a const in the same file.
+    await site({
+      'package.json': JSON.stringify({
+        dependencies: { astro: '7', '@astrojs/starlight': '0.42' },
+      }),
+      'astro.config.mjs': [
+        "import starlight from '@astrojs/starlight';",
+        '',
+        'export const locales = {',
+        "  root: { label: 'English', lang: 'en' },",
+        "  fr: { label: 'Français', lang: 'fr' },",
+        "  'pt-br': { label: 'Português do Brasil', lang: 'pt-BR' },",
+        '};',
+        '',
+        'export default {',
+        "  site: 'https://docs.acme.dev',",
+        '  integrations: [',
+        '    starlight({',
+        "      title: 'Acme',",
+        '      // Every page has a translation. { root } is English.',
+        '      locales,',
+        "      sidebar: [{ label: 'Start', link: '/start/' }],",
+        '    }),',
+        '  ],',
+        '};',
+        '',
+      ].join('\n'),
+      'netlify.toml': '',
+    });
+    const result = await run(['--dry-run']);
+    expect(result.stderr).toBe('');
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('Its other locales, fr, pt-br, are answered');
+    expect(result.stdout).toContain(
+      "'pt-br': () => readFile(new URL('../../dist/pt-br/ask-index.json', import.meta.url), 'utf8'),",
+    );
+  });
+
+  it('follows a Docusaurus config’s i18n to the file it imports', async () => {
+    const cases: [string, string, string, string][] = [
+      [
+        'docusaurus.config.js',
+        "import i18n from './i18n.mjs';\n\nexport default { title: 'Acme', url: 'https://acme.dev', baseUrl: '/', i18n };\n",
+        'i18n.mjs',
+        "export default {\n  defaultLocale: 'en',\n  locales: ['en', 'ja', 'fr'],\n};\n",
+      ],
+      [
+        'docusaurus.config.js',
+        "const i18n = require('./i18n');\n\nmodule.exports = { title: 'Acme', url: 'https://acme.dev', baseUrl: '/', i18n };\n",
+        'i18n.js',
+        "module.exports = { defaultLocale: 'en', locales: ['en', 'ja', 'fr'] };\n",
+      ],
+      [
+        'docusaurus.config.ts',
+        "import { i18n as locales } from './site.config';\n\nexport default { title: 'Acme', url: 'https://acme.dev', baseUrl: '/', i18n: locales };\n",
+        'site.config.ts',
+        "export const i18n = { defaultLocale: 'en', locales: ['en', 'ja', 'fr'] };\n",
+      ],
+    ];
+    for (const [config, source, file, i18n] of cases) {
+      await rm(cwd, { recursive: true, force: true });
+      await mkdir(cwd, { recursive: true });
+      await site({
+        'package.json': JSON.stringify({ dependencies: { '@docusaurus/core': '3' } }),
+        [config]: source,
+        [file]: i18n,
+        'vercel.json': '{}',
+      });
+      const result = await run(['--dry-run']);
+      expect([file, result.stderr]).toEqual([file, '']);
+      expect([file, result.stdout]).toEqual([
+        file,
+        expect.stringContaining('Its other locales, ja, fr, are answered'),
+      ]);
+    }
+  });
+
+  it('leaves out a VitePress locale that only links to another site', async () => {
+    // As vitest's docs have it: zh links to the Chinese site, which has its own pages. The local
+    // search's locales, nested deeper, are not the site's.
+    await site({
+      'package.json': JSON.stringify({ devDependencies: { vitepress: '1.6.4' } }),
+      '.vitepress/config.mts': [
+        "import { defineConfig } from 'vitepress';",
+        '',
+        'export default defineConfig({',
+        "  title: 'Acme',",
+        "  themeConfig: { search: { provider: 'local', options: { locales: { ja: { translations: {} } } } } },",
+        '  locales: {',
+        "    root: { label: 'English', lang: 'en' },",
+        "    fr: { label: 'Français', lang: 'fr', themeConfig: { nav: [{ text: 'GitHub', link: 'https://github.com/acme/acme' }] } },",
+        "    zh: { label: '简体中文', lang: 'zh', link: 'https://cn.acme.dev/' },",
+        '  },',
+        '});',
+        '',
+      ].join('\n'),
+      'netlify.toml': '',
+    });
+    const result = await run(['--yes']);
+    expect(result.stderr).toBe('');
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('Its other locales, fr, are answered');
+    const toml = await readFile(join(cwd, 'netlify.toml'), 'utf8');
+    expect(toml).toContain(
+      'included_files = [".vitepress/dist/ask-index.json", ".vitepress/dist/fr/ask-index.json"]',
+    );
+    expect(await readFile(join(cwd, 'netlify/functions/ask.mts'), 'utf8')).not.toMatch(
+      /\b(zh|ja)\b/,
+    );
+  });
+
+  it('takes the locales the last build wrote, and says where the config differs', async () => {
+    await site({
+      ...DOCUSAURUS,
+      'docusaurus.config.ts':
+        "export default {\n  title: 'Acme Docs',\n  url: 'https://acme.dev',\n  baseUrl: '/',\n  i18n: { defaultLocale: 'en', locales: ['en', 'fr', 'de'] },\n};\n",
+      'build/ask-index.json': '{}',
+      'build/fr/ask-index.json': '{}',
+      'build/ja/ask-index.json': '{}',
+      'build/docs/index.html': '',
+      'netlify.toml': '',
+    });
+    const result = await run(['--dry-run']);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('Its other locales, fr, de, ja, are answered');
+    expect(result.stderr.split('\n')).toEqual([
+      expect.stringMatching(
+        /^! The last build wrote an index for ja in build\/, .*docusaurus\.config\.ts/,
+      ),
+      expect.stringMatching(
+        /^! docusaurus\.config\.ts names de, but the last build wrote no build\/de\/ask-index\.json/,
+      ),
+    ]);
+  });
+
+  it('says so when the config makes its locales in code init does not read', async () => {
+    await site({
+      'package.json': JSON.stringify({ dependencies: { astro: '7' } }),
+      'astro.config.mjs':
+        "import { i18n } from '@acme/site-config';\nexport default { site: 'https://acme.dev', i18n: i18n() };\n",
+      'vercel.json': '{}',
+    });
+    const result = await run(['--dry-run']);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toMatch(/^Dry run: an Astro site on Vercel\./);
+    expect(result.stdout).not.toContain('Its other locales');
+    expect(result.stderr).toMatch(
+      /^! astro\.config\.mjs sets its locales in code init does not read/,
+    );
+    expect(result.stderr).toContain('dist/');
+  });
+});
+
+describe('ondocs init in a monorepo', () => {
+  // As Jest has it: a Yarn workspace with the Docusaurus site in website/, its locales in a file of
+  // their own, and netlify.toml at the root, which builds from there.
+  const JEST = {
+    'package.json': JSON.stringify({
+      name: 'jest-monorepo',
+      private: true,
+      workspaces: ['packages/*', 'website'],
+      packageManager: 'yarn@4.10.3',
+    }),
+    'yarn.lock': '',
+    '.yarnrc.yml': 'nodeLinker: node-modules\n',
+    'netlify.toml':
+      '[build]\n  base = "/"\n  publish = "/website/build"\n  command = "yarn build-clean && yarn website:build"\n',
+    'packages/jest/package.json': JSON.stringify({ name: 'jest' }),
+    'website/package.json': JSON.stringify({
+      name: 'jest-website',
+      private: true,
+      dependencies: { '@docusaurus/core': '3' },
+    }),
+    'website/docusaurus.config.js':
+      "import i18n from './i18n.mjs';\n\nexport default {\n  title: 'Jest',\n  url: 'https://jestjs.io',\n  baseUrl: '/',\n  i18n,\n};\n",
+    'website/i18n.mjs':
+      "export default {\n  defaultLocale: 'en',\n  locales: ['en', 'ja', 'fr'],\n};\n",
+  };
+
+  it('names the sites in the workspace’s packages at its root, instead of guessing one', async () => {
+    await site(JEST);
+    const jest = await run(['--dry-run']);
+    expect(jest.code).toBe(2);
+    expect(jest.stderr).toContain('website (Docusaurus)');
+    expect(jest.stderr).toContain('cd website && npx ondocs init');
+
+    // As Starlight has it: astro in the root's devDependencies, the docs in docs/ and examples
+    // beside them, and netlify.toml at the root.
+    await rm(cwd, { recursive: true, force: true });
+    await mkdir(cwd, { recursive: true });
+    const starlight = (title: string) =>
+      `import starlight from '@astrojs/starlight';\nexport default { integrations: [starlight({ title: '${title}' })] };\n`;
+    await site({
+      'package.json': JSON.stringify({
+        name: 'starlight-root',
+        private: true,
+        devDependencies: { astro: '7' },
+      }),
+      'pnpm-workspace.yaml': "packages:\n  - 'docs'\n  - 'packages/*'\n  - 'examples/*'\n",
+      'pnpm-lock.yaml': '',
+      'netlify.toml': '[build]\n  publish = "docs/dist"\n',
+      'docs/package.json': JSON.stringify({
+        name: 'starlight-docs',
+        dependencies: { astro: '7', '@astrojs/starlight': 'workspace:*' },
+      }),
+      'docs/astro.config.mjs': starlight('Starlight'),
+      'examples/basics/package.json': JSON.stringify({
+        name: 'starlight-basics',
+        dependencies: { astro: '7', '@astrojs/starlight': '0.42' },
+      }),
+      'examples/basics/astro.config.mjs': starlight('Basics'),
+      'packages/starlight/package.json': JSON.stringify({ name: '@astrojs/starlight' }),
+    });
+    const root = await run(['--dry-run']);
+    expect(root.code).toBe(2);
+    expect(root.stdout).not.toContain('site on Netlify');
+    expect(root.stderr).toContain('docs (Starlight), examples/basics (Starlight)');
+    expect(root.stderr).toContain('cd docs && npx ondocs init');
+  });
+
+  it('writes the functions where the root’s netlify.toml builds, with the paths from there', async () => {
+    await site(JEST);
+    const result = await run(['--yes'], undefined, 'website');
+    expect(result.stderr).toBe('');
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('a Docusaurus site on Netlify.');
+    expect(result.stdout).toContain('Its other locales, ja, fr, are answered');
+    expect(existsSync(join(cwd, 'website/netlify.toml'))).toBe(false);
+    expect(existsSync(join(cwd, 'website/netlify'))).toBe(false);
+    const ask = await readFile(join(cwd, 'netlify/functions/ask.mts'), 'utf8');
+    expect(ask).toContain(
+      "index: () => readFile(new URL('../../website/build/ask-index.json', import.meta.url), 'utf8'),",
+    );
+    expect(ask).toContain(
+      "ja: () => readFile(new URL('../../website/build/ja/ask-index.json', import.meta.url), 'utf8'),",
+    );
+    expect(await readFile(join(cwd, 'netlify.toml'), 'utf8')).toContain(
+      '[functions.ask]\n  included_files = ["website/build/ask-index.json", "website/build/ja/ask-index.json", "website/build/fr/ask-index.json"]',
+    );
+    // The site's packages go in its package, and the functions' in the root's, with Yarn.
+    expect(nextSteps(result.stdout)).toContain(
+      "1. yarn workspace jest-website add ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk\n  2. cd .. && yarn add ondocs ai @ai-sdk/openai (the functions in ../netlify/functions import them)\n  3. cd .. && yarn add -D @types/node (the functions' types)",
+    );
+    expect(result.stdout).not.toMatch(/\bnpm i\b/);
+
+    // Run again in a terminal: asked whether the root's netlify.toml serves the site, Enter is yes.
+    const again = await run([], [''], 'website');
+    expect(again.asked).toEqual([
+      "Netlify is configured in ../netlify.toml, above the site's folder. Does it serve this site? [Y/n] ",
+    ]);
+    expect(again.code).toBe(0);
+    expect(again.stdout).toMatch(/unchanged {2}\.\.\/netlify\.toml/);
+    expect(again.stdout).toMatch(/unchanged {2}\.\.\/netlify\/functions\/ask\.mts/);
+  });
+
+  it('writes the functions in the base directory a netlify.toml above names', async () => {
+    // A repository, not a workspace: netlify.toml at its root builds the site in docs/.
+    await site({
+      '.git/HEAD': 'ref: refs/heads/main\n',
+      'netlify.toml': '[build]\n  base = "docs"\n  publish = "build"\n',
+      'docs/package.json': JSON.stringify({
+        name: 'acme-docs',
+        dependencies: { '@docusaurus/core': '3' },
+      }),
+      'docs/package-lock.json': '{}',
+      'docs/docusaurus.config.ts': DOCUSAURUS['docusaurus.config.ts'],
+    });
+    const result = await run(['--yes'], undefined, 'docs');
+    expect(result.stderr).toBe('');
+    expect(result.code).toBe(0);
+    expect(await readFile(join(cwd, 'docs/netlify/functions/ask.mts'), 'utf8')).toContain(
+      "readFile(new URL('../../build/ask-index.json', import.meta.url), 'utf8')",
+    );
+    expect(existsSync(join(cwd, 'docs/netlify.toml'))).toBe(false);
+    expect(await readFile(join(cwd, 'netlify.toml'), 'utf8')).toContain(
+      'included_files = ["build/ask-index.json"]',
+    );
+    expect(nextSteps(result.stdout)).toContain(
+      "1. npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk\n  2. npm i -D @types/node (the functions' types)",
+    );
+  });
+
+  it('gives pnpm’s workspace commands, and finds the vercel.json at the root', async () => {
+    const workspace = {
+      'package.json': JSON.stringify({ name: 'acme', private: true }),
+      'pnpm-workspace.yaml': 'packages:\n  - docs\n  - "packages/*"\n',
+      'pnpm-lock.yaml': '',
+      'vercel.json': '{ "outputDirectory": "docs/dist" }\n',
+      'docs/package.json': JSON.stringify({
+        name: 'acme-docs',
+        dependencies: { astro: '7', '@astrojs/starlight': '0.42' },
+      }),
+      'docs/astro.config.mjs':
+        "import starlight from '@astrojs/starlight';\nexport default { site: 'https://docs.acme.dev', integrations: [starlight({ title: 'Acme' })] };\n",
+    };
+    await site(workspace);
+    const result = await run(['--yes'], undefined, 'docs');
+    expect(result.stderr).toBe('');
+    expect(result.code).toBe(0);
+    expect(await readFile(join(cwd, 'api/ask.ts'), 'utf8')).toContain(
+      "readFile(join(process.cwd(), 'docs/dist/ask-index.json'), 'utf8')",
+    );
+    expect(JSON.parse(await readFile(join(cwd, 'vercel.json'), 'utf8'))).toEqual({
+      outputDirectory: 'docs/dist',
+      functions: {
+        'api/ask.ts': { includeFiles: 'docs/dist/ask-index.json' },
+        'api/mcp.ts': { includeFiles: 'docs/dist/ask-index.json' },
+      },
+    });
+    expect(nextSteps(result.stdout)).toContain(
+      "1. pnpm --filter acme-docs add ondocs ai @ai-sdk/openai\n  2. pnpm add -w ondocs ai @ai-sdk/openai (the functions in ../api import them)\n  3. pnpm add -w -D @types/node (the functions' types)",
+    );
+
+    // A vercel.json of the site's own is the one: the root's is not used.
+    await rm(cwd, { recursive: true, force: true });
+    await mkdir(cwd, { recursive: true });
+    await site({ ...workspace, 'docs/vercel.json': '{}' });
+    const own = await run(['--dry-run'], undefined, 'docs');
+    expect(own.code).toBe(0);
+    expect(own.stdout).toContain('would create  api/ask.ts');
+    expect(nextSteps(own.stdout)).toContain(
+      "1. pnpm --filter acme-docs add ondocs ai @ai-sdk/openai\n  2. pnpm --filter acme-docs add -D @types/node (the functions' types)",
+    );
+  });
+
+  it('asks which host when the site and the workspace’s root configure different ones', async () => {
+    // As vitest has it: netlify.toml at the root, and a wrangler config in docs/.
+    await site({
+      'package.json': JSON.stringify({ name: 'vitest-monorepo', private: true }),
+      'pnpm-workspace.yaml': 'packages:\n  - docs\n  - packages/*\n',
+      'netlify.toml': '[build]\n  publish = "docs/.vitepress/dist"\n',
+      'docs/package.json': JSON.stringify({
+        name: 'docs',
+        devDependencies: { vitepress: '1.6.4' },
+      }),
+      'docs/.vitepress/config.ts': "export default { title: 'Vitest' };\n",
+      'docs/wrangler.jsonc':
+        '{\n  "name": "vitest-docs",\n  "assets": { "directory": "./.vitepress/dist" }\n}\n',
+    });
+    const unattended = await run(['--dry-run'], undefined, 'docs');
+    expect(unattended.code).toBe(2);
+    expect(unattended.stderr).toContain(
+      "This site has config for Cloudflare and Netlify (in ../): pick one with --host cloudflare|netlify, or pass --yes to take Cloudflare, configured in the site's folder.",
+    );
+    const netlify = await run(['--dry-run', '--host', 'netlify'], undefined, 'docs');
+    expect(netlify.code).toBe(0);
+    expect(netlify.stdout).toContain('would create  ../netlify/functions/ask.mts');
+    expect(netlify.stdout).toContain(
+      "readFile(new URL('../../docs/.vitepress/dist/ask-index.json', import.meta.url), 'utf8')",
+    );
+
+    // A GitHub Pages workflow can only be at the repository's root.
+    await rm(join(cwd, 'netlify.toml'));
+    await rm(join(cwd, 'docs/wrangler.jsonc'));
+    await site({ '.github/workflows/docs.yml': 'steps:\n  - uses: actions/deploy-pages@v4\n' });
+    const pages = await run(
+      ['--dry-run', '--yes', '--site-url', 'https://vitest.github.io'],
+      undefined,
+      'docs',
+    );
+    expect(pages.code).toBe(0);
+    expect(pages.stdout).toContain(
+      'a VitePress site on GitHub Pages, answered by a Cloudflare Worker.',
+    );
+  });
+
+  it('asks before it writes for a host configured only in a folder above the site’s', async () => {
+    // The root's netlify.toml can deploy another of the workspace's apps.
+    await site(JEST);
+    const unattended = await run(['--dry-run'], undefined, 'website');
+    expect(unattended.code).toBe(2);
+    expect(unattended.stderr).toBe(
+      "✗ Netlify is configured in ../netlify.toml, above the site's folder. If it serves this site, run init again with --yes. If another host does, pass --host vercel|cloudflare|github-pages; for Netlify with a config of the site's own, add a netlify.toml in the site's folder.",
+    );
+
+    const yes = await run(['--dry-run'], ['y'], 'website');
+    expect(yes.code).toBe(0);
+    expect(yes.stdout).toContain('would create  ../netlify/functions/ask.mts');
+
+    // No: init asks for the host, as with no config at all, and writes in the site's folder.
+    const no = await run(['--dry-run'], ['n', '2'], 'website');
+    expect(no.asked).toEqual([
+      "Netlify is configured in ../netlify.toml, above the site's folder. Does it serve this site? [Y/n] ",
+      'Choose 1-4: ',
+    ]);
+    expect(no.code).toBe(0);
+    expect(no.stdout).toContain('would create  netlify/functions/ask.mts');
+    expect(no.stdout).toContain('would create  netlify.toml');
+    expect(no.stdout).toContain(
+      "readFile(new URL('../../build/ask-index.json', import.meta.url), 'utf8')",
+    );
+
+    // --host names the host, so init takes the root's config for it without asking.
+    const named = await run(['--dry-run', '--host', 'netlify'], undefined, 'website');
+    expect(named.code).toBe(0);
+    expect(named.stdout).toContain('would create  ../netlify/functions/ask.mts');
+
+    // A netlify.toml of the site's own is the one, as the message says.
+    await site({ 'website/netlify.toml': '[build]\n  publish = "build"\n' });
+    const own = await run(['--dry-run'], undefined, 'website');
+    expect(own.code).toBe(0);
+    expect(own.stdout).toContain('would create  netlify/functions/ask.mts');
+    expect(own.stdout).toContain('would update  netlify.toml');
+  });
+
+  it('takes the site’s own host config with --yes, over another host’s above it', async () => {
+    // A vercel.json in docs/, and a netlify.toml at the root that deploys another app.
+    await site({
+      '.git/HEAD': 'ref: refs/heads/main\n',
+      'netlify.toml': '[build]\n  base = "app"\n  publish = "dist"\n',
+      'docs/package.json': JSON.stringify({
+        name: 'acme-docs',
+        dependencies: { '@docusaurus/core': '3' },
+      }),
+      'docs/docusaurus.config.ts': DOCUSAURUS['docusaurus.config.ts'],
+      'docs/vercel.json': '{}\n',
+    });
+    const yes = await run(['--dry-run', '--yes'], undefined, 'docs');
+    expect(yes.stderr).toBe('');
+    expect(yes.code).toBe(0);
+    expect(yes.stdout).toMatch(/^Dry run: a Docusaurus site on Vercel\./);
+    expect(yes.stdout).toContain('would create  api/ask.ts');
+    expect(yes.stdout).toContain('would update  vercel.json');
+    expect(yes.stdout).not.toContain('../');
+
+    // Without --yes or a terminal, init says how to choose; in a terminal, it asks.
+    const unattended = await run(['--dry-run'], undefined, 'docs');
+    expect(unattended.code).toBe(2);
+    expect(unattended.stderr).toBe(
+      "✗ This site has config for Vercel and Netlify (in ../): pick one with --host vercel|netlify, or pass --yes to take Vercel, configured in the site's folder.",
+    );
+    const asked = await run(['--dry-run'], ['2'], 'docs');
+    expect(asked.asked).toEqual(['Choose 1-2: ']);
+    expect(asked.stdout).toContain(
+      'This site has config for Vercel and Netlify (in ../). Which one serves it?',
+    );
+    // The root's netlify.toml builds another app, as init then says.
+    expect(asked.code).toBe(2);
+    expect(asked.stderr).toContain('Netlify builds from ../app/');
+  });
+
+  it('takes no .vercel or .netlify above the site’s folder for the host’s config', async () => {
+    // `vercel link` and `netlify link` at the repository's root, for a project that builds docs/.
+    for (const [host, link, functions, config] of [
+      ['vercel', '.vercel/project.json', 'api/ask.ts', 'vercel.json'],
+      ['netlify', '.netlify/state.json', 'netlify/functions/ask.mts', 'netlify.toml'],
+    ] as const) {
+      await rm(cwd, { recursive: true, force: true });
+      await mkdir(cwd, { recursive: true });
+      await site({
+        '.git/HEAD': 'ref: refs/heads/main\n',
+        [link]: '{}\n',
+        'docs/package.json': JSON.stringify({
+          name: 'acme-docs',
+          dependencies: { '@docusaurus/core': '3' },
+        }),
+        'docs/docusaurus.config.ts': DOCUSAURUS['docusaurus.config.ts'],
+      });
+      // In a terminal, init asks for the host, as with no config at all. (A second answer, so a
+      // question whether the root's link folder serves the site ends rather than loops.)
+      const choice = host === 'vercel' ? '1' : '2';
+      const asked = await run(['--dry-run'], [choice, choice], 'docs');
+      expect(asked.asked).toEqual(['Choose 1-4: ']);
+      expect(asked.code).toBe(0);
+      expect(asked.stdout).toContain(`would create  ${functions}`);
+
+      const named = await run(['--host', host], undefined, 'docs');
+      expect([host, named.stderr]).toEqual([host, '']);
+      expect(named.code).toBe(0);
+      expect(existsSync(join(cwd, 'docs', functions))).toBe(true);
+      expect(existsSync(join(cwd, 'docs', config))).toBe(true);
+      expect(existsSync(join(cwd, functions))).toBe(false);
+      expect(existsSync(join(cwd, config))).toBe(false);
+    }
+  });
+
+  it('reads pnpm-workspace.yaml as YAML', async () => {
+    await site({
+      'package.json': JSON.stringify({ name: 'acme', private: true }),
+      'pnpm-workspace.yaml':
+        '# The docs and the packages.\npackages: [\'docs\', "packages/*"] # flow style\ncatalog:\n  astro: ^7.0.0\n',
+      'docs/package.json': JSON.stringify({ name: 'acme-docs', dependencies: { astro: '7' } }),
+      'docs/astro.config.mjs': "export default { site: 'https://docs.acme.dev' };\n",
+    });
+    const result = await run(['--dry-run']);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('docs (Astro)');
+    expect(result.stderr).toContain('cd docs && npx ondocs init');
+  });
+});
+
+describe('configLocales', () => {
+  it('reads Astro’s object locales by their path, once each', () => {
+    expect(
+      configLocales(
+        "i18n: { defaultLocale: 'en', locales: ['en', 'es', { path: 'pt', codes: ['pt-BR', 'pt'] }] }",
+        false,
+      ),
+    ).toEqual(['es', 'pt']);
+    // The default locale named by one of an object's codes.
+    expect(
+      configLocales(
+        "i18n: { defaultLocale: 'pt-BR', locales: ['en', { path: 'pt', codes: ['pt-BR'] }, 'en'] }",
+        false,
+      ),
+    ).toEqual(['en']);
+  });
+
+  it('skips a commented-out line', () => {
+    expect(
+      configLocales(
+        "  // i18n: { defaultLocale: 'en', locales: ['en', 'fr'] },\n  i18n: { defaultLocale: 'en', locales: ['en', 'ja'] },\n",
+        false,
+      ),
+    ).toEqual(['ja']);
+  });
+
+  it('reads the names of an import past comments in its braces', () => {
+    const read = (path: string) =>
+      path === './i18n.mjs'
+        ? "export const foo = { defaultLocale: 'en', locales: ['en', 'fr'] };\n"
+        : null;
+    for (const source of [
+      // A name taken for a pattern made this one throw: "Invalid regular expression".
+      "import { /* see ( */ foo as i18n } from './i18n.mjs';\nexport default { i18n };",
+      "import {\n  // the site's locales\n  foo as i18n,\n} from './i18n.mjs';\nexport default { i18n };",
+    ]) {
+      expect(configLocales(source, false, read)).toEqual(['fr']);
+    }
+  });
+
+  it('skips regular expression literals, and takes a division for one', () => {
+    for (const before of [
+      'ignore: [/\\/\\//], ',
+      "test: /don't/, ",
+      'match: (path) => /^\\/(docs|blog)\\//.test(path), ',
+      'width: w / 2, height: w / 2, ',
+      // A `/` that starts a line and no regular expression: the next line's is still one.
+      "ratio: (w\n  / 2), skip: [\n  /'}/], ",
+    ]) {
+      const source = `const w = 10;\nexport default { ${before}i18n: { defaultLocale: 'en', locales: ['en', 'fr'] } };`;
+      expect([before, configLocales(source, false)]).toEqual([before, ['fr']]);
+    }
+  });
+
+  it('reads the default locale as code, from a const too', () => {
+    expect(
+      configLocales(
+        "const defaultLocale = 'en';\nexport default { i18n: { defaultLocale, locales: ['en', 'fr'] } };",
+        false,
+      ),
+    ).toEqual(['fr']);
+    expect(
+      configLocales(
+        "export default { i18n: {\n  // defaultLocale: 'fr',\n  defaultLocale: 'en',\n  locales: ['en', 'fr'],\n} };",
+        false,
+      ),
+    ).toEqual(['fr']);
+  });
+});
+
 describe('wranglerWorkerConfig', () => {
+  it('keeps a JSON config valid when its assets object is empty', () => {
+    for (const source of [
+      '{\n  "name": "acme",\n  "assets": {}\n}\n',
+      '{\n  "name": "acme",\n  "assets": {\n  }\n}\n',
+    ]) {
+      const result = wranglerWorkerConfig('wrangler.json', source);
+      expect(result).toHaveProperty('content');
+      const config: unknown = JSON.parse('content' in result ? result.content : '');
+      expect(config).toEqual({
+        name: 'acme',
+        main: 'worker/ondocs.ts',
+        assets: { binding: 'ASSETS' },
+      });
+    }
+  });
+
+  it('takes only a top-level main for the Worker’s entry point', () => {
+    const source =
+      '{\n  "name": "acme",\n  "env": {\n    "staging": { "name": "acme-staging", "main": "src/staging.ts", "assets": { "binding": "STATIC" } }\n  },\n  "assets": { "directory": "./dist" }\n}\n';
+    expect(wranglerWorkerConfig('wrangler.json', source)).toEqual({
+      content:
+        '{\n  "name": "acme",\n  "main": "worker/ondocs.ts",\n  "env": {\n    "staging": { "name": "acme-staging", "main": "src/staging.ts", "assets": { "binding": "STATIC" } }\n  },\n  "assets": { "binding": "ASSETS", "directory": "./dist" }\n}\n',
+    });
+  });
+
   it('adds main and the ASSETS binding to a TOML config', () => {
     expect(
       wranglerWorkerConfig(
