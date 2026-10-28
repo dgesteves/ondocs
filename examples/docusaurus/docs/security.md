@@ -41,7 +41,7 @@ Requests without the header share one `"anonymous"` bucket. On a platform that d
 
 ## When the rate limiter fails
 
-If the limiter throws, for example because Redis is unreachable, the handler fails closed: it reports the error and answers 503 without calling the model. Set `rateLimitFailure: 'open'` to keep answering during an outage and rely on your provider's spend limits instead.
+If the limiter throws, for example because Redis is unreachable, the handler fails closed: it reports the error and answers 503 without calling the model. Set `failureMode: 'open'` to keep answering during an outage and rely on your provider's spend limits instead. It covers the `budget` store and the bot check too.
 
 ## Cap the daily spend
 
