@@ -27,9 +27,9 @@ export interface OndocsDialogOptions {
    */
   buttonLabel?: string | false;
   /**
-   * Which links in an answer stay links: `"all"` (the default), or `"sources"` for only links to
-   * the pages the answer's sources are on, so injected text cannot show visitors another site's
-   * link. Citations link to their sources either way.
+   * Which links in an answer stay links: `"sources"` (the default), only links to the pages the
+   * answer's sources are on, so injected text cannot show visitors another site's link; or
+   * `"all"`, any http(s), mailto or relative link. Citations link to their sources either way.
    */
   links?: 'all' | 'sources';
   /**

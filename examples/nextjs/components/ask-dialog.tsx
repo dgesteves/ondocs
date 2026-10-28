@@ -6,6 +6,12 @@ import { useRouter } from 'next/navigation';
 import { SUGGESTIONS } from '../lib/site';
 import { usePageScheme } from './theme-switch';
 
+/**
+ * The Turnstile widget's site key, which is public. With it set, and the endpoint's secret key
+ * (`askChallenge` in lib/ask-handler.ts), the dialog solves a bot check for each question.
+ */
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
 /** The site's dialog: the library's `AskDialog`, routing citations through the Next.js router. */
 export function SiteAskDialog({
   mode,
@@ -30,6 +36,7 @@ export function SiteAskDialog({
       title="Ask the ondocs documentation"
       placeholder="Ask the docs a question…"
       suggestions={SUGGESTIONS}
+      {...(TURNSTILE_SITE_KEY ? { challenge: { turnstile: TURNSTILE_SITE_KEY } } : {})}
       onNavigate={(url, event) => {
         // Same-site links go through the client router; anything else navigates normally.
         if (url.startsWith('/')) {

@@ -1,9 +1,10 @@
 // Moves the docs' jsDelivr pins to this package.json's version. A range such as ondocs@0.10
 // follows the minor's patches, so each minor release moves the script tags in README.md, the
 // website's landing page and examples/nextjs/content/docs, the migration's perl command, and the
-// exact version the docs suggest pinning. version-packages runs it after `changeset version`, so
-// the release pull request moves them with the version it publishes, and test/package.test.ts
-// passes on it.
+// exact version the docs suggest pinning, as in the security guide's snippet with Subresource
+// Integrity (whose hashes are placeholders, for each site to fill in for the version it pins).
+// version-packages runs it after `changeset version`, so the release pull request moves them
+// with the version it publishes, and test/package.test.ts passes on it.
 //
 //   pnpm build && node scripts/sync-cdn-range.mjs
 //

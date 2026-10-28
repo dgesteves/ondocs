@@ -64,7 +64,7 @@ The plugin reads each page's Markdown as the default theme renders it, the `.vp-
 
 The plugin adds a floating "Ask AI" button and opens the dialog with ⌘I or Ctrl+I, so ⌘K stays with VitePress's search. The button takes the default theme's colors, and the button and the dialog follow VitePress's light and dark modes, as its appearance switch sets them. A page loads only the button, about 3 KB of JavaScript, and the dialog's stylesheet, 3.5 KB gzipped, which the plugin adds to the site's CSS. The dialog comes prebuilt with its own React, Radix and cmdk, from `ondocs/embed/standalone`, and loads the first time it is wanted: 95.6 KB of JavaScript, gzipped, on the VitePress example. Measured on an Apple M1 Max with `node scripts/js-weight.mjs vitepress`, in headless Chrome, and `gzip -9` of `ondocs/react/styles.css`. The plugin adds the button through VitePress's own client entry, so there is no theme file to write. With `mpa: true`, VitePress ships no client entry, and pages get no button: add the [script tag](/docs/script-tag) to `head` instead.
 
-Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. `dialog: { links: 'sources' }` keeps only the answer's links to its source pages.
+Pick another key with `dialog: { shortcut: 'j' }`, turn the shortcut off with `shortcut: false`, or hide the button with `launcher: false`. Answers link only to their source pages; `dialog: { links: 'all' }` keeps every safe link.
 
 ## Ask AI in the VitePress nav bar
 

@@ -403,6 +403,53 @@ function* select(
   }
 }
 
+/** An inline style that hides its element: `display: none` or `visibility: hidden`. */
+const HIDDEN_STYLE =
+  /(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)\s*(?:!important\s*)?(?:;|$)/i;
+
+/** A segment React streams in hidden and then moves into place, as `<div hidden id="S:1f">`. */
+const REACT_SEGMENT = /^S:[\da-f]+$/;
+
+/**
+ * The outermost elements in `html` that readers never see on the rendered page, left to right,
+ * each up to its own closing tag: those with the `hidden` attribute, or an inline `display: none`
+ * or `visibility: hidden`. Text in them would reach the model and agents unseen by anyone who
+ * reviews the rendered page. Kept: tab panels (the inactive ones are hidden, and hold real
+ * content), `hidden="until-found"`, which the browser's find-in-page opens, the segments React
+ * streams in hidden and then shows, and the wrapper a `<details>` has as its child, which
+ * Docusaurus renders with `display: none` until it is opened. `aria-hidden` hides text from
+ * screen readers only, so it is kept too. One scan, with a stack of the open elements.
+ */
+function* hiddenElements(html: string): Generator<{ start: number; end: number }> {
+  const { tags, closer } = pairedTags(html);
+  let after = 0;
+  // The elements around the current tag, innermost last, each with where its closing tag starts.
+  const open: { name: string; closesAt: number }[] = [];
+  for (let i = 0; i < tags.length; i++) {
+    const tag = tags[i];
+    if (!tag || tag.close || tag.start < after) continue;
+    const end = tags[closer[i] ?? -1];
+    if (!end) continue;
+    while ((open[open.length - 1]?.closesAt ?? Infinity) <= tag.start) open.pop();
+    const parent = open[open.length - 1]?.name;
+    open.push({ name: tag.name, closesAt: end.start });
+    if (!/hidden|style/i.test(tag.attributes)) continue;
+    const attributes = attributesOf(tag.attributes);
+    if (attributes.get('role') === 'tabpanel') continue;
+    const hidden = attributes.get('hidden');
+    const style = attributes.get('style');
+    if (
+      (hidden !== undefined &&
+        hidden.toLowerCase() !== 'until-found' &&
+        !REACT_SEGMENT.test(attributes.get('id') ?? '')) ||
+      (parent !== 'details' && style !== undefined && HIDDEN_STYLE.test(style))
+    ) {
+      yield { start: tag.start, end: end.end };
+      after = end.end;
+    }
+  }
+}
+
 /**
  * Where Docusaurus renders a page's Markdown: a doc's `theme-doc-markdown` container, or a blog
  * post's `__blog-post-container` (the element Docusaurus's own feeds read), without the
@@ -506,7 +553,8 @@ function isNoindex(html: string): boolean {
  * It reads `<main>` if the page has one, then the outermost `<article>`s, then `<body>`
  * (`root: 'article'` reads the articles first, and `root` can also be a selector; see
  * {@link HtmlMeta.root}). Navigation, scripts, styles, forms and other chrome are dropped, and so
- * is whatever `ignore` selects. Headings become `#` lines and keep their `id` attribute as the
+ * are elements hidden from readers (`hidden`, an inline `display: none`) and whatever `ignore`
+ * selects. Headings become `#` lines and keep their `id` attribute as the
  * anchor, and a heading without one gets none (`anchors: 'explicit'`); `<pre>` becomes a fenced
  * code block. Pages with
  * `<meta name="robots" content="noindex">` return `null`.
@@ -559,6 +607,7 @@ export function fromHtml(original: string, meta: HtmlMeta): SourceDocument | nul
       () => ' ',
     );
   }
+  html = replaceEach(html, hiddenElements(html), () => ' ');
 
   // The first <h1> beats <title>, which usually carries a " | Site name" suffix. It is read from
   // the whole root: a Docusaurus blog post's <h1> sits outside its Markdown container.

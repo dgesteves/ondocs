@@ -79,7 +79,8 @@ describe('the jsDelivr pins in the docs', () => {
       const config = (await resolveConfig(join(root, 'package.json'))) ?? {};
       for (const file of changed) {
         const text = moved(file);
-        for (const range of ranges(text)) expect(range, file).toBe(minorOf(next));
+        // The minor's range, or, where a page pins an exact version, as for SRI, the version.
+        for (const range of ranges(text)) expect([minorOf(next), next], file).toContain(range);
         expect(text, file).toBe(await format(text, { ...config, filepath: join(dir, file) }));
       }
       // What test/package.test.ts checks on the release pull request.
@@ -91,6 +92,12 @@ describe('the jsDelivr pins in the docs', () => {
       expect(moved('examples/nextjs/content/docs/script-tag.md')).toContain(
         `Pin an exact version, such as \`ondocs@${next}\`, in production.`,
       );
+      // The snippet pinned with Subresource Integrity, and the command that hashes its files.
+      const security = moved('examples/nextjs/content/docs/security.md');
+      expect(security).toContain(
+        `src="https://cdn.jsdelivr.net/npm/ondocs@${next}/dist/embed.global.js"`,
+      );
+      expect(security).toContain(`"https://cdn.jsdelivr.net/npm/ondocs@${next}/dist/$file"`);
       // Run again, it has nothing left to move.
       expect(await syncCdnRange(dir)).toEqual([]);
     } finally {

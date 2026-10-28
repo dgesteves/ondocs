@@ -49,6 +49,9 @@ export type DialogPanelProps = Omit<
 
 const cx = (...names: (string | undefined | false)[]): string => names.filter(Boolean).join(' ');
 
+/** How long a question asked as the dialog opens waits for the Turnstile widget to render. */
+const WIDGET_WAIT_MS = 30_000;
+
 // The command palette takes these keys for its list, and cancels them anywhere inside it. On the
 // answer and the Stop and Close buttons they stop short of it: Enter follows the focused link or
 // presses the focused button, rather than asking the selected suggestion, and the others scroll the
@@ -358,7 +361,7 @@ export function DialogPanel({
   theme = 'auto',
   classNames = {},
   footer,
-  links = 'all',
+  links = 'sources',
   challenge,
   sourceUrls,
   question,
@@ -380,18 +383,43 @@ export function DialogPanel({
   const siteKey = challenge?.turnstile;
   const [challengeElement, setChallengeElement] = useState<HTMLDivElement | null>(null);
   const widgetRef = useRef<TurnstileWidget | null>(null);
+  // Questions asked before the widget has rendered, waiting for it: one passed in as the dialog
+  // opens (`question`) is asked in the same commit, and the widget's element only arrives after.
+  const awaitingWidget = useRef<((widget: TurnstileWidget | null) => void)[]>([]);
   useEffect(() => {
     if (!siteKey || !challengeElement) return;
     const widget = turnstileWidget(challengeElement, siteKey, { theme: themeAttribute ?? 'auto' });
     widgetRef.current = widget;
+    for (const settle of awaitingWidget.current.splice(0)) settle(widget);
     return () => {
       widget.remove();
       if (widgetRef.current === widget) widgetRef.current = null;
     };
   }, [siteKey, challengeElement, themeAttribute]);
-  const state = useAsk(
-    siteKey ? { ...askOptions, challengeToken: () => widgetRef.current?.token() } : askOptions,
-  );
+  const challengeToken = useCallback(async (): Promise<string | undefined> => {
+    const widget =
+      widgetRef.current ??
+      (await new Promise<TurnstileWidget | null>((resolve) => {
+        // As long as the widget itself waits for a token: then the question goes without one.
+        const timer = setTimeout(() => {
+          settle(null);
+        }, WIDGET_WAIT_MS);
+        const settle = (found: TurnstileWidget | null): void => {
+          clearTimeout(timer);
+          const at = awaitingWidget.current.indexOf(settle);
+          if (at !== -1) awaitingWidget.current.splice(at, 1);
+          resolve(found);
+        };
+        awaitingWidget.current.push(settle);
+      }));
+    return widget?.token();
+  }, []);
+  // Closed before the widget rendered: the questions waiting for it go without a token.
+  useEffect(() => {
+    if (open) return;
+    for (const settle of awaitingWidget.current.splice(0)) settle(null);
+  }, [open]);
+  const state = useAsk(siteKey ? { ...askOptions, challengeToken } : askOptions);
 
   // Closing the dialog, however it happens, cancels the answer in flight: nobody is reading it,
   // and the model would otherwise keep generating (and billing) to the end.
