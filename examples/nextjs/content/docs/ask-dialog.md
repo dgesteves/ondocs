@@ -10,27 +10,31 @@ order: 32
 
 ## AskDialog props
 
-| Prop                                  | Default                         | Notes                                                                                                       |
-| ------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `endpoint`                            | `/api/ask`                      | Where questions are posted. Also `headers` and a custom `fetch`.                                            |
-| `open`, `defaultOpen`, `onOpenChange` | uncontrolled                    | Controlled or uncontrolled.                                                                                 |
-| `shortcut`                            | `"i"`                           | Opens the dialog with ⌘ or Ctrl; `false` disables it.                                                       |
-| `trigger`                             | none                            | An element that opens the dialog, such as a search button.                                                  |
-| `launcher`                            | `false`                         | `true` or a label: a floating "Ask AI" button with the shortcut on it.                                      |
-| `suggestions`                         | `[]`                            | Questions offered before typing, filtered as you type.                                                      |
-| `onNavigate`                          | browser navigation              | `(url, event)` for citations and sources; call `preventDefault()` to route yourself.                        |
-| `theme`                               | `"auto"`                        | Follows `data-theme` on `<html>`, then the system; `"light"` or `"dark"` to pin it.                         |
-| `classNames`                          | none                            | Extra classes per part: `overlay`, `content`, `input`, `list`, `item`, `answer`, `sources`, `footer`.       |
-| `title`                               | "Ask this site"                 | The dialog's accessible name.                                                                               |
-| `placeholder`                         | "Ask a question…"               | The input's placeholder.                                                                                    |
-| `footer`                              | a disclaimer and keyboard hints | Replaces the footer.                                                                                        |
-| `links`                               | `"sources"`                     | Answers link only to their source pages, and citations always link; `"all"` keeps every safe link.          |
-| `sourceUrls`                          | none                            | `{ pages, base }`: where citations and links go when the endpoint answers from another site's index.        |
-| `labels`                              | English                         | Every string the dialog and its button show or announce; see [Labels and languages](#labels-and-languages). |
-| `locale`                              | none                            | The page's locale, sent with each question, for an endpoint with an index per locale.                       |
-| `followUps`                           | `true`                          | Send the thread with each question, so the endpoint can answer follow-ups; `false` asks each alone.         |
-| `question`                            | none                            | Asked as the dialog opens with it, and when it changes while open, each time in a new thread.               |
-| `challenge`                           | none                            | `{ turnstile: '<site key>' }`: solve a [bot check](/docs/bot-challenge) before each question.               |
+| Prop                                  | Default                         | Notes                                                                                                                                    |
+| ------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `endpoint`                            | `/api/ask`                      | Where questions are posted.                                                                                                              |
+| `headers`                             | none                            | Extra request headers, such as an auth token.                                                                                            |
+| `fetch`                               | the global `fetch`              | A `fetch` of your own, for tests or instrumentation.                                                                                     |
+| `open`, `defaultOpen`, `onOpenChange` | uncontrolled                    | Controlled or uncontrolled.                                                                                                              |
+| `shortcut`                            | `"i"`                           | Opens the dialog with ⌘ or Ctrl; `false` disables it.                                                                                    |
+| `trigger`                             | none                            | An element that opens the dialog, such as a search button.                                                                               |
+| `launcher`                            | `false`                         | `true` or a label: a floating "Ask AI" button with the shortcut on it.                                                                   |
+| `suggestions`                         | `[]`                            | Questions offered before typing, filtered as you type.                                                                                   |
+| `onNavigate`                          | browser navigation              | `(url, event)` for citations and sources; call `preventDefault()` to route yourself.                                                     |
+| `theme`                               | `"auto"`                        | Follows `data-theme` on `<html>`, then the system; `"light"` or `"dark"` to pin it.                                                      |
+| `classNames`                          | none                            | Extra classes per part: `overlay`, `content`, `input`, `list`, `item`, `answer`, `sources`, `footer`.                                    |
+| `title`                               | "Ask this site"                 | The dialog's accessible name.                                                                                                            |
+| `placeholder`                         | "Ask a question…"               | The input's placeholder.                                                                                                                 |
+| `footer`                              | a disclaimer and keyboard hints | Replaces the footer.                                                                                                                     |
+| `links`                               | `"sources"`                     | Answers link only to their source pages, and citations always link; `"all"` keeps every safe link.                                       |
+| `sourceUrls`                          | none                            | `{ pages, base }`: where citations and links go when the endpoint answers from another site's index.                                     |
+| `labels`                              | English                         | Every string the dialog and its button show or announce; see [Labels and languages](#labels-and-languages).                              |
+| `locale`                              | none                            | The page's locale, sent with each question, for an endpoint with an index per locale.                                                    |
+| `followUps`                           | `true`                          | Send the thread with each question, so the endpoint can answer follow-ups; `false` asks each alone.                                      |
+| `question`                            | none                            | Asked as the dialog opens with it, and when it changes while open, each time in a new thread.                                            |
+| `challenge`                           | none                            | `{ turnstile: '<site key>' }`: solve a [bot check](/docs/bot-challenge) before each question.                                            |
+| `challengeToken`                      | none                            | A function returning a fresh [bot check](/docs/bot-challenge) token per question, from your own widget; ignored when `challenge` is set. |
+| `onFinish`                            | none                            | Called with the state `useAsk` returns, once an answer completes or fails.                                                               |
 
 ## Opening the dialog
 
@@ -128,7 +132,7 @@ A `footer` of your own replaces it with the rest of the footer. The link has `re
 
 A page carries only the dialog's shortcut and, with `launcher` or `trigger`, its button. The dialog itself, Radix Dialog, cmdk and the answer, is a separate chunk that your bundler splits off, and it loads the first time the dialog is wanted: a pointer over or focus on its button or trigger, the shortcut, or `open`. A shortcut pressed while it loads is kept, so the dialog opens, with focus in its input, once it arrives; Escape before then cancels it. Focus goes back to where it was when the dialog closes, or to the button that opened it. Call `loadAskDialog()` from `ondocs/react` to load it sooner, such as when the page is idle.
 
-In the plugins' sites this takes the JavaScript ondocs adds to each page from about 22 KB to 3.9 KB with Docusaurus, and from about 88 KB to 2.4 KB with Starlight, which has no React of its own; see [Benchmarks](/docs/benchmarks#bundle-size).
+In the plugins' sites this takes the JavaScript ondocs adds to each page from about 22 KB to 3.9 KB with Docusaurus, and from about 88 KB to 2.4 KB with Starlight, which has no React of its own, and it is 3.2 KB with VitePress, whose plugin came after the change; see [Benchmarks](/docs/benchmarks#bundle-size).
 
 ## The launcher button
 

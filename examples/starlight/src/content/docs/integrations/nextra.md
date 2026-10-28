@@ -12,6 +12,18 @@ A Nextra site is a Next.js app, so ondocs is the same three pieces as in [Next.j
 
 ## Install for Nextra
 
+Nextra 4 has no command that creates a site. To start one, copy the docs starter from Nextra's own repository at the 4.6.1 release, the one this page was checked with and CI builds with ondocs:
+
+```sh
+git clone --depth 1 --branch nextra@4.6.1 --filter blob:none --sparse https://github.com/shuding/nextra.git nextra
+git -C nextra sparse-checkout set examples/docs
+cp -R nextra/examples/docs my-docs
+```
+
+In `my-docs/package.json`, change `nextra` and `nextra-theme-docs` from `workspace:*`, a link into Nextra's own repository, to `4.6.1`. The starter has a `src` folder: its pages are in `src/content` and its app in `src/app`.
+
+In the site's folder, install ondocs, the AI SDK and the dialog's two dependencies:
+
 ```sh
 npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
 ```
@@ -116,6 +128,7 @@ export function Ask() {
     <AskDialog
       launcher
       shortcut="i"
+      title="Ask Acme Docs"
       theme={mounted ? (resolvedTheme === 'dark' ? 'dark' : 'light') : undefined}
       suggestions={['How do I install it?']}
       onNavigate={(url, event) => {
@@ -127,7 +140,19 @@ export function Ask() {
 }
 ```
 
-Then render `<Ask />` inside the theme's `<Layout>` in `app/layout.jsx`, after `{children}`, where next-themes is set up. `launcher` shows a floating "Ask AI" button, and `onNavigate` sends citations through the Next.js router instead of a full page load.
+Then render `<Ask />` inside the theme's `<Layout>` in `app/layout.jsx`, after `{children}`, where next-themes is set up. `launcher` shows a floating "Ask AI" button, and `onNavigate` sends citations through the Next.js router instead of a full page load. `title` names the dialog after your docs; without it, it is "Ask this site", as the endpoint's `siteName` stays on the server.
+
+## Add to your editor
+
+`McpInstall` from `ondocs/react` shows readers how to connect their AI tool to the MCP endpoint: "Add to Cursor", "Add to VS Code" and "Add to Claude" links, and the commands for Claude Code, Codex and Gemini CLI. Put it on a page of the docs, such as `content/mcp.mdx`, with the endpoint's absolute URL and the name clients list it under:
+
+```mdx
+import { McpInstall } from 'ondocs/react';
+
+<McpInstall url="https://docs.acme.dev/api/mcp" name="acme-docs" />
+```
+
+It is plain markup, links and code blocks with `ask-mcp-*` classes, for your theme to style. See [Show it on your site](/integrations/mcp/#show-it-on-your-site).
 
 ## llms.txt and Markdown pages
 
