@@ -3,8 +3,8 @@
 import {
   AskAnswer,
   citedSourceIds,
-  DEFAULT_LABELS,
   useAsk,
+  type AskDialogLabels,
   type AskError,
   type AskSource,
 } from 'ondocs/react';
@@ -169,15 +169,23 @@ function turnstileWidget(
 }
 
 /**
- * An error in a visitor's words: the bot check's in the dialog's (ondocs/react's labels), the
- * others as the endpoint sends them.
+ * The bot check's errors in the dialog's words: ondocs/react's `DEFAULT_LABELS.challengeRequired`
+ * and `challengeFailed`, copied, and kept equal by test/website-hero-demo.test.tsx. Importing
+ * `DEFAULT_LABELS` would put every label in the home page's chunk, and the page, a server
+ * component, cannot read them from ondocs/react, a client module.
  */
+const CHALLENGE_LABELS: Pick<AskDialogLabels, 'challengeRequired' | 'challengeFailed'> = {
+  challengeRequired: 'The check that you’re not a bot didn’t load. Reload the page and try again.',
+  challengeFailed: 'The check that you’re not a bot failed. Please try again.',
+};
+
+/** An error in a visitor's words: the bot check's in the dialog's, others as the endpoint says. */
 function errorText(error: AskError): string {
   if (error.code === 'rate_limited' && error.retryAfter) {
     return `Too many questions. Try again in ${String(error.retryAfter)} seconds.`;
   }
-  if (error.code === 'challenge_required') return DEFAULT_LABELS.challengeRequired;
-  if (error.code === 'challenge_failed') return DEFAULT_LABELS.challengeFailed;
+  if (error.code === 'challenge_required') return CHALLENGE_LABELS.challengeRequired;
+  if (error.code === 'challenge_failed') return CHALLENGE_LABELS.challengeFailed;
   return error.message;
 }
 

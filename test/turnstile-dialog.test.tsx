@@ -12,7 +12,12 @@ import { scriptOptions } from '../src/embed/script';
 import { launcherScript } from '../src/integration';
 import { MOCK_MIN_SIMILARITY, mockEmbeddingModel, mockLanguageModel } from '../src/mock';
 import { AskDialog, useAsk } from '../src/react';
-import { TURNSTILE_SCRIPT, type TurnstileApi } from '../src/react/turnstile';
+import {
+  loadTurnstile,
+  PAGE_SCRIPT_WAIT_MS,
+  TURNSTILE_SCRIPT,
+  type TurnstileApi,
+} from '../src/react/turnstile';
 import { createAskHandler, turnstile } from '../src/server';
 import { corpus } from './helpers';
 
@@ -66,6 +71,8 @@ afterEach(() => {
   // Settle a script tag a test left loading, so the next test starts without one.
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
   for (const tag of scriptTags()) tag.dispatchEvent(new Event('error'));
+  // A loaded tag stays: loadTurnstile no longer listens to it.
+  for (const tag of scriptTags()) tag.remove();
   delete window.turnstile;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -408,6 +415,61 @@ describe('the dialog with challenge: { turnstile }', () => {
     expect(bodies).toEqual([{ question: QUESTION }]);
     expect(scriptTags()).toHaveLength(0);
     expect(dialog.querySelector('.ask-challenge')).toBeNull();
+  });
+});
+
+describe('loadTurnstile with a script tag the page added', () => {
+  const pageTag = (): HTMLScriptElement => {
+    const tag = document.createElement('script');
+    tag.src = TURNSTILE_SCRIPT;
+    document.head.append(tag);
+    return tag;
+  };
+
+  // A tag whose error fired before loadTurnstile listened, and that the page left in place: it
+  // never fires again, so without a bound the dialog would wait on it for good.
+  it('replaces one that failed before it listened, once it has waited for it', async () => {
+    vi.useFakeTimers();
+    try {
+      const { api } = fakeTurnstile();
+      const stale = pageTag();
+      const loaded = loadTurnstile();
+      await vi.advanceTimersByTimeAsync(PAGE_SCRIPT_WAIT_MS - 1);
+      expect(scriptTags()).toEqual([stale]);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(stale.isConnected).toBe(false);
+      const [fresh] = scriptTags();
+      expect(fresh).toBeDefined();
+      expect(fresh).not.toBe(stale);
+      expect(fresh?.async).toBe(true);
+      window.turnstile = api;
+      fresh?.dispatchEvent(new Event('load'));
+      await expect(loaded).resolves.toBe(api);
+      // Loaded: the next widget takes the page's API, with no new tag.
+      await expect(loadTurnstile()).resolves.toBe(api);
+      expect(scriptTags()).toEqual([fresh]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('takes Turnstile without a new tag when it loads within that wait', async () => {
+    vi.useFakeTimers();
+    try {
+      const { api } = fakeTurnstile();
+      const tag = pageTag();
+      const loaded = loadTurnstile();
+      await vi.advanceTimersByTimeAsync(PAGE_SCRIPT_WAIT_MS - 1);
+      window.turnstile = api;
+      tag.dispatchEvent(new Event('load'));
+      await expect(loaded).resolves.toBe(api);
+      // The wait is over: nothing replaces the tag after it.
+      await vi.advanceTimersByTimeAsync(PAGE_SCRIPT_WAIT_MS);
+      expect(scriptTags()).toEqual([tag]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

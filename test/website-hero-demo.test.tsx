@@ -371,6 +371,7 @@ describe('the home page’s demo with a Turnstile site key', () => {
       scriptTags()[0]?.dispatchEvent(new Event('error'));
     });
     const alert = await within(region).findByRole('alert');
+    // The library's words, which the demo copies rather than import all its labels.
     expect(text(alert)).toBe(DEFAULT_LABELS.challengeRequired);
     expect(bodies).toEqual([{ question: QUESTION }]);
     expect(errors).toHaveBeenCalledWith(
