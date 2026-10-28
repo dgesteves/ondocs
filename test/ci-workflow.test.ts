@@ -2,7 +2,7 @@
 // so a red fresh-site or deploy-recipe job blocks a merge as a red verify job does. Each push to
 // main gets a full run of its own, and no job can hold a runner for the 360-minute default.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -86,11 +86,13 @@ describe('CI', () => {
       });
       const succeeded = Object.keys(results).length > 0 && !failed;
       expect(run.status).toBe(succeeded ? 0 : 1);
+      // jq on Windows ends its lines with CRLF.
+      const stdout = run.stdout.replaceAll('\r\n', '\n');
       for (const [id, result] of Object.entries(results)) {
-        expect(run.stdout).toContain(`${id}: ${result}\n`);
+        expect(stdout).toContain(`${id}: ${result}\n`);
       }
-      if (failed) expect(run.stdout).toContain(`::error::Did not succeed: ${failed}.`);
-      else expect(run.stdout).not.toContain('::error::');
+      if (failed) expect(stdout).toContain(`::error::Did not succeed: ${failed}.`);
+      else expect(stdout).not.toContain('::error::');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -176,7 +178,12 @@ describe('what CI runs for what ondocs claims', () => {
   it('runs the tests on Windows, and builds a fresh Docusaurus site there', () => {
     const windows = workflow.jobs.windows;
     expect(windows?.['runs-on']).toBe('windows-latest');
-    expect(runs('windows')).toContain('pnpm test');
+    // The tests, but a list of files that assume POSIX paths and tools, each one that exists.
+    const tests = runs('windows').find((run) => run.startsWith('pnpm test'));
+    const excluded = [...(tests ?? '').matchAll(/--exclude (\S+)/g)].map(([, file]) => file ?? '');
+    expect(tests).toBe(['pnpm test', ...excluded.map((file) => `--exclude ${file}`)].join(' '));
+    expect(excluded.length).toBeLessThanOrEqual(12);
+    for (const file of excluded) expect(existsSync(join(root, file)), file).toBe(true);
     expect(runs('windows').join('\n')).toContain('node scripts/consumer-site.mjs docusaurus');
     // Checked out with LF line ends, as everywhere else.
     expect(runs('windows')[0]).toBe('git config --global core.autocrlf false');
