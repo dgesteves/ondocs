@@ -1,15 +1,31 @@
 // @vitest-environment jsdom
 // The home page's demo (examples/nextjs/components/landing/hero-demo.tsx): the sources the answer
 // cites show, and the others fold into one line (demo-sources.tsx). On a phone it is a still of the
-// same answer.
+// same answer. With the site's Turnstile key, each question carries a bot check's token.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { cleanup, render } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { ReactElement } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DemoSources } from '../examples/nextjs/components/landing/demo-sources';
+import { buildIndex } from '../src';
+import { MOCK_MIN_SIMILARITY, mockEmbeddingModel, mockLanguageModel } from '../src/mock';
 import { citedSourceIds } from '../src/react/answer';
+import { TURNSTILE_SCRIPT, type TurnstileApi } from '../src/react/turnstile';
+import { createAskHandler, turnstile } from '../src/server';
+import { corpus } from './helpers';
+
+const { navigation } = vi.hoisted(() => {
+  // The site's own next, as its components import it, which this folder can't resolve by name.
+  const { createRequire } = process.getBuiltinModule('node:module');
+  const require = createRequire(`${import.meta.dirname}/../examples/nextjs/package.json`);
+  return { navigation: require.resolve('next/navigation') };
+});
+
+vi.mock(navigation, () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 afterEach(cleanup);
 
@@ -120,5 +136,200 @@ describe('the home page’s demo on a phone', () => {
     expect(landing('components/landing/hero-demo.tsx')).toContain(
       "data-still={initial ? '' : undefined}",
     );
+  });
+});
+
+describe('the home page’s demo with a Turnstile site key', () => {
+  /** Cloudflare's test site key that always passes, invisibly. Nothing here reaches Cloudflare. */
+  const SITE_KEY = '1x00000000000000000000BB';
+  const SECRET = 'the-widget-secret';
+  const QUESTION = 'How is an int8 vector scaled?';
+  // Imported by path, so the typecheck does not follow it to the site's index, which only its build
+  // writes.
+  const DEMO = '../examples/nextjs/components/landing/hero-demo';
+
+  const embeddingModel = mockEmbeddingModel();
+  const built = buildIndex({ documents: corpus, embeddingModel });
+
+  /**
+   * The site's `/api/ask`, checking tokens as the site does with both keys set: siteverify is a
+   * stand-in, where each token the widget stand-in solved (`issued`) passes once.
+   */
+  let issued: Set<string>;
+  let verified: string[];
+  let bodies: Record<string, unknown>[];
+  beforeEach(async () => {
+    issued = new Set();
+    verified = [];
+    bodies = [];
+    const { index } = await built;
+    const options = {
+      index,
+      model: mockLanguageModel({ initialDelayMs: 0, wordDelayMs: 0 }),
+      embeddingModel,
+      retrieval: { minSimilarity: MOCK_MIN_SIMILARITY },
+      rateLimit: false as const,
+    };
+    const checked = createAskHandler({ ...options, challenge: turnstile({ secretKey: SECRET }) });
+    const unchecked = createAskHandler(options);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = input instanceof Request ? input.url : String(input);
+        if (url === 'https://challenges.cloudflare.com/turnstile/v0/siteverify') {
+          const { secret, response } = JSON.parse(init?.body as string) as Record<string, string>;
+          verified.push(response ?? '');
+          const success = secret === SECRET && issued.delete(response ?? '');
+          return Promise.resolve(
+            Response.json({ success, 'error-codes': success ? [] : ['timeout-or-duplicate'] }),
+          );
+        }
+        if (url !== '/api/ask') return Promise.reject(new Error(`unexpected fetch of ${url}`));
+        bodies.push(JSON.parse(init?.body as string) as Record<string, unknown>);
+        const handler = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ? checked : unchecked;
+        return handler(new Request(new URL(url, 'http://localhost'), init));
+      }),
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    // Settle a script tag a test left loading, so the next test starts without one.
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    for (const tag of scriptTags()) tag.dispatchEvent(new Event('error'));
+    for (const tag of scriptTags()) tag.remove();
+    delete window.turnstile;
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  const scriptTags = (): HTMLScriptElement[] =>
+    [...document.querySelectorAll('script')].filter((tag) => tag.src === TURNSTILE_SCRIPT);
+
+  /** The demo, as the site builds it: the key is read as the module loads, as Next inlines it. */
+  async function demo(siteKey?: string) {
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', siteKey);
+    const { HeroDemo } = (await import(/* @vite-ignore */ DEMO)) as {
+      HeroDemo: (props: {
+        suggestions: readonly string[];
+        initial: null;
+        mode: 'openai' | 'mock';
+      }) => ReactElement;
+    };
+    render(<HeroDemo suggestions={[QUESTION]} initial={null} mode="mock" />);
+    return screen.getByRole('region', { name: 'Ask these docs' });
+  }
+
+  /** Turnstile, stood in for: its widgets, and solving the latest one's next token. */
+  function fakeTurnstile() {
+    const widgets: { container: HTMLElement; options: Record<string, unknown> }[] = [];
+    const api: TurnstileApi = {
+      render: vi.fn((container: HTMLElement, options: Record<string, unknown>) => {
+        widgets.push({ container, options });
+        return `widget-${String(widgets.length)}`;
+      }),
+      reset: vi.fn(),
+      remove: vi.fn(),
+    };
+    let count = 0;
+    const solve = (): string => {
+      const token = `token-${String(++count)}`;
+      issued.add(token);
+      const callback = widgets.at(-1)?.options.callback as (token: string) => void;
+      act(() => {
+        callback(token);
+      });
+      return token;
+    };
+    return { api, widgets, solve };
+  }
+
+  it('asks its first question with a token, so the endpoint answers it', async () => {
+    const user = userEvent.setup();
+    const turnstile = fakeTurnstile();
+    // Turnstile on the page already (the dialog loaded it), solving a token as a widget renders.
+    window.turnstile = {
+      ...turnstile.api,
+      render: (container, options) => {
+        const id = turnstile.api.render(container, options);
+        queueMicrotask(() => {
+          turnstile.solve();
+        });
+        return id;
+      },
+    };
+    const region = await demo(SITE_KEY);
+    await user.click(within(region).getByRole('button', { name: QUESTION }));
+    await within(region).findByText(/maps to 127/);
+    expect(within(region).queryByRole('alert')).toBeNull();
+    expect(bodies).toEqual([{ question: QUESTION, challenge: 'token-1' }]);
+    expect(verified).toEqual(['token-1']);
+    expect(scriptTags()).toHaveLength(0);
+  });
+
+  it('loads Turnstile once the demo is wanted, and takes a fresh token for each question', async () => {
+    const user = userEvent.setup();
+    const turnstile = fakeTurnstile();
+    const region = await demo(SITE_KEY);
+    // Nothing of Turnstile as the page loads.
+    expect(scriptTags()).toHaveLength(0);
+
+    // A pointer over the demo loads it, so a token is solved by the time a question is asked.
+    await user.hover(region);
+    await waitFor(() => {
+      expect(scriptTags()).toHaveLength(1);
+    });
+    expect(scriptTags()[0]?.async).toBe(true);
+    window.turnstile = turnstile.api;
+    act(() => {
+      scriptTags()[0]?.dispatchEvent(new Event('load'));
+    });
+    await waitFor(() => {
+      expect(turnstile.widgets).toHaveLength(1);
+    });
+    const [widget] = turnstile.widgets;
+    expect(region.contains(widget?.container ?? null)).toBe(true);
+    expect(widget?.options).toMatchObject({
+      sitekey: SITE_KEY,
+      appearance: 'interaction-only',
+      'response-field': false,
+    });
+
+    const first = turnstile.solve();
+    await user.click(within(region).getByRole('button', { name: QUESTION }));
+    await within(region).findByText(/maps to 127/);
+    expect(bodies[0]).toEqual({ question: QUESTION, challenge: first });
+    // Taking a token sets the widget solving the next.
+    expect(turnstile.api.reset).toHaveBeenCalledWith('widget-1');
+
+    // A question asked before its token is ready waits for it.
+    await user.type(within(region).getByRole('textbox'), 'And the scale?{Enter}');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(bodies).toHaveLength(1);
+    const second = turnstile.solve();
+    await waitFor(() => {
+      expect(bodies).toHaveLength(2);
+    });
+    expect(bodies[1]).toMatchObject({ challenge: second });
+    expect(second).not.toBe(first);
+    expect(verified).toEqual([first, second]);
+    await waitFor(() => {
+      expect(within(region).queryByRole('alert')).toBeNull();
+    });
+    expect(scriptTags()).toHaveLength(1);
+    expect(turnstile.widgets).toHaveLength(1);
+  });
+
+  it('without the key, loads no Turnstile, renders no widget and sends no token', async () => {
+    const user = userEvent.setup();
+    const region = await demo();
+    await user.hover(region);
+    await user.click(within(region).getByRole('button', { name: QUESTION }));
+    await within(region).findByText(/maps to 127/);
+    expect(bodies).toEqual([{ question: QUESTION }]);
+    expect(scriptTags()).toHaveLength(0);
+    expect(window.turnstile).toBeUndefined();
+    expect(region.querySelector('.demo-challenge')).toBeNull();
   });
 });

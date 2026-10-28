@@ -6,10 +6,10 @@ export default defineConfig({
   resolve: {
     // Docusaurus's client modules only exist in a Docusaurus build; the theme's tests stand in.
     alias: [
-      // The Cloudflare Worker template imports the package by name; its tests here run it from
-      // the source, which is all there is before a build.
+      // The Cloudflare Worker template and the website's demo import the package by name; their
+      // tests here run it from the source, which is all there is before a build.
       {
-        find: /^ondocs\/(server|mock)$/,
+        find: /^ondocs\/(server|mock|react)$/,
         replacement: `${fileURLToPath(new URL('src', import.meta.url))}/$1/index.ts`,
       },
       {
