@@ -215,21 +215,63 @@ async function measure(name, dir, baseline) {
     };
     page.on('requestfinished', settled);
     page.on('requestfailed', settled);
+    // Keeps track of the idle callbacks the page queues, so that those still waiting once the
+    // network has gone quiet can be run before the dialog opens (see below).
+    await page.addInitScript(() => {
+      const request = window.requestIdleCallback?.bind(window);
+      const cancel = window.cancelIdleCallback?.bind(window);
+      if (!request || !cancel) return;
+      const waiting = new Map();
+      window.requestIdleCallback = (callback, options) => {
+        const id = request((deadline) => {
+          waiting.delete(id);
+          callback(deadline);
+        }, options);
+        waiting.set(id, callback);
+        return id;
+      };
+      window.cancelIdleCallback = (id) => {
+        waiting.delete(id);
+        cancel(id);
+      };
+      // Runs them now, as the browser runs one whose timeout has passed, and counts them.
+      Object.defineProperty(window, '__jsWeightRunIdle', {
+        value: () => {
+          const due = [...waiting];
+          waiting.clear();
+          for (const [id, callback] of due) {
+            cancel(id);
+            try {
+              callback({ didTimeout: true, timeRemaining: () => 0 });
+            } catch (error) {
+              reportError(error);
+            }
+          }
+          return due.length;
+        },
+      });
+    });
     await page.goto(`${server.url}${site.page}`, { waitUntil: 'networkidle' });
     // What a page loads on its own once the browser is idle counts too: Starlight imports its
-    // search UI, about 25 KB gzipped, in a requestIdleCallback, which a busy CI runner can run
-    // after the network has gone quiet, and the dialog's opening was then charged for it. Wait
-    // for an idle callback queued after the page's own, then until every script requested has
-    // loaded and none has been requested for 500 ms.
+    // search UI, about 25 KB gzipped, in a requestIdleCallback. A busy CI runner can go without
+    // an idle period for longer than this waits, and the dialog's opening was then charged for
+    // the search UI: 10.5 KB before interaction and +119.1 KB on open, against 36.3 KB and
+    // +93.3 KB. Wait for an idle callback queued after the page's own, for up to 10 s; then,
+    // once every script requested has loaded and none has been requested for 500 ms, run the
+    // page's idle callbacks still waiting and wait for the network again, until none wait (five
+    // rounds at most).
     await page.evaluate(
       () =>
         new Promise((resolve) => {
           window.requestIdleCallback(() => resolve(undefined), { timeout: 10_000 });
         }),
     );
-    for (let seen = -1; seen !== requested || pending > 0;) {
-      seen = requested;
-      await page.waitForTimeout(500);
+    for (let round = 0; round < 5; round += 1) {
+      for (let seen = -1; seen !== requested || pending > 0;) {
+        seen = requested;
+        await page.waitForTimeout(500);
+      }
+      if ((await page.evaluate(() => window.__jsWeightRunIdle?.() ?? 0)) === 0) break;
     }
     const inline = await page.evaluate(() =>
       [...document.querySelectorAll('script:not([src])')]

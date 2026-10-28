@@ -18,7 +18,7 @@ Add this tag to your base template, before `</body>` or in `<head>`:
 ></script>
 ```
 
-The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.15.0`, in production.
+The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.15.0`, in production. [Pin the script tag](./security.md#pin-the-script-tag) shows how to check its files with Subresource Integrity too.
 
 ## Script size
 
@@ -58,13 +58,14 @@ To try it first, run `npx ondocs dev` beside the index and set `data-endpoint="h
 | `data-shortcut`           | `i`                | The key used with ⌘ or Ctrl; `"false"` turns it off.                                  |
 | `data-launcher`           | "Ask AI"           | The floating button's label; `"false"` hides the button.                              |
 | `data-theme`              | `auto`             | `auto` follows `data-theme` on `<html>`, then the system; or `light` or `dark`.       |
-| `data-links`              | `all`              | `sources` keeps only the answer's links to its source pages.                          |
+| `data-links`              | `sources`          | Keeps only the answer's links to its source pages; `all` keeps every safe link.       |
 | `data-labels`             | English            | The dialog's words, as a JSON object, as in `data-labels='{"launcher":"Demander"}'`.  |
 | `data-label-<name>`       | English            | One label, as in `data-label-new-question="Nouvelle question"`; over `data-labels`.   |
 | `data-locale`             | none               | The page's locale, sent with each question, for an endpoint with an index per locale. |
 | `data-turnstile-site-key` | none               | A Turnstile site key: solve a [bot check](./bot-challenge.md) before each question.   |
 | `data-manual`             | off                | Don't mount; wait for `window.Ondocs.mount()`.                                        |
 | `data-dialog-src`         | next to the script | Where `embed-dialog.global.js` is, for a copy hosted elsewhere.                       |
+| `data-dialog-integrity`   | none               | The dialog file's [Subresource Integrity](./security.md#pin-the-script-tag) hash.     |
 
 ## Open it from your own search box
 

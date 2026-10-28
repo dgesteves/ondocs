@@ -611,6 +611,7 @@ type GenerationOptions = {
 type IndexSource = object | string
 const MCP_PROTOCOL_VERSIONS: readonly string[]
 interface McpHandlerOptions {
+  allowedHosts?: readonly string[]
   allowedOrigins?: AllowedOrigins
   budget?: Omit<BudgetOptions, 'tokensPerDay'>
   embeddingModel?: EmbeddingModel
@@ -721,6 +722,7 @@ interface RetrievalQuery {
 }
 const SOURCE_METADATA_KEY: 'askMySite'
 interface TurnstileOptions {
+  hostnames?: readonly string[]
   secretKey: string
 }
 interface UpstashRateLimitOptions {
