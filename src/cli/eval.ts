@@ -40,7 +40,8 @@ for CI.
 Options:
       --index <file>                 The index (default: the file's \`index\`, else ask-index.json,
                                      build/ask-index.json, dist/ask-index.json, dist/client/ask-index.json,
-                                     or .vitepress/dist/ask-index.json, at the root or in docs/)
+                                     .vitepress/dist/ask-index.json at the root or in docs/, or
+                                     public/, site/ or _site/ask-index.json)
       --min-hit-at-1 <n>             Thresholds from 0 to 1, over the file's
       --min-hit-at-3 <n>
       --min-hit-at-5 <n>
