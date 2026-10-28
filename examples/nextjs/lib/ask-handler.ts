@@ -167,11 +167,11 @@ export const TURNSTILE_HOSTNAMES = [SITE_URL, ...DEMO_ORIGINS].map(
 /**
  * The bot check on every question, once both of the widget's keys are set:
  * `TURNSTILE_SECRET_KEY` for the endpoint, and `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, which the site's
- * dialog reads (components/ask-dialog.tsx), so the two are on or off together. Off while
- * `next build` asks the handler for the home page's sample answer (lib/sample-answer.ts): no
- * visitor, so no token. The home page's inline demo (components/landing/hero-demo.tsx) sends no
- * token yet, so set the site key only once it does; the live demos send one with their own
- * `TURNSTILE_SITE_KEY`, which they need first.
+ * dialog (components/ask-dialog.tsx) and the home page's inline demo
+ * (components/landing/hero-demo.tsx) read: the keys are on or off together, and the dialog and
+ * the demo both send a token with each question. Off while `next build` asks the handler for the
+ * home page's sample answer (lib/sample-answer.ts): no visitor, so no token. The live demos send
+ * one with their own `TURNSTILE_SITE_KEY`, which they need before the site key is set here.
  */
 export function askChallenge(env: Env): ChallengeVerifier | undefined {
   const secretKey = env.TURNSTILE_SECRET_KEY;

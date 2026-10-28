@@ -23,26 +23,75 @@ declare global {
 
 let loading: Promise<TurnstileApi> | null = null;
 
-/** Turnstile's API: the page's own, if it has loaded Turnstile, else its script, added once. */
+/**
+ * How long a script tag for Turnstile that the page added is waited for. One that failed before
+ * `loadTurnstile` listened never settles: past this, it is replaced with a new tag.
+ */
+export const PAGE_SCRIPT_WAIT_MS = 5_000;
+
+/**
+ * Turnstile's API: the page's own, if it has loaded Turnstile, else its script, added once. A tag
+ * for the script that the page added and that is still loading is waited for, not added again, so
+ * Turnstile does not run twice; without Turnstile after `PAGE_SCRIPT_WAIT_MS`, it is replaced.
+ */
 export function loadTurnstile(): Promise<TurnstileApi> {
   if (window.turnstile) return Promise.resolve(window.turnstile);
   loading ??= new Promise<TurnstileApi>((resolve, reject) => {
-    const tag = document.createElement('script');
-    tag.src = TURNSTILE_SCRIPT;
-    tag.async = true;
-    tag.addEventListener('load', () => {
-      if (window.turnstile) resolve(window.turnstile);
-      else reject(new Error('Turnstile’s script loaded without its API.'));
+    /**
+     * Settles on `tag`'s load or error, calling `done` as it does. Returns a function that stops
+     * listening.
+     */
+    const watch = (tag: HTMLScriptElement, done?: () => void): (() => void) => {
+      const stop = (): void => {
+        done?.();
+        tag.removeEventListener('load', loaded);
+        tag.removeEventListener('error', failed);
+      };
+      const loaded = (): void => {
+        stop();
+        if (window.turnstile) resolve(window.turnstile);
+        else reject(new Error('Turnstile’s script loaded without its API.'));
+      };
+      const failed = (): void => {
+        stop();
+        // A failed tag never runs, the page's included: without it, the next widget adds a new one.
+        tag.remove();
+        reject(
+          new Error(
+            `Could not load ${TURNSTILE_SCRIPT}. A Content-Security-Policy must allow https://challenges.cloudflare.com for scripts and frames.`,
+          ),
+        );
+      };
+      tag.addEventListener('load', loaded);
+      tag.addEventListener('error', failed);
+      return stop;
+    };
+    const add = (): void => {
+      const tag = document.createElement('script');
+      tag.src = TURNSTILE_SCRIPT;
+      tag.async = true;
+      watch(tag);
+      document.head.append(tag);
+    };
+
+    const found = document.querySelector<HTMLScriptElement>(`script[src="${TURNSTILE_SCRIPT}"]`);
+    if (!found) {
+      add();
+      return;
+    }
+    const timer = setTimeout(() => {
+      stopWatching();
+      if (window.turnstile) {
+        resolve(window.turnstile);
+        return;
+      }
+      // Failed before this listened, or stuck: replaced, as a failed tag is.
+      found.remove();
+      add();
+    }, PAGE_SCRIPT_WAIT_MS);
+    const stopWatching = watch(found, () => {
+      clearTimeout(timer);
     });
-    tag.addEventListener('error', () => {
-      tag.remove();
-      reject(
-        new Error(
-          `Could not load ${TURNSTILE_SCRIPT}. A Content-Security-Policy must allow https://challenges.cloudflare.com for scripts and frames.`,
-        ),
-      );
-    });
-    document.head.append(tag);
   }).finally(() => {
     // Loaded, `window.turnstile` answers from now on; failed, the next widget tries again.
     loading = null;
