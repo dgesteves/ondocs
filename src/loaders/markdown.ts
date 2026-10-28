@@ -91,10 +91,39 @@ function firstH1(segments: ReturnType<typeof splitFenced>): string | undefined {
 }
 
 function cleanProse(prose: string, mdx: boolean, markdown: boolean): string {
-  const text = mdx ? keepHeadingIds(prose) : prose;
+  const text = mdx ? removeEsm(keepHeadingIds(prose)) : prose;
   return mapOutsideCodeSpans(removeDelimited(text, '<!--', '-->'), (part) =>
     cleanText(part, mdx, markdown),
   ).replace(/\n{3,}/g, '\n\n');
+}
+
+const ESM_START = /^(?:import|export)\s/;
+const FENCE_LIKE = /^\s*(?:`{3,}|~{3,})/;
+
+/**
+ * MDX's `import` and `export` blocks dropped: one starts a line that starts a block (the first
+ * line, or one after a blank line or a heading), and runs to the next blank line. A line that
+ * continues a paragraph is text, as MDX reads it, even when it starts with `export `.
+ */
+function removeEsm(prose: string): string {
+  if (!prose.includes('import') && !prose.includes('export')) return prose;
+  const kept: string[] = [];
+  let inEsm = false;
+  let blockStart = true;
+  for (const line of prose.split('\n')) {
+    const blank = line.trim() === '';
+    if (inEsm) {
+      // A fence line ends it too: code that is not a fence here, such as one indented in JSX.
+      if (!blank && !FENCE_LIKE.test(line)) continue;
+      inEsm = false;
+    } else if (blockStart && ESM_START.test(line)) {
+      inEsm = true;
+      continue;
+    }
+    kept.push(line);
+    blockStart = blank || parseAtxHeading(line) !== null;
+  }
+  return kept.join('\n');
 }
 
 // In MDX, Docusaurus reads a heading's id from an MDX comment at its end, `{/* #id */}`. MDX
@@ -114,11 +143,10 @@ function keepHeadingIds(prose: string): string {
 function cleanText(input: string, mdx: boolean, markdown = false): string {
   let text = input;
   if (mdx) {
-    text = removeDelimited(
-      text.replace(/^(?:import|export)\s[^\n]*(?:\n(?![ \t]*\n)[^\n]*)*$/gm, ''),
-      '{/*',
-      '*/}',
-    ).replace(/<\/?[A-Z][\w.]*(?:\s(?:[^<>{}]|\{[^{}]*\})*)?\/?>/g, '');
+    text = removeDelimited(text, '{/*', '*/}').replace(
+      /<\/?[A-Z][\w.]*(?:\s(?:[^<>{}]|\{[^{}]*\})*)?\/?>/g,
+      '',
+    );
   }
   const withoutTags = text.replace(/<\/?[a-z][\w-]*(?:\s[^<>]*)?\/?>/g, '');
   if (markdown) return withoutTags;
