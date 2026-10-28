@@ -27,9 +27,17 @@ npx ondocs init --dry-run   # prints every file it would write, and writes nothi
 
 For a Next.js app it writes `app/api/ask/route.ts` and `app/api/mcp/route.ts` instead, which import the index, with the client IP header of the host. An Astro site with an SSR adapter needs no file at all: see [Astro with an adapter](#astro-with-an-adapter).
 
-On a site with several locales, read from Docusaurus's or Astro's `i18n` or Starlight's or VitePress's `locales`, the ask endpoint gets each locale's index as `indexes`, bundled with it, so the dialog on a locale's pages is answered from that locale's docs. Every endpoint it writes has a rate limit keyed on the client IP header the host sets (10 questions and 60 tool calls a minute), a daily budget of 500 questions and 1.5 million model tokens, the answer cache, and the CORS preflight answered. The one on another origin than the pages, the GitHub Pages Worker, sends CORS headers for the site's origin only. The files are plain code you own: edit the model, the limits or the budget there.
+On a site with several locales, the ask endpoint gets each locale's index as `indexes`, bundled with it, so the dialog on a locale's pages is answered from that locale's docs. init reads the locales from Docusaurus's or Astro's `i18n` or Starlight's or VitePress's `locales`, also when the config takes them from a variable or from a file it imports with a relative path, and it leaves out a VitePress locale whose `link` points at another site. Once the site has been built with the plugin, init also takes each `<locale>/ask-index.json` the build wrote next to the default index, and warns where the build and the config disagree. When the config makes its locales in code init does not read, such as a function call, init warns, so that you build the site and run init again. Every endpoint it writes has a rate limit keyed on the client IP header the host sets (10 questions and 60 tool calls a minute), a daily budget of 500 questions and 1.5 million model tokens, the answer cache, and the CORS preflight answered. The one on another origin than the pages, the GitHub Pages Worker, sends CORS headers for the site's origin only. The files are plain code you own: edit the model, the limits or the budget there.
 
 Run it again whenever you like. Files that are already as it would write them are left alone, a file that differs is only overwritten if you say yes (or pass `--yes`), and an edit to a config file it cannot make safely, such as a `netlify.toml` that already configures the function, is printed for you to make by hand. It never deploys anything, and it reads no `.env` file or credential. For a Docusaurus, Astro, Starlight or VitePress site, its steps include the plugin's `mcp` option, as `mcp: '/api/mcp'` or the Worker's URL on GitHub Pages, so that `llms.txt` points agents at the MCP endpoint. The plugin resolves the path against the site's URL in its config, so when an Astro config has no `site`, or a VitePress config no `sitemap.hostname`, the step says to set it first; a build without it stops with an error that says so. `--no-mcp` leaves out the MCP endpoint, and [the CLI reference](/cli#ondocs-init) lists every flag.
+
+### In a monorepo
+
+Run init in the docs site's package, such as `website/` or `docs/`. At a workspace's root with no site config of its own, it writes nothing: it lists the packages that have a site's config and says which folder to run it in.
+
+The host's config can be in a folder above the site's, up to the workspace's or the repository's root, and init finds it there: a `netlify.toml`, a `vercel.json` or a wrangler config. A `.vercel` or `.netlify` folder counts only in the site's own folder, as `vercel link` and `netlify link` make them at a repository's root even for a project that builds from a folder in it. As that config can deploy another of the workspace's apps, init asks whether it serves the site before it uses it; without a terminal to ask in, pass `--yes` to use it, `--host` to name another host, or add that host's config file in the site's folder to give the site one of its own. A root `netlify.toml` that builds from the root, as `base = "/"` with `publish = "website/build"`, gets the functions in the root's `netlify/functions`, with `included_files` for `website/build/ask-index.json`. A `base` that names the site's folder keeps the functions in the site's folder. A root `vercel.json` gets them in the root's `api/`, and a root wrangler config gets the Worker or the Pages Functions next to it. When the site's folder configures one host and a folder above it another, init asks which one serves the site, or takes `--host`; with `--yes`, it takes the one in the site's folder.
+
+The install steps use the package manager of the workspace's lockfile: `pnpm --filter <package> add` or `yarn workspace <package> add` for the site's package. Functions at the root import `ondocs/server` and `@ai-sdk/openai` from there, so a step installs them at the root too, with `pnpm add -w`, or `yarn add` run in the root.
 
 ## Astro with an adapter
 
@@ -76,7 +84,7 @@ There are three ways for the endpoint to read the index:
 - **Read it from the build output.** A static site's function reads `build/ask-index.json` (Docusaurus), `dist/ask-index.json` (Astro; `dist/client/ask-index.json` with an adapter) or `.vitepress/dist/ask-index.json` (VitePress) with `readFile`, and the host bundles the file with the function.
 - **Fetch it.** For large indexes on platforms that limit function size, or an endpoint deployed apart from its site, serve the file as a static asset and fetch it: `index: remoteIndex(url)`, which checks it again after a deploy, or a loader such as `index: () => fetch(url).then((r) => r.text())`.
 
-A loader runs once per server instance, on the first question, and a failed load is retried on the next request. A `remoteIndex` is checked every five minutes (`revalidateSeconds`), with the file's `ETag`, so an unchanged index is never downloaded again.
+A loader runs once per server instance, on the first question, and a failed load is retried on the next request. A `remoteIndex` is checked every five minutes (`revalidateSeconds`), with the file's `ETag`, so an unchanged index is never downloaded again. Each fetch of it, the response and the file, is given up after 10 seconds (`timeoutSeconds`; raise it for a very large index on a slow link). The request that finds the index due for a check waits for it at most that long, and a check that fails or times out keeps the index in hand.
 
 ## Deploy to Vercel
 
@@ -109,12 +117,11 @@ On Netlify, `init` writes a function at `netlify/functions/ask.mts` that rate-li
 ```ts
 // netlify/functions/ask.mts
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { openai } from '@ai-sdk/openai';
 import { createAskHandler, memoryRateLimit } from 'ondocs/server';
 
 export default createAskHandler({
-  index: () => readFile(join(process.cwd(), 'build/ask-index.json'), 'utf8'),
+  index: () => readFile(new URL('../../build/ask-index.json', import.meta.url), 'utf8'),
   model: openai('gpt-5.4-mini'),
   embeddingModel: openai.embedding('text-embedding-3-small'),
   rateLimit: memoryRateLimit({
@@ -133,6 +140,8 @@ Include the index in the function's bundle with `netlify.toml`:
 [functions.ask]
   included_files = ["build/ask-index.json"]
 ```
+
+The function reads the index by its path from its own file, not from the working directory. Netlify runs a function from the root of its bundle, and in a workspace that installs its dependencies at its root, the bundle's root is the workspace's, not the base directory.
 
 ## Deploy to Cloudflare
 

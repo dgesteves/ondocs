@@ -184,6 +184,17 @@ const docsName = (name: string): string =>
 const readIndex = (site: TemplateSite) =>
   `() => readFile(join(process.cwd(), ${quote(site.indexFile)}), 'utf8')`;
 
+/** Where init writes the Netlify Functions, in the folder Netlify builds from. */
+const NETLIFY_FUNCTIONS = 'netlify/functions';
+
+/**
+ * The index read by its path from the Netlify Function's own file. Netlify runs a function from
+ * the root of its bundle, which is the base directory's only when the dependencies are there too:
+ * in a workspace that installs them at its root, it is the workspace's root.
+ */
+const readBundled = (site: TemplateSite) =>
+  `() => readFile(new URL(${quote(`${'../'.repeat(NETLIFY_FUNCTIONS.split('/').length)}${site.indexFile}`)}, import.meta.url), 'utf8')`;
+
 /** `api/ask.ts` and `api/mcp.ts`, Vercel Functions, for a static site. */
 export function vercelFiles(site: TemplateSite, mcp: boolean): GeneratedFile[] {
   const imports = (names: string) =>
@@ -277,21 +288,20 @@ export function netlifyFiles(site: TemplateSite, mcp: boolean): GeneratedFile[] 
   const imports = (names: string) =>
     [
       "import { readFile } from 'node:fs/promises';",
-      "import { join } from 'node:path';",
       '',
       ...(names.includes('createAskHandler') ? ["import { openai } from '@ai-sdk/openai';"] : []),
       `import { ${names} } from 'ondocs/server';`,
     ].join('\n');
   const files: GeneratedFile[] = [
     {
-      path: 'netlify/functions/ask.mts',
+      path: `${NETLIFY_FUNCTIONS}/ask.mts`,
       description: 'POST /api/ask: answers questions from the index',
-      content: `${HEADER('The ask endpoint, POST /api/ask, as a Netlify Function.', `It answers from ${site.indexFile}, which the build writes and netlify.toml bundles with this function. Set OPENAI_API_KEY in the site's environment variables: the build embeds the pages with it, and this function embeds questions and calls the model.`)}
+      content: `${HEADER('The ask endpoint, POST /api/ask, as a Netlify Function.', `It answers from ${site.indexFile}, which the build writes and netlify.toml bundles with this function, read by its path from this file. Set OPENAI_API_KEY in the site's environment variables: the build embeds the pages with it, and this function embeds questions and calls the model.`)}
 ${imports('createAskHandler, memoryRateLimit, turnstile')}
 
 export default createAskHandler({
-  index: ${readIndex(site)},
-${indexesOption(site, '  ', (locale) => readIndex({ ...site, indexFile: localeFile(site, locale) }))}${askOptions(site, 'netlify', '  ')}
+  index: ${readBundled(site)},
+${indexesOption(site, '  ', (locale) => readBundled({ ...site, indexFile: localeFile(site, locale) }))}${askOptions(site, 'netlify', '  ')}
 });
 
 export const config = { path: '/api/ask' };
@@ -300,13 +310,13 @@ export const config = { path: '/api/ask' };
   ];
   if (mcp) {
     files.push({
-      path: 'netlify/functions/mcp.mts',
+      path: `${NETLIFY_FUNCTIONS}/mcp.mts`,
       description: '/api/mcp: the same index as an MCP server for agents, keyword-only',
-      content: `${HEADER('The MCP endpoint, /api/mcp, as a Netlify Function.', `It serves ${site.indexFile} to agents as search, fetch and list_pages tools. Search is keyword-only, so it calls no model: the agent brings its own.`)}
+      content: `${HEADER('The MCP endpoint, /api/mcp, as a Netlify Function.', `It serves ${site.indexFile}, read by its path from this file, to agents as search, fetch and list_pages tools. Search is keyword-only, so it calls no model: the agent brings its own.`)}
 ${imports('createMcpHandler, memoryRateLimit')}
 
 export default createMcpHandler({
-  index: ${readIndex(site)},
+  index: ${readBundled(site)},
 ${mcpOptions(site, 'netlify', '  ')}
 });
 
