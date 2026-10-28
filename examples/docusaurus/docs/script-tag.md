@@ -12,13 +12,13 @@ Add this tag to your base template, before `</body>` or in `<head>`:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.15/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.16/dist/embed.global.js"
   data-endpoint="/api/ask"
   defer
 ></script>
 ```
 
-The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.15.0`, in production. [Pin the script tag](./security.md#pin-the-script-tag) shows how to check its files with Subresource Integrity too.
+The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.16.0`, in production. [Pin the script tag](./security.md#pin-the-script-tag) shows how to check its files with Subresource Integrity too.
 
 ## Script size
 
@@ -73,7 +73,7 @@ Any element with a `data-ondocs-open` attribute opens the dialog, and its value,
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.15/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.16/dist/embed.global.js"
   data-endpoint="/api/ask"
   data-launcher="false"
   defer
