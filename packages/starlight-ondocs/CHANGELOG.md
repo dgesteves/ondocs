@@ -1,5 +1,12 @@
 # starlight-ondocs
 
+## 0.16.1
+
+### Patch Changes
+
+- Updated dependencies [[`f4ec04a`](https://github.com/dgesteves/ondocs/commit/f4ec04ac61ea322256047c61ede18249bfee7eb5)]:
+  - ondocs@0.16.1
+
 ## 0.16.0
 
 ### Patch Changes
