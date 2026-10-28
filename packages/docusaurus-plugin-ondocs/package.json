@@ -1,6 +1,6 @@
 {
   "name": "docusaurus-plugin-ondocs",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "description": "The ondocs Docusaurus plugin, under the name Docusaurus users search for: open-source Ask AI for your docs, with an MCP server for agents. Cited answers on your own model key, from one static index, with no vendor and no vector database.",
   "keywords": [
     "docusaurus",

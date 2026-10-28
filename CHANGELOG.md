@@ -2,6 +2,12 @@
 
 Until 0.6.0 this package was published as `ask-my-site`. Its entries below keep the links and names of that time.
 
+## 0.16.2
+
+### Patch Changes
+
+- [#249](https://github.com/dgesteves/ondocs/pull/249) [`6516f98`](https://github.com/dgesteves/ondocs/commit/6516f98db474e4627ac7e4be3acead7ae9a401d3) Thanks [@dgesteves](https://github.com/dgesteves)! - When the page has already added Turnstile's script and it is still loading as the dialog opens, the dialog waits for that script instead of adding a second one, so Turnstile no longer runs twice. If Turnstile is still not there 5 seconds later, as with a tag that failed before the dialog opened, the dialog replaces the tag with its own.
+
 ## 0.16.1
 
 ### Patch Changes
