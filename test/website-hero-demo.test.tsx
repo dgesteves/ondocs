@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DemoSources } from '../examples/nextjs/components/landing/demo-sources';
 import { buildIndex } from '../src';
 import { MOCK_MIN_SIMILARITY, mockEmbeddingModel, mockLanguageModel } from '../src/mock';
+import { DEFAULT_LABELS } from '../src/react';
 import { citedSourceIds } from '../src/react/answer';
 import { TURNSTILE_SCRIPT, type TurnstileApi } from '../src/react/turnstile';
 import { createAskHandler, turnstile } from '../src/server';
@@ -110,13 +111,14 @@ describe('the home page’s demo', () => {
   });
 });
 
-describe('the home page’s demo on a phone', () => {
-  const landing = (file: string) =>
-    readFileSync(join(import.meta.dirname, '../examples/nextjs', file), 'utf8');
-  const phone = (landing('app/(home)/landing.css').split('@media (max-width: 800px) {')[1] ?? '')
-    // Without its comments.
-    .replace(/\/\*[\s\S]*?\*\//g, '');
+const landing = (file: string) =>
+  readFileSync(join(import.meta.dirname, '../examples/nextjs', file), 'utf8');
+/** The landing page's styles on a phone. */
+const phone = (landing('app/(home)/landing.css').split('@media (max-width: 800px) {')[1] ?? '')
+  // Without its comments.
+  .replace(/\/\*[\s\S]*?\*\//g, '');
 
+describe('the home page’s demo on a phone', () => {
   it('is a still of the same answer: no box to type in, and no questions to pick', () => {
     expect(phone).toMatch(
       /\.hero \.demo\[data-still\] \.demo-input,\s*\.hero \.demo\[data-still\] \.demo-chips \{\s*display: none;\s*\}/,
@@ -207,18 +209,51 @@ describe('the home page’s demo with a Turnstile site key', () => {
   const scriptTags = (): HTMLScriptElement[] =>
     [...document.querySelectorAll('script')].filter((tag) => tag.src === TURNSTILE_SCRIPT);
 
-  /** The demo, as the site builds it: the key is read as the module loads, as Next inlines it. */
-  async function demo(siteKey?: string) {
+  /**
+   * The demo, as the site builds it: the key is read as the module loads, as Next inlines it.
+   * With `initial`, it opens on that answer, and is a still on a phone.
+   */
+  async function demo(siteKey?: string, initial: typeof STILL | null = null) {
     vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', siteKey);
     const { HeroDemo } = (await import(/* @vite-ignore */ DEMO)) as {
       HeroDemo: (props: {
         suggestions: readonly string[];
-        initial: null;
+        initial: typeof STILL | null;
         mode: 'openai' | 'mock';
       }) => ReactElement;
     };
-    render(<HeroDemo suggestions={[QUESTION]} initial={null} mode="mock" />);
+    render(
+      <div className="hero">
+        <HeroDemo suggestions={[QUESTION]} initial={initial} mode="mock" />
+      </div>,
+    );
     return screen.getByRole('region', { name: 'Ask these docs' });
+  }
+
+  /** The answer asked at build time, which the demo opens on. */
+  const STILL = { question: QUESTION, answer: ANSWER, sources: SOURCES };
+
+  /** A phone's width: the landing page's rule that makes the demo a still, until it is undone. */
+  function phoneWidth(): () => void {
+    const rule = /\.hero \.demo\[data-still\] \.demo-input,[^}]*\}/.exec(phone)?.[0];
+    expect(rule).toBeDefined();
+    const style = document.createElement('style');
+    style.textContent = rule ?? '';
+    document.head.append(style);
+    return () => {
+      style.remove();
+    };
+  }
+
+  /** Lets the script tag the demo added load, with `api` as what it defines. */
+  async function loadScript(api: TurnstileApi): Promise<void> {
+    await waitFor(() => {
+      expect(scriptTags()).toHaveLength(1);
+    });
+    window.turnstile = api;
+    act(() => {
+      scriptTags()[0]?.dispatchEvent(new Event('load'));
+    });
   }
 
   /** Turnstile, stood in for: its widgets, and solving the latest one's next token. */
@@ -319,6 +354,93 @@ describe('the home page’s demo with a Turnstile site key', () => {
     });
     expect(scriptTags()).toHaveLength(1);
     expect(turnstile.widgets).toHaveLength(1);
+  });
+
+  it('says in the dialog’s words that the bot check did not load, when its script fails', async () => {
+    const user = userEvent.setup();
+    const region = await demo(SITE_KEY);
+    await user.hover(region);
+    await waitFor(() => {
+      expect(scriptTags()).toHaveLength(1);
+    });
+    // Asked while the script loads, which a blocker, a Content-Security-Policy or the network fails.
+    await user.click(within(region).getByRole('button', { name: QUESTION }));
+    expect(bodies).toHaveLength(0);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    act(() => {
+      scriptTags()[0]?.dispatchEvent(new Event('error'));
+    });
+    const alert = await within(region).findByRole('alert');
+    expect(text(alert)).toBe(DEFAULT_LABELS.challengeRequired);
+    expect(bodies).toEqual([{ question: QUESTION }]);
+    expect(errors).toHaveBeenCalledWith(
+      '[ondocs]',
+      expect.objectContaining({
+        message: expect.stringContaining(
+          'A Content-Security-Policy must allow https://challenges.cloudflare.com for scripts and frames.',
+        ) as string,
+      }),
+    );
+    // So the next question tries again.
+    expect(scriptTags()).toHaveLength(0);
+  });
+
+  it('says in the dialog’s words that the bot check failed, when the endpoint rejects the token', async () => {
+    const user = userEvent.setup();
+    const turnstile = fakeTurnstile();
+    const region = await demo(SITE_KEY);
+    await user.hover(region);
+    await loadScript(turnstile.api);
+    await waitFor(() => {
+      expect(turnstile.widgets).toHaveLength(1);
+    });
+    // Already used, as a replayed token would be.
+    issued.delete(turnstile.solve());
+    await user.click(within(region).getByRole('button', { name: QUESTION }));
+    const alert = await within(region).findByRole('alert');
+    expect(text(alert)).toBe(DEFAULT_LABELS.challengeFailed);
+  });
+
+  it('on a phone, where the demo is a still, loads no Turnstile for a pointer over it', async () => {
+    const user = userEvent.setup();
+    const restore = phoneWidth();
+    try {
+      const region = await demo(SITE_KEY, STILL);
+      // A tap, or a scroll that starts on it.
+      await user.hover(region);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(scriptTags()).toHaveLength(0);
+      // Focus in it still loads it.
+      act(() => {
+        within(region).getAllByRole('link')[0]?.focus();
+      });
+      await waitFor(() => {
+        expect(scriptTags()).toHaveLength(1);
+      });
+    } finally {
+      restore();
+    }
+  });
+
+  it('wider than a phone, loads Turnstile for a pointer over the same demo, in the page’s scheme', async () => {
+    const user = userEvent.setup();
+    const turnstile = fakeTurnstile();
+    const region = await demo(SITE_KEY, STILL);
+    expect(region.hasAttribute('data-still')).toBe(true);
+    // The theme switch, to Dark, after the page loaded.
+    act(() => {
+      document.documentElement.classList.add('dark');
+    });
+    try {
+      await user.hover(region);
+      await loadScript(turnstile.api);
+      await waitFor(() => {
+        expect(turnstile.widgets).toHaveLength(1);
+      });
+      expect(turnstile.widgets[0]?.options).toMatchObject({ theme: 'dark' });
+    } finally {
+      document.documentElement.classList.remove('dark');
+    }
   });
 
   it('without the key, loads no Turnstile, renders no widget and sends no token', async () => {

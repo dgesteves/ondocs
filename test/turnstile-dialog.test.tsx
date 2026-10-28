@@ -267,6 +267,78 @@ describe('the dialog with challenge: { turnstile }', () => {
     expect(scriptTags()).toHaveLength(1);
   });
 
+  // A page that loads Turnstile itself (its own widget, as the ondocs website's home page demo
+  // does), whose script is still loading when the dialog opens.
+  it('waits for the script tag the page added, rather than adding a second one', async () => {
+    const turnstile = fakeTurnstile();
+    const { fetch, bodies } = endpoint();
+    const pageTag = document.createElement('script');
+    pageTag.src = TURNSTILE_SCRIPT;
+    document.head.append(pageTag);
+    render(
+      <AskDialog
+        open
+        onOpenChange={() => undefined}
+        question={QUESTION}
+        challenge={{ turnstile: SITE_KEY }}
+        fetch={fetch}
+      />,
+    );
+    const dialog = await screen.findByRole('dialog');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(scriptTags()).toEqual([pageTag]);
+    expect(turnstile.widgets).toHaveLength(0);
+
+    window.turnstile = turnstile.api;
+    act(() => {
+      pageTag.dispatchEvent(new Event('load'));
+    });
+    await waitFor(() => {
+      expect(turnstile.widgets).toHaveLength(1);
+    });
+    expect(dialog.contains(turnstile.widgets[0]?.container ?? null)).toBe(true);
+    const token = turnstile.solve();
+    await within(dialog).findByText(/maps to 127/);
+    expect(bodies).toEqual([{ question: QUESTION, challenge: token }]);
+    expect(scriptTags()).toEqual([pageTag]);
+  });
+
+  it('when the page’s script tag fails, removes it, and adds its own the next time', async () => {
+    const user = userEvent.setup();
+    const turnstile = fakeTurnstile();
+    const pageTag = document.createElement('script');
+    pageTag.src = TURNSTILE_SCRIPT;
+    document.head.append(pageTag);
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    render(<AskDialog launcher challenge={{ turnstile: SITE_KEY }} fetch={endpoint().fetch} />);
+    await user.click(screen.getByRole('button', { name: /Ask AI/ }));
+    await screen.findByRole('dialog');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(scriptTags()).toEqual([pageTag]);
+    act(() => {
+      pageTag.dispatchEvent(new Event('error'));
+    });
+    await waitFor(() => {
+      expect(errors).toHaveBeenCalledWith(
+        '[ondocs]',
+        expect.objectContaining({
+          message: expect.stringContaining('A Content-Security-Policy must allow') as string,
+        }),
+      );
+    });
+    expect(pageTag.isConnected).toBe(false);
+
+    // Opened again, the dialog tries again with a tag of its own.
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: /Ask AI/ }));
+    await screen.findByRole('dialog');
+    await loadScript(turnstile.api);
+    expect(scriptTags()[0]).not.toBe(pageTag);
+    await waitFor(() => {
+      expect(turnstile.widgets).toHaveLength(1);
+    });
+  });
+
   it('shows the bot check’s own words, in the site’s language, when the endpoint refuses', async () => {
     const user = userEvent.setup();
     const { fetch, bodies } = endpoint();

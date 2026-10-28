@@ -1,11 +1,19 @@
 'use client';
 
-import { AskAnswer, citedSourceIds, useAsk, type AskSource } from 'ondocs/react';
+import {
+  AskAnswer,
+  citedSourceIds,
+  DEFAULT_LABELS,
+  useAsk,
+  type AskError,
+  type AskSource,
+} from 'ondocs/react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, useState, type MouseEvent } from 'react';
 
 import type { SampleAnswer } from '../../lib/sample-answer';
 import { Spark } from '../icons';
+import { usePageScheme } from '../theme-switch';
 import { DemoSources } from './demo-sources';
 
 /**
@@ -52,7 +60,11 @@ function loadTurnstile(): Promise<Turnstile> {
     script.addEventListener('error', () => {
       // So the next question tries again.
       script.remove();
-      reject(new Error(`Could not load ${TURNSTILE_SCRIPT}.`));
+      reject(
+        new Error(
+          `Could not load ${TURNSTILE_SCRIPT}. A Content-Security-Policy must allow https://challenges.cloudflare.com for scripts and frames.`,
+        ),
+      );
     });
   });
 }
@@ -71,7 +83,7 @@ interface Challenge {
 function turnstileWidget(
   container: HTMLElement,
   siteKey: string,
-  theme: 'light' | 'dark',
+  theme: 'auto' | 'light' | 'dark',
   onFail: () => void,
 ): Challenge {
   let api: Turnstile | null = null;
@@ -120,7 +132,7 @@ function turnstileWidget(
       over = true;
       giveUp();
       onFail();
-      console.error(error);
+      console.error('[ondocs]', error);
     },
   );
 
@@ -156,6 +168,19 @@ function turnstileWidget(
   };
 }
 
+/**
+ * An error in a visitor's words: the bot check's in the dialog's (ondocs/react's labels), the
+ * others as the endpoint sends them.
+ */
+function errorText(error: AskError): string {
+  if (error.code === 'rate_limited' && error.retryAfter) {
+    return `Too many questions. Try again in ${String(error.retryAfter)} seconds.`;
+  }
+  if (error.code === 'challenge_required') return DEFAULT_LABELS.challengeRequired;
+  if (error.code === 'challenge_failed') return DEFAULT_LABELS.challengeFailed;
+  return error.message;
+}
+
 interface HeroDemoProps {
   suggestions: readonly string[];
   /** The answer to the first suggestion, asked while the page was built. */
@@ -174,17 +199,30 @@ export function HeroDemo({ suggestions, initial, mode }: HeroDemoProps) {
   // the demo is wanted (a pointer over it, focus in it, a question), so the page loads none of it
   // before, and a token is solved by the time a question is asked.
   const challengeRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const widgetRef = useRef<Challenge | null>(null);
+  // Rendered in the page's scheme at the time, as the dialog's widget is. One rendered before a
+  // theme switch keeps its scheme: rendering it again would drop the token it has solved.
+  const scheme = usePageScheme();
   const startChallenge = useCallback((): Challenge | null => {
     if (widgetRef.current || !TURNSTILE_SITE_KEY || !challengeRef.current) return widgetRef.current;
-    // In the page's scheme, as the dialog's widget is (the site's theme is a class on <html>).
-    const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-    const widget = turnstileWidget(challengeRef.current, TURNSTILE_SITE_KEY, theme, () => {
-      if (widgetRef.current === widget) widgetRef.current = null;
-    });
+    const widget = turnstileWidget(
+      challengeRef.current,
+      TURNSTILE_SITE_KEY,
+      scheme ?? 'auto',
+      () => {
+        if (widgetRef.current === widget) widgetRef.current = null;
+      },
+    );
     widgetRef.current = widget;
     return widget;
-  }, []);
+  }, [scheme]);
+  // A pointer over the demo, unless it is a still (on a phone, landing.css), with no box to ask in:
+  // a tap or a scroll that starts on it wants no bot check.
+  const pointerOver = useCallback(() => {
+    if (formRef.current && getComputedStyle(formRef.current).display === 'none') return;
+    startChallenge();
+  }, [startChallenge]);
   useEffect(
     () => () => {
       widgetRef.current?.remove();
@@ -230,12 +268,13 @@ export function HeroDemo({ suggestions, initial, mode }: HeroDemoProps) {
       // On a phone the demo is a still of the answer asked at build time (landing.css). Without
       // one, it stays a demo to type in.
       data-still={initial ? '' : undefined}
-      {...(TURNSTILE_SITE_KEY ? { onPointerEnter: startChallenge, onFocus: startChallenge } : {})}
+      {...(TURNSTILE_SITE_KEY ? { onPointerEnter: pointerOver, onFocus: startChallenge } : {})}
     >
       <h2 id={`${inputId}-title`} className="sr-only">
         Ask these docs
       </h2>
       <form
+        ref={formRef}
         className="demo-input"
         onSubmit={(event) => {
           event.preventDefault();
@@ -311,9 +350,7 @@ export function HeroDemo({ suggestions, initial, mode }: HeroDemoProps) {
           ) : null}
           {ask.error ? (
             <p role="alert" className="demo-error">
-              {ask.error.code === 'rate_limited' && ask.error.retryAfter
-                ? `Too many questions. Try again in ${String(ask.error.retryAfter)} seconds.`
-                : ask.error.message}
+              {errorText(ask.error)}
             </p>
           ) : null}
         </div>
