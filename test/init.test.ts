@@ -1057,7 +1057,7 @@ describe('ondocs init in a monorepo', () => {
     const unattended = await run(['--dry-run'], undefined, 'docs');
     expect(unattended.code).toBe(2);
     expect(unattended.stderr).toContain(
-      'This site has config for Cloudflare and Netlify (in ../): pick one with --host cloudflare|netlify.',
+      "This site has config for Cloudflare and Netlify (in ../): pick one with --host cloudflare|netlify, or pass --yes to take Cloudflare, configured in the site's folder.",
     );
     const netlify = await run(['--dry-run', '--host', 'netlify'], undefined, 'docs');
     expect(netlify.code).toBe(0);
@@ -1087,7 +1087,7 @@ describe('ondocs init in a monorepo', () => {
     const unattended = await run(['--dry-run'], undefined, 'website');
     expect(unattended.code).toBe(2);
     expect(unattended.stderr).toBe(
-      "✗ Netlify is configured in ../netlify.toml, above the site's folder. If it serves this site, run init again with --yes; if not, pass --host vercel|netlify|cloudflare|github-pages.",
+      "✗ Netlify is configured in ../netlify.toml, above the site's folder. If it serves this site, run init again with --yes. If another host does, pass --host vercel|cloudflare|github-pages; for Netlify with a config of the site's own, add a netlify.toml in the site's folder.",
     );
 
     const yes = await run(['--dry-run'], ['y'], 'website');
@@ -1111,6 +1111,84 @@ describe('ondocs init in a monorepo', () => {
     const named = await run(['--dry-run', '--host', 'netlify'], undefined, 'website');
     expect(named.code).toBe(0);
     expect(named.stdout).toContain('would create  ../netlify/functions/ask.mts');
+
+    // A netlify.toml of the site's own is the one, as the message says.
+    await site({ 'website/netlify.toml': '[build]\n  publish = "build"\n' });
+    const own = await run(['--dry-run'], undefined, 'website');
+    expect(own.code).toBe(0);
+    expect(own.stdout).toContain('would create  netlify/functions/ask.mts');
+    expect(own.stdout).toContain('would update  netlify.toml');
+  });
+
+  it('takes the site’s own host config with --yes, over another host’s above it', async () => {
+    // A vercel.json in docs/, and a netlify.toml at the root that deploys another app.
+    await site({
+      '.git/HEAD': 'ref: refs/heads/main\n',
+      'netlify.toml': '[build]\n  base = "app"\n  publish = "dist"\n',
+      'docs/package.json': JSON.stringify({
+        name: 'acme-docs',
+        dependencies: { '@docusaurus/core': '3' },
+      }),
+      'docs/docusaurus.config.ts': DOCUSAURUS['docusaurus.config.ts'],
+      'docs/vercel.json': '{}\n',
+    });
+    const yes = await run(['--dry-run', '--yes'], undefined, 'docs');
+    expect(yes.stderr).toBe('');
+    expect(yes.code).toBe(0);
+    expect(yes.stdout).toMatch(/^Dry run: a Docusaurus site on Vercel\./);
+    expect(yes.stdout).toContain('would create  api/ask.ts');
+    expect(yes.stdout).toContain('would update  vercel.json');
+    expect(yes.stdout).not.toContain('../');
+
+    // Without --yes or a terminal, init says how to choose; in a terminal, it asks.
+    const unattended = await run(['--dry-run'], undefined, 'docs');
+    expect(unattended.code).toBe(2);
+    expect(unattended.stderr).toBe(
+      "✗ This site has config for Vercel and Netlify (in ../): pick one with --host vercel|netlify, or pass --yes to take Vercel, configured in the site's folder.",
+    );
+    const asked = await run(['--dry-run'], ['2'], 'docs');
+    expect(asked.asked).toEqual(['Choose 1-2: ']);
+    expect(asked.stdout).toContain(
+      'This site has config for Vercel and Netlify (in ../). Which one serves it?',
+    );
+    // The root's netlify.toml builds another app, as init then says.
+    expect(asked.code).toBe(2);
+    expect(asked.stderr).toContain('Netlify builds from ../app/');
+  });
+
+  it('takes no .vercel or .netlify above the site’s folder for the host’s config', async () => {
+    // `vercel link` and `netlify link` at the repository's root, for a project that builds docs/.
+    for (const [host, link, functions, config] of [
+      ['vercel', '.vercel/project.json', 'api/ask.ts', 'vercel.json'],
+      ['netlify', '.netlify/state.json', 'netlify/functions/ask.mts', 'netlify.toml'],
+    ] as const) {
+      await rm(cwd, { recursive: true, force: true });
+      await mkdir(cwd, { recursive: true });
+      await site({
+        '.git/HEAD': 'ref: refs/heads/main\n',
+        [link]: '{}\n',
+        'docs/package.json': JSON.stringify({
+          name: 'acme-docs',
+          dependencies: { '@docusaurus/core': '3' },
+        }),
+        'docs/docusaurus.config.ts': DOCUSAURUS['docusaurus.config.ts'],
+      });
+      // In a terminal, init asks for the host, as with no config at all. (A second answer, so a
+      // question whether the root's link folder serves the site ends rather than loops.)
+      const choice = host === 'vercel' ? '1' : '2';
+      const asked = await run(['--dry-run'], [choice, choice], 'docs');
+      expect(asked.asked).toEqual(['Choose 1-4: ']);
+      expect(asked.code).toBe(0);
+      expect(asked.stdout).toContain(`would create  ${functions}`);
+
+      const named = await run(['--host', host], undefined, 'docs');
+      expect([host, named.stderr]).toEqual([host, '']);
+      expect(named.code).toBe(0);
+      expect(existsSync(join(cwd, 'docs', functions))).toBe(true);
+      expect(existsSync(join(cwd, 'docs', config))).toBe(true);
+      expect(existsSync(join(cwd, functions))).toBe(false);
+      expect(existsSync(join(cwd, config))).toBe(false);
+    }
   });
 
   it('reads pnpm-workspace.yaml as YAML', async () => {
@@ -1174,6 +1252,8 @@ describe('configLocales', () => {
       "test: /don't/, ",
       'match: (path) => /^\\/(docs|blog)\\//.test(path), ',
       'width: w / 2, height: w / 2, ',
+      // A `/` that starts a line and no regular expression: the next line's is still one.
+      "ratio: (w\n  / 2), skip: [\n  /'}/], ",
     ]) {
       const source = `const w = 10;\nexport default { ${before}i18n: { defaultLocale: 'en', locales: ['en', 'fr'] } };`;
       expect([before, configLocales(source, false)]).toEqual([before, ['fr']]);

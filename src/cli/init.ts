@@ -54,8 +54,8 @@ Options:
       --out <dir>          --build-dir's name before 0.14, which works until 1.0
       --no-mcp             Write the ask endpoint only
       --dry-run            Print what it would write, and write nothing
-  -y, --yes                Overwrite files that differ, and use a host's config in a folder
-                           above the site's, without asking
+  -y, --yes                Overwrite files that differ, and take a host's config without
+                           asking: the site's folder's, else one in a folder above it
   -h, --help               Show this help`;
 
 class InitError extends Error {}
@@ -66,6 +66,12 @@ const HOST_LABELS: Record<Host, string> = {
   netlify: 'Netlify',
   cloudflare: 'Cloudflare',
   'github-pages': 'GitHub Pages',
+};
+/** A host's config file, for a site's folder to have its own. */
+const OWN_CONFIG: Record<Exclude<Host, 'github-pages'>, string> = {
+  vercel: 'a vercel.json',
+  netlify: 'a netlify.toml',
+  cloudflare: 'a wrangler config',
 };
 
 type SiteKind = 'docusaurus' | 'starlight' | 'astro' | 'vitepress' | 'next' | 'static';
@@ -212,6 +218,9 @@ function scanCode(
   let previous = '';
   let previousAt = -1;
   let lineStart = true;
+  // A `/` that would start a regular expression with no end on its line is not one, and the `/`s
+  // after it on that line are taken for divisions too: the line is read once, not once per `/`.
+  let noRegexUntil = -1;
   for (let i = from; i < source.length; i += 1) {
     const char = source.charAt(i);
     const next = source.charAt(i + 1);
@@ -239,6 +248,7 @@ function scanCode(
     }
     if (
       char === '/' &&
+      i > noRegexUntil &&
       (lineStart ||
         BEFORE_REGEX.has(previous) ||
         /(?:^|[^\w$])(?:return|typeof)$/.test(
@@ -254,6 +264,8 @@ function scanCode(
         i = end;
         continue;
       }
+      const lineEnd = source.indexOf('\n', i);
+      noRegexUntil = lineEnd === -1 ? source.length : lineEnd;
     }
     if (char === '\n') lineStart = true;
     else if (!/\s/.test(char)) {
@@ -405,14 +417,20 @@ const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/
 /** A JS identifier, such as the name an import gives. */
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
+/** The longest type annotation read in a declaration, such as `: Record<string, Locale>`. */
+const ANNOTATION = 256;
+
 /** The literal the variable `name` holds in JS source: declared there, or imported. */
 function declared(source: string, name: string, read: ReadRelative, hops: number): Value {
   if (hops > 3 || !IDENTIFIER.test(name)) return UNREAD;
   const id = escapeRegExp(name);
-  // A type annotation, as in `const locales: Locales = {`, is on the line of its name.
+  // A type annotation, as in `const locales: Locales = {`, is on the line of its name. Read up to
+  // ANNOTATION characters of it, so a `const locales:` with no `=` does not cost its whole line.
   const declaration = codeMatch(
     source,
-    new RegExp(`(?<![\\w$.])(?:const|let|var)\\s+${id}\\s*(?::[^=;\\n]*)?=(?!=)\\s*`),
+    new RegExp(
+      `(?<![\\w$.])(?:const|let|var)\\s+${id}\\s*(?::[^=;\\n]{0,${ANNOTATION}})?=(?!=)\\s*`,
+    ),
   );
   if (declaration) {
     return valueAt(source, declaration.index + declaration[0].length, read, hops + 1);
@@ -460,7 +478,7 @@ function exported(path: string, name: string, read: ReadRelative, hops: number):
         : codeMatch(
             source,
             new RegExp(
-              `\\bexport\\s+(?:const|let|var)\\s+${id}\\s*(?::[^=;\\n]*)?=\\s*|\\b(?:module\\.)?exports\\.${id}\\s*=\\s*`,
+              `\\bexport\\s+(?:const|let|var)\\s+${id}\\s*(?::[^=;\\n]{0,${ANNOTATION}})?=\\s*|\\b(?:module\\.)?exports\\.${id}\\s*=\\s*`,
             ),
           );
     if (start) return valueAt(source, start.index + start[0].length, near, hops + 1);
@@ -914,13 +932,18 @@ function siteLocales(
 /** The wrangler config file, if any. */
 const WRANGLER = ['wrangler.jsonc', 'wrangler.json', 'wrangler.toml'];
 
-/** Hosts the project's files point at, in the order they are checked. */
-function detectHosts(p: Project, pages = true): Host[] {
+/**
+ * Hosts the project's files point at, in the order they are checked. In a folder above the site's
+ * (`own` false), only a host's config file counts: `vercel link` and `netlify link` make their
+ * `.vercel` and `.netlify` at a repository's root even for a project that builds from a folder in
+ * it, and findHosts weighs a GitHub Pages workflow there itself.
+ */
+function detectHosts(p: Project, own = true): Host[] {
   const hosts: Host[] = [];
-  if (p.has('vercel.json') || p.has('.vercel')) hosts.push('vercel');
-  if (p.has('netlify.toml') || p.has('.netlify')) hosts.push('netlify');
+  if (p.has('vercel.json') || (own && p.has('.vercel'))) hosts.push('vercel');
+  if (p.has('netlify.toml') || (own && p.has('.netlify'))) hosts.push('netlify');
   if (first(p, WRANGLER)) hosts.push('cloudflare');
-  if (pages && deploysToPages(p)) hosts.push('github-pages');
+  if (own && deploysToPages(p)) hosts.push('github-pages');
   return hosts;
 }
 
@@ -1255,6 +1278,8 @@ function jsonKeys(source: string, open: number): Map<string, number> {
     else if (depth === 1 && char === ':') {
       const name = /"((?:[^"\\\n]|\\.)*)"\s*$/.exec(source.slice(start, i))?.[1];
       if (name !== undefined && !keys.has(name)) keys.set(name, i + 1);
+      // The next key is after this one's value, even where a comma is missing between them.
+      start = i + 1;
     }
     return depth === 0;
   });
@@ -1806,9 +1831,15 @@ async function chooseHost(found: FoundHost[], p: Project, io: CliIO): Promise<Ho
     )
     .join(' and ');
   if (!io.prompt) {
+    // One host configured in the site's folder, and others above it, which --yes passes over.
+    const [own, ...more] = found.filter(({ at }) => at === p);
+    const nearest =
+      own && more.length === 0
+        ? `, or pass --yes to take ${HOST_LABELS[own.host]}, configured in the site's folder`
+        : '';
     throw new InitError(
       detected.length > 1
-        ? `This site has config for ${named}: pick one with --host ${detected.join('|')}.`
+        ? `This site has config for ${named}: pick one with --host ${detected.join('|')}${nearest}.`
         : `No vercel.json, netlify.toml, wrangler config or GitHub Pages workflow here: pass --host ${HOSTS.join('|')}.`,
     );
   }
@@ -1899,11 +1930,21 @@ export async function init(args: string[], io: CliIO): Promise<number> {
       const file = `${pathFrom(p.root, only.at.root)}/${hostFile(only.host, only.at) ?? ''}`;
       const found = `${HOST_LABELS[only.host]} is configured in ${file}, above the site's folder.`;
       if (!io.prompt) {
+        // --host with the same host takes that config too: one of the site's own is the way out.
+        const others = HOSTS.filter((host) => host !== only.host);
+        const own =
+          only.host === 'github-pages'
+            ? ''
+            : `; for ${HOST_LABELS[only.host]} with a config of the site's own, add ${OWN_CONFIG[only.host]} in the site's folder`;
         throw new InitError(
-          `${found} If it serves this site, run init again with --yes; if not, pass --host ${HOSTS.join('|')}.`,
+          `${found} If it serves this site, run init again with --yes. If another host does, pass --host ${others.join('|')}${own}.`,
         );
       }
       if (!(await confirm(io, `${found} Does it serve this site?`, true))) detected = [];
+    }
+    // With --yes, a host's config in the site's folder wins over another host's in a folder above.
+    if (flags.yes && !flags.host && detected.some(({ at }) => at === p)) {
+      detected = detected.filter(({ at }) => at === p);
     }
     const host =
       flags.host ??

@@ -51,7 +51,7 @@ The CLI reads `.env` and `.env.local` from the working directory, without overri
 | `--out <dir>`        | detected               | A static site's build folder, where the index goes.                                     |
 | `--no-mcp`           | the MCP endpoint is on | Write the ask endpoint only.                                                            |
 | `--dry-run`          | off                    | Print every file it would write, and write nothing.                                     |
-| `-y, --yes`          | asks                   | Overwrite files that differ, and use a host's config in a folder above, without asking. |
+| `-y, --yes`          | asks                   | Overwrite files that differ, and use the host's config without asking: the nearest one. |
 | `-h, --help`         |                        | Print the help.                                                                         |
 
 It prints each file it created, updated or left unchanged, the environment variables to set and where, and the steps left: the packages to install, the dialog to add (or the options to give a plugin the site's config already adds) and the deploy. It exits with 0 when everything is written, 1 when it left a file as it was or an edit for you to make by hand, and 2 on a usage error. It reads no `.env` file and no credential, and it deploys nothing. An Astro site with an SSR adapter gets no file: its integration serves the endpoints.
