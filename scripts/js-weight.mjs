@@ -4,10 +4,12 @@
 //
 //   pnpm build && pnpm --filter <example> build
 //   node scripts/js-weight.mjs [docusaurus|starlight|vitepress|next|embed ...] [--check] [--json]
+//     [--port=<port>]
 //
 // Each site is served from its build output by a static server in this process (Next.js by
-// `next start`), so what Chrome downloads is what a host would serve. Bytes are gzipped here,
-// at level 9, from the response bodies, so the numbers do not depend on the server compressing.
+// `next start`, on --port or JS_WEIGHT_PORT, or else on a port that is free), so what Chrome
+// downloads is what a host would serve. Bytes are gzipped here, at level 9, from the response
+// bodies, so the numbers do not depend on the server compressing.
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -157,9 +159,19 @@ async function serveStatic(dir) {
   return { url: `http://127.0.0.1:${String(server.address().port)}`, close: () => server.close() };
 }
 
-/** Runs `next start` for the example and waits until it answers. */
-async function serveNext(dir) {
-  const port = 3100 + Math.floor(Math.random() * 500);
+/** A port on 127.0.0.1 that nothing listens on: one the system picks, as a server bound to 0. */
+async function freePort() {
+  const server = createServer();
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const { port } = server.address();
+  await new Promise((done) => server.close(done));
+  return port;
+}
+
+/** Runs `next start` for the example on `port`, or a free one, and waits until it answers. */
+async function serveNext(dir, port) {
+  port ??= await freePort();
   const child = spawn('npx', ['next', 'start', '-p', String(port)], {
     cwd: join(root, dir),
     stdio: 'ignore',
@@ -177,9 +189,9 @@ async function serveNext(dir) {
   return { url, close: () => child.kill() };
 }
 
-async function measure(name, dir, baseline) {
+async function measure(name, dir, baseline, port) {
   const site = dir ? { ...SITES[name], dir, next: undefined } : SITES[name];
-  const server = site.next ? await serveNext(site.next) : await serveStatic(site.dir);
+  const server = site.next ? await serveNext(site.next, port) : await serveStatic(site.dir);
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
@@ -375,6 +387,11 @@ const args = process.argv.slice(2);
 const check = args.includes('--check');
 const json = args.includes('--json');
 const names = args.filter((arg) => !arg.startsWith('--'));
+const portArg = args.find((arg) => arg.startsWith('--port='))?.slice('--port='.length);
+const port = portArg ?? process.env.JS_WEIGHT_PORT;
+if (port !== undefined && !/^\d+$/.test(port)) {
+  throw new Error(`--port and JS_WEIGHT_PORT take a port number, not ${JSON.stringify(port)}`);
+}
 const results = [];
 // `docusaurus=examples/docusaurus/build-plain` measures another build of a site, such as one
 // without ondocs, for the framework's own JavaScript; it is not opened or checked.
@@ -382,7 +399,9 @@ for (const arg of names.length > 0 ? names : Object.keys(SITES)) {
   const [name = '', dir] = arg.split('=');
   if (!SITES[name])
     throw new Error(`Unknown site ${name}; one of ${Object.keys(SITES).join(', ')}`);
-  results.push(await measure(name, dir, Boolean(dir)));
+  results.push(
+    await measure(name, dir, Boolean(dir), port === undefined ? undefined : Number(port)),
+  );
 }
 if (json) console.log(JSON.stringify(results, null, 2));
 else {

@@ -38,5 +38,17 @@ export default defineConfig({
     // React tests opt into jsdom with a `@vitest-environment jsdom` docblock.
     restoreMocks: true,
     testTimeout: 20_000,
+    // `pnpm test:coverage`, which CI's coverage job runs: the package's source, with thresholds
+    // a point or so under what the tests reach (96.2% of statements, 89.5% of branches, 96.9% of
+    // functions and 97.5% of lines), so a change that leaves much new code untested fails.
+    coverage: {
+      provider: 'v8',
+      include: ['src/**'],
+      reporter: ['text-summary', 'text'],
+      thresholds: { statements: 95, branches: 88, functions: 95, lines: 96 },
+    },
+    // Coverage slows the code it measures, by how much depends on the code, so
+    // test/robustness.test.ts drops its time budget under it.
+    env: process.argv.includes('--coverage') ? { ONDOCS_COVERAGE: '1' } : {},
   },
 });

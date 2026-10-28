@@ -26,7 +26,7 @@ Install the package with the Vercel AI SDK and a model provider. The two package
 npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
 ```
 
-ondocs is built on AI SDK 7: install `ai` 7 and its provider packages, such as `@ai-sdk/openai` 4. A project still on AI SDK 6 has to move to 7 first. ondocs needs Node.js 22.12 or later to build the index. The endpoint itself uses Web APIs only, so it also runs on Bun, Deno and Cloudflare Workers.
+ondocs is built on AI SDK 7: install `ai` 7 and its provider packages, such as `@ai-sdk/openai` 4. A project still on AI SDK 6 has to move to 7 first. ondocs needs Node.js 22.12 or later to build the index. The endpoint itself uses Web APIs only, so it also runs on Bun, Deno and Cloudflare Workers, and CI asks it a question on each. On Deno, allow the hostname as well as the network (`--allow-sys=hostname`): the AI SDK reads it as it loads.
 
 ## Build the index
 

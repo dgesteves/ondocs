@@ -3,12 +3,18 @@
 // index came out embedded. OPENAI_BASE_URL points at a local stub (./openai-stub.mjs), the only
 // thing the index build calls; the API key is fake, so a request to the real API would fail.
 //
-//   npm pack && node scripts/consumer-site.mjs <site> ondocs-x.y.z.tgz [dir]
+//   npm pack && node scripts/consumer-site.mjs <site> ondocs-x.y.z.tgz [dir] [--pm=pnpm] [--oldest-peers]
 //
 // The sites are next, fumadocs, nextra, docusaurus, starlight and vitepress, and
 // docusaurus-plugin-ondocs and starlight-ondocs, which install the plugin under its own package's
 // name (packages/). Nextra has no scaffolder, so its site is the docs starter from the Nextra
 // repository at a pinned tag.
+//
+// --pm=pnpm installs with pnpm, which gives a project only its direct dependencies, where npm
+// hoists the rest: a plugin package that only works because npm put ondocs within reach fails
+// there. --oldest-peers builds the docusaurus and starlight sites on the oldest Docusaurus,
+// React, Astro and Starlight the peer ranges allow (OLDEST_PEERS), where the others take the
+// latest.
 //
 // The workspace examples link the package from source, so they cannot catch what only an
 // installed package meets: how Docusaurus loads plugins, the published files, peer resolution.
@@ -20,9 +26,11 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +44,20 @@ const MODELS = ['ai', '@ai-sdk/openai'];
 const PEERS = [...MODELS, '@radix-ui/react-dialog', 'cmdk'];
 /** The Nextra release whose docs starter the nextra site is, as the Nextra guide was checked on. */
 const NEXTRA = '4.6.1';
+/**
+ * The oldest versions the peer ranges in package.json allow, for --oldest-peers: Docusaurus
+ * 3.0.0 with React 18.3.0, and Starlight 0.32.0 with the oldest Astro it takes, 5.1.5 (Astro
+ * 5.0 is older, but Starlight 0.32 does not run on it).
+ */
+const OLDEST_PEERS = {
+  docusaurus: {
+    '@docusaurus/core': '3.0.0',
+    '@docusaurus/preset-classic': '3.0.0',
+    react: '18.3.0',
+    'react-dom': '18.3.0',
+  },
+  starlight: { '@astrojs/starlight': '0.32.0', astro: '5.1.5' },
+};
 
 /**
  * Per site: how to create it, what to add, what to install and run, where the index lands and
@@ -44,7 +66,8 @@ const NEXTRA = '4.6.1';
  * deliberate upgrade here rather than a surprise in an unrelated pull request.
  *
  * Some sites have more to check, such as where their pages are served (`check`, which returns the
- * problems it finds). `llms` is where ondocs writes `llms.txt` and the `.md` copies; a site that
+ * problems it finds). Under pnpm, a plugin package installed without ondocs must stop the build
+ * with a message that starts with `alone`. `llms` is where ondocs writes `llms.txt` and the `.md` copies; a site that
  * serves its own (Fumadocs) has none. The plugins' sites build their pages into `llms`, or into
  * `html`, and each indexed page must link its `.md` copy from its `<head>` (`linked`).
  *
@@ -59,6 +82,7 @@ const NEXTRA = '4.6.1';
  *   dimensions: number,
  *   linked?: boolean,
  *   package?: string,
+ *   alone?: string,
  *   check?: (dir: string, index: { documents: { url: string }[] }) => string[],
  * }>}
  */
@@ -333,6 +357,7 @@ export const POST = createAskHandler({
   'starlight-ondocs': {
     ...starlight('starlight-ondocs'),
     package: 'starlight-ondocs',
+    alone: 'starlight-ondocs: install ondocs next to it, at the same version',
   },
   // `vitepress init` with its defaults, written by the scaffold function it runs (init itself only
   // asks questions), then the config wrapped in withOndocs with no options: the default model.
@@ -483,6 +508,67 @@ function nextRoutes(dir, index, route) {
   return problems;
 }
 
+/**
+ * The docusaurus or starlight site on the oldest peers (OLDEST_PEERS): Docusaurus's own 3.0.0
+ * template, and Starlight's basics example at 0.32.0, the template create-astro gave then, with
+ * those versions pinned exactly.
+ */
+function oldestPeers(name, site) {
+  const pin = OLDEST_PEERS[name];
+  if (name === 'docusaurus') {
+    return {
+      ...site,
+      pin,
+      // webpack 5.112.0 (2026-10-15) moved lib/ContextReplacementPlugin.js, which Docusaurus
+      // 3.0's classic theme requires, so a site on 3.0 builds only with the webpack its lockfile
+      // has, from before: 5.89.0 was the latest when 3.0.0 came out.
+      overrides: { webpack: '5.89.0' },
+      create: (dir) => [
+        'npx',
+        [
+          '-y',
+          'create-docusaurus@3.0.0',
+          basename(dir),
+          'classic',
+          '--typescript',
+          '--skip-install',
+        ],
+        dirname(dir),
+      ],
+    };
+  }
+  if (name === 'starlight') {
+    return {
+      ...site,
+      pin,
+      create: (dir) => {
+        const repository = `${dir}-repository`;
+        return [
+          ['rm', ['-rf', repository]],
+          [
+            'git',
+            [
+              'clone',
+              '--depth',
+              '1',
+              '--branch',
+              `@astrojs/starlight@${pin['@astrojs/starlight']}`,
+              '--filter',
+              'blob:none',
+              '--sparse',
+              'https://github.com/withastro/starlight.git',
+              repository,
+            ],
+          ],
+          ['git', ['sparse-checkout', 'set', 'examples/basics'], repository],
+          ['cp', ['-R', join(repository, 'examples/basics'), dir]],
+        ];
+      },
+    };
+  }
+  return null;
+}
+
 /** A Docusaurus site with `plugin` in its plugins. */
 function docusaurus(plugin) {
   return {
@@ -605,17 +691,47 @@ function edit(dir, file, change, marker = 'ondocs') {
 
 /** Runs a command, inheriting stdio; asynchronously, so the stub in this process can answer it. */
 async function run(command, args, { cwd, env } = {}) {
-  console.log(`\n$ ${[command, ...args].join(' ')}`);
-  const child = spawn(command, args, { cwd, env: { ...process.env, ...env }, stdio: 'inherit' });
-  const [code] = await once(child, 'exit');
+  const { code } = await capture(command, args, { cwd, env, quiet: true });
   if (code !== 0) throw new Error(`${command} ${args.join(' ')} exited with ${String(code)}`);
 }
 
-const [name = '', tarball = '', target] = process.argv.slice(2);
-const site = SITES[name];
-if (!site || !tarball) {
+/**
+ * Runs a command and returns its exit code and output, which it also prints unless `quiet`
+ * leaves the output to the terminal. On Windows, npm and npx are .cmd files, which only a shell
+ * runs; the arguments the Windows job passes have no spaces or quotes.
+ */
+async function capture(command, args, { cwd, env, quiet = false } = {}) {
+  console.log(`\n$ ${[command, ...args].join(' ')}`);
+  const child = spawn(command, args, {
+    cwd,
+    env: { ...process.env, ...env },
+    stdio: quiet ? 'inherit' : ['ignore', 'pipe', 'pipe'],
+    shell: process.platform === 'win32',
+  });
+  let output = '';
+  for (const stream of [child.stdout, child.stderr]) {
+    stream?.on('data', (data) => {
+      output += String(data);
+      (stream === child.stdout ? process.stdout : process.stderr).write(data);
+    });
+  }
+  const [code] = await once(child, 'exit');
+  return { code, output };
+}
+
+const args = process.argv.slice(2);
+const flags = args.filter((arg) => arg.startsWith('--'));
+const [name = '', tarball = '', target] = args.filter((arg) => !arg.startsWith('--'));
+const pm = flags.find((flag) => flag.startsWith('--pm='))?.slice('--pm='.length) ?? 'npm';
+const oldest = flags.includes('--oldest-peers');
+const site = SITES[name] && (oldest ? oldestPeers(name, SITES[name]) : SITES[name]);
+const known = (flag) => flag === '--oldest-peers' || flag === '--pm=npm' || flag === '--pm=pnpm';
+if (!site || !tarball || !flags.every(known)) {
   console.error(
-    `Usage: node scripts/consumer-site.mjs <${Object.keys(SITES).join('|')}> <tarball> [dir]`,
+    `Usage: node scripts/consumer-site.mjs <${Object.keys(SITES).join('|')}> <tarball> [dir] [--pm=npm|pnpm] [--oldest-peers]` +
+      (oldest && SITES[name] && !site
+        ? `\n--oldest-peers is for ${Object.keys(OLDEST_PEERS).join(' and ')}`
+        : ''),
   );
   process.exit(2);
 }
@@ -628,7 +744,23 @@ for (const [command, args, cwd] of Array.isArray(created[0]) ? created : [create
   await run(command, args, { cwd: cwd ?? dirname(dir) });
 }
 site.configure(dir);
-const tarballs = [resolve(tarball)];
+if (site.pin) {
+  edit(
+    dir,
+    'package.json',
+    (text) => {
+      const manifest = JSON.parse(text);
+      for (const [dependency, version] of Object.entries(site.pin)) {
+        manifest.dependencies[dependency] = version;
+      }
+      if (site.overrides) manifest.overrides = site.overrides;
+      return `${JSON.stringify(manifest, null, 2)}\n`;
+    },
+    '"dependencies"',
+  );
+}
+const ondocsTarball = resolve(tarball);
+let wrapper = null;
 if (site.package) {
   const packed = join(dirname(dir), `${name}-pack`);
   rmSync(packed, { recursive: true, force: true });
@@ -636,33 +768,98 @@ if (site.package) {
   await run('pnpm', ['pack', '--pack-destination', packed], {
     cwd: fileURLToPath(new URL(`../packages/${site.package}`, import.meta.url)),
   });
-  tarballs.push(join(packed, readdirSync(packed)[0] ?? ''));
+  wrapper = join(packed, readdirSync(packed)[0] ?? '');
 }
-await run('npm', ['install', '--no-audit', '--no-fund', ...tarballs, ...site.install], {
-  cwd: dir,
-});
-if (site.package && existsSync(join(dir, 'node_modules', site.package, 'node_modules/ondocs'))) {
-  throw new Error(`${site.package} installed its own ondocs rather than the packed one.`);
+const env = {
+  OPENAI_API_KEY: 'sk-consumer-check',
+  AI_GATEWAY_API_KEY: '',
+  NEXT_TELEMETRY_DISABLED: '1',
+  ASTRO_TELEMETRY_DISABLED: '1',
+};
+if (pm === 'pnpm') {
+  // The plugin package's own dependency on ondocs resolves to the packed ondocs too, not to npm's.
+  // pnpm runs no dependency's install script it has not been told to, and fails the install over
+  // those it skipped (Docusaurus's @swc/core and core-js); the sites build without them.
+  writeFileSync(
+    join(dir, 'pnpm-workspace.yaml'),
+    `overrides:\n  ondocs: ${JSON.stringify(`file:${ondocsTarball}`)}\nstrictDepBuilds: false\n`,
+  );
+  if (wrapper && site.alone) {
+    // The plugin package alone, as a site that leaves ondocs out of the install line has it.
+    // pnpm gives the site no ondocs of its own, so the build cannot resolve the ondocs/... modules
+    // the plugin adds to its pages, and the plugin must say to install it, not leave the error to
+    // the bundler.
+    await run('pnpm', ['add', wrapper, ...site.install], { cwd: dir });
+    const [step = '', ...rest] = site.build[0] ?? [];
+    const alone = await capture(step, rest, { cwd: dir, env });
+    if (alone.code === 0 || !alone.output.includes(site.alone)) {
+      throw new Error(
+        `With ${site.package} alone under pnpm, the build ${alone.code === 0 ? 'passed' : 'failed'} without saying "${site.alone}".`,
+      );
+    }
+    console.log(
+      `\n✓ ${site.package} alone under pnpm: the build stopped and said to install ondocs.`,
+    );
+  }
+  await run('pnpm', ['add', ondocsTarball, ...(wrapper ? [wrapper] : []), ...site.install], {
+    cwd: dir,
+  });
+} else {
+  await run(
+    'npm',
+    [
+      'install',
+      '--no-audit',
+      '--no-fund',
+      ondocsTarball,
+      ...(wrapper ? [wrapper] : []),
+      ...site.install,
+    ],
+    { cwd: dir },
+  );
+}
+/** The real path of `module`, resolved as code in `from` (a file) resolves it. */
+const resolved = (from, module) => realpathSync(createRequire(from).resolve(module));
+const own = join(dir, 'package.json');
+if (wrapper) {
+  // From its real folder, as Node resolves it: under pnpm, node_modules/<name> is a link.
+  const from = realpathSync(join(dir, 'node_modules', site.package, 'package.json'));
+  if (resolved(from, 'ondocs/package.json') !== resolved(own, 'ondocs/package.json')) {
+    throw new Error(`${site.package} resolves an ondocs of its own rather than the packed one.`);
+  }
+}
+const problems = [];
+for (const [dependency, version] of Object.entries(site.pin ?? {})) {
+  // Read from node_modules, as some packages do not export their package.json.
+  const installed = JSON.parse(
+    readFileSync(join(dir, 'node_modules', dependency, 'package.json'), 'utf8'),
+  );
+  if (installed.version !== version) {
+    problems.push(`${dependency} is ${String(installed.version)}, not the oldest peer, ${version}`);
+  }
 }
 
 const stub = await startOpenAIStub();
 try {
-  const env = {
-    OPENAI_API_KEY: 'sk-consumer-check',
-    OPENAI_BASE_URL: stub.url,
-    AI_GATEWAY_API_KEY: '',
-    NEXT_TELEMETRY_DISABLED: '1',
-    ASTRO_TELEMETRY_DISABLED: '1',
-  };
-  for (const [step, ...rest] of site.build) await run(step, rest, { cwd: dir, env });
+  for (const [step, ...rest] of site.build) {
+    await run(step, rest, { cwd: dir, env: { ...env, OPENAI_BASE_URL: stub.url } });
+  }
 } finally {
   await stub.close();
+}
+
+// The command every guide gives, from the site's own folder: the ondocs it installed.
+const { version } = JSON.parse(readFileSync(resolved(own, 'ondocs/package.json'), 'utf8'));
+const cli = await capture('npx', ['--no', '--', 'ondocs', '--version'], { cwd: dir });
+if (cli.code !== 0 || cli.output.trim().split('\n').at(-1) !== version) {
+  problems.push(
+    `npx ondocs --version printed ${JSON.stringify(cli.output.trim())}, not ${version}`,
+  );
 }
 
 const file = join(dir, site.index);
 if (!existsSync(file)) throw new Error(`The build wrote no ${site.index}.`);
 const index = JSON.parse(readFileSync(file, 'utf8'));
-const problems = [];
 const { model, dimensions } = index.embedding ?? {};
 if (model !== MODEL || dimensions !== site.dimensions) {
   problems.push(
@@ -706,5 +903,11 @@ if (problems.length > 0) {
   process.exit(1);
 }
 console.log(
-  `\n✓ ${name}: ${site.index} has ${String(index.documents.length)} pages and ${String(index.chunks.length)} chunks embedded with ${MODEL} at ${String(site.dimensions)} dimensions, from ${String(stub.requests.length)} requests to the stub${site.llms ? `; ${site.llms}/llms.txt links a .md copy of each${site.linked ? ', and so does each page' : ''}` : ''}.`,
+  `\n✓ ${name}${pm === 'npm' ? '' : `, with ${pm}`}${
+    oldest
+      ? `, on ${Object.entries(site.pin)
+          .map(([dependency, version]) => `${dependency} ${version}`)
+          .join(', ')}`
+      : ''
+  }: ${site.index} has ${String(index.documents.length)} pages and ${String(index.chunks.length)} chunks embedded with ${MODEL} at ${String(site.dimensions)} dimensions, from ${String(stub.requests.length)} requests to the stub${site.llms ? `; ${site.llms}/llms.txt links a .md copy of each${site.linked ? ', and so does each page' : ''}` : ''}.`,
 );

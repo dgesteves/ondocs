@@ -163,11 +163,51 @@ async function serve(command, args, url, { cwd = dir, env = {} } = {}) {
 
 /** A free port on 127.0.0.1. */
 async function freePort() {
-  const server = createServer();
-  await new Promise((done) => server.listen(0, '127.0.0.1', done));
-  const { port } = server.address();
-  await new Promise((done) => server.close(done));
+  const [port] = await freePorts(1);
   return port;
+}
+
+/** `count` different free ports on 127.0.0.1, all held open until each has been picked. */
+async function freePorts(count) {
+  const servers = Array.from({ length: count }, () => createServer());
+  await Promise.all(
+    servers.map((server) => new Promise((done) => server.listen(0, '127.0.0.1', done))),
+  );
+  const ports = servers.map((server) => server.address().port);
+  await Promise.all(servers.map((server) => new Promise((done) => server.close(done))));
+  return ports;
+}
+
+/**
+ * Starts `wrangler <args>` on 127.0.0.1, on a free port and with its inspector on another, and
+ * waits until `path` answers; returns the port and a stopper. A port that was free when it was
+ * picked can be taken before workerd binds it, as on CI once ("Address already in use"), so a
+ * start that fails is tried once more, on new ports.
+ */
+async function serveWrangler(args, path, options) {
+  for (let attempt = 1; ; attempt += 1) {
+    const [port, inspector] = await freePorts(2);
+    const flags = [
+      '--ip',
+      '127.0.0.1',
+      '--port',
+      String(port),
+      '--inspector-port',
+      String(inspector),
+    ];
+    try {
+      const stop = await serve(
+        'npx',
+        [...args, ...flags],
+        `http://127.0.0.1:${String(port)}${path}`,
+        options,
+      );
+      return { port, stop };
+    } catch (error) {
+      if (attempt === 2) throw error;
+      console.log(`\n${error.message}; once more, on other ports.`);
+    }
+  }
 }
 
 /** Serves `root` as a static site on 127.0.0.1, as GitHub Pages would. */
@@ -385,54 +425,40 @@ async function docusaurusRecipe() {
     await run('npx', ['-y', VERSIONS.wrangler, 'pages', 'functions', 'build', '--outdir', 'out'], {
       env: isolated,
     });
-    const port = await freePort();
-    stops.push(
-      await serve(
-        'npx',
-        [
-          '-y',
-          VERSIONS.wrangler,
-          'pages',
-          'dev',
-          '--ip',
-          '127.0.0.1',
-          '--port',
-          String(port),
-          '--binding',
-          `OPENAI_API_KEY=${model.OPENAI_API_KEY}`,
-          '--binding',
-          `OPENAI_BASE_URL=${model.OPENAI_BASE_URL}`,
-        ],
-        `http://127.0.0.1:${String(port)}/`,
-        { env: isolated },
-      ),
+    const { port, stop } = await serveWrangler(
+      [
+        '-y',
+        VERSIONS.wrangler,
+        'pages',
+        'dev',
+        '--binding',
+        `OPENAI_API_KEY=${model.OPENAI_API_KEY}`,
+        '--binding',
+        `OPENAI_BASE_URL=${model.OPENAI_BASE_URL}`,
+      ],
+      '/',
+      { env: isolated },
     );
+    stops.push(stop);
     await exercise((path, init) => fetch(`http://127.0.0.1:${String(port)}${path}`, init));
   } else if (name === 'cloudflare-workers') {
     await run('npx', ['-y', VERSIONS.wrangler, 'deploy', '--dry-run', '--outdir', 'out'], {
       env: isolated,
     });
-    const port = await freePort();
-    stops.push(
-      await serve(
-        'npx',
-        [
-          '-y',
-          VERSIONS.wrangler,
-          'dev',
-          '--ip',
-          '127.0.0.1',
-          '--port',
-          String(port),
-          '--var',
-          `OPENAI_API_KEY:${model.OPENAI_API_KEY}`,
-          '--var',
-          `OPENAI_BASE_URL:${model.OPENAI_BASE_URL}`,
-        ],
-        `http://127.0.0.1:${String(port)}/`,
-        { env: isolated },
-      ),
+    const { port, stop } = await serveWrangler(
+      [
+        '-y',
+        VERSIONS.wrangler,
+        'dev',
+        '--var',
+        `OPENAI_API_KEY:${model.OPENAI_API_KEY}`,
+        '--var',
+        `OPENAI_BASE_URL:${model.OPENAI_BASE_URL}`,
+      ],
+      '/',
+      { env: isolated },
     );
+    stops.push(stop);
     await exercise((path, init) => fetch(`http://127.0.0.1:${String(port)}${path}`, init));
   } else {
     // The site on its static host, and the Worker init wrote, which reads the index from it.
@@ -444,28 +470,21 @@ async function docusaurusRecipe() {
       cwd: worker,
       env: isolated,
     });
-    const port = await freePort();
-    stops.push(
-      await serve(
-        'npx',
-        [
-          'wrangler',
-          'dev',
-          '--ip',
-          '127.0.0.1',
-          '--port',
-          String(port),
-          '--var',
-          `SITE_URL:${site.url}`,
-          '--var',
-          `OPENAI_API_KEY:${model.OPENAI_API_KEY}`,
-          '--var',
-          `OPENAI_BASE_URL:${model.OPENAI_BASE_URL}`,
-        ],
-        `http://127.0.0.1:${String(port)}/`,
-        { cwd: worker, env: isolated },
-      ),
+    const { port, stop } = await serveWrangler(
+      [
+        'wrangler',
+        'dev',
+        '--var',
+        `SITE_URL:${site.url}`,
+        '--var',
+        `OPENAI_API_KEY:${model.OPENAI_API_KEY}`,
+        '--var',
+        `OPENAI_BASE_URL:${model.OPENAI_BASE_URL}`,
+      ],
+      '/',
+      { cwd: worker, env: isolated },
     );
+    stops.push(stop);
     await exercise((path, init) => fetch(`http://127.0.0.1:${String(port)}${path}`, init), {
       origin: site.url,
     });
@@ -595,28 +614,21 @@ async function astroRecipe() {
     );
     globalThis.fetch = realFetch;
   } else {
-    const port = await freePort();
-    stops.push(
-      await serve(
-        'npx',
-        [
-          'wrangler',
-          'dev',
-          '-c',
-          'dist/server/wrangler.json',
-          '--ip',
-          '127.0.0.1',
-          '--port',
-          String(port),
-          '--var',
-          `OPENAI_API_KEY:${model.OPENAI_API_KEY}`,
-          '--var',
-          `OPENAI_BASE_URL:${model.OPENAI_BASE_URL}`,
-        ],
-        `http://127.0.0.1:${String(port)}/docs/cli/`,
-        { env: isolated },
-      ),
+    const { port, stop } = await serveWrangler(
+      [
+        'wrangler',
+        'dev',
+        '-c',
+        'dist/server/wrangler.json',
+        '--var',
+        `OPENAI_API_KEY:${model.OPENAI_API_KEY}`,
+        '--var',
+        `OPENAI_BASE_URL:${model.OPENAI_BASE_URL}`,
+      ],
+      '/docs/cli/',
+      { env: isolated },
     );
+    stops.push(stop);
     await exercise((path, init) => fetch(`http://127.0.0.1:${String(port)}${path}`, init));
   }
 }

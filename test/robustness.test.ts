@@ -28,23 +28,87 @@ const doc = (content: string, title = 'Page'): SourceDocument => ({
  * The budget for one hostile input. The slowest linear cases here take under 100 ms on a laptop and
  * have measured 261 to 328 ms on CI runners, while the fastest quadratic case they catch took 0.8 s
  * on a laptop (unclosed `<pre>`, below) and several times that on CI. So 250 ms locally and 1 s on
- * CI both tell them apart.
+ * CI both tell them apart, on a machine running at its usual speed.
  */
-const BUDGET_MS = process.env.CI ? 1000 : 250;
+const LOCAL_BUDGET_MS = 250;
+const USUAL_BUDGET_MS = process.env.CI ? 1000 : LOCAL_BUDGET_MS;
 
 /**
- * Runs `fn` three times and returns the fastest, in milliseconds. A GC pause or a busy CI runner
- * can slow one run several times over; the quadratic cases these tests guard against take seconds.
+ * Under coverage the times say little: the instrumentation slowed chunking 2.3 times and init's
+ * config reader 5.8 times (the line of `/`s below), so the cases run with no budget there.
+ * vitest.config.ts sets ONDOCS_COVERAGE for a run with --coverage; `pnpm test` and CI's verify job
+ * keep the budget.
  */
-function timed(fn: () => unknown): number {
-  let fastest = Infinity;
+const BUDGET_MS = process.env.ONDOCS_COVERAGE ? Infinity : USUAL_BUDGET_MS;
+
+/**
+ * A linear workload to measure the machine's speed by: 850 KB of plain Markdown, chunked. It takes
+ * about 20 ms on an Apple M1 Max shared with other work, and on CI the budget allows 4 times that.
+ */
+const REFERENCE = Array.from(
+  { length: 6000 },
+  (_, i) =>
+    `## Section ${String(i)}\n\nA paragraph with a [link](/x/${String(i)}), some \`code\`, and *emphasis*.\n\n- one\n- two\n\n\`\`\`js\nconst x = ${String(i)};\n\`\`\`\n`,
+).join('\n');
+const REFERENCE_MS = 20 * (USUAL_BUDGET_MS / LOCAL_BUDGET_MS);
+const reference = () => chunkDocument(doc(REFERENCE));
+
+/** The fastest of three runs of `fn`, in milliseconds. A GC pause can slow one run several times over. */
+function fastest(fn: () => unknown): number {
+  let best = Infinity;
   for (let run = 0; run < 3; run++) {
     const start = performance.now();
     fn();
-    fastest = Math.min(fastest, performance.now() - start);
+    best = Math.min(best, performance.now() - start);
   }
-  return fastest;
+  return best;
 }
+
+/**
+ * A case's time, `ms`, as on a machine running at its usual speed: divided by how many times
+ * slower than `REFERENCE_MS` the reference ran just now, `referenceMs`, when it was slower. Other
+ * work on the machine slows a linear case as much as it slows the reference, so the case stays
+ * under the budget; a quadratic case takes seconds at the usual speed, and stays over it.
+ */
+function atUsualSpeed(ms: number, referenceMs: number): number {
+  return ms / Math.max(1, referenceMs / REFERENCE_MS);
+}
+
+/**
+ * How long `fn` takes, in milliseconds, for the budget. Over the budget, it measures `fn` and the
+ * reference again and gives the time `atUsualSpeed`. Sampled every 20 s for 20 minutes on a
+ * 10-core machine shared with other builds, at load averages from 7 to 24, the reference took
+ * 18.7 to 34.3 ms: a fixed budget that holds on a quiet machine fails on a busy one.
+ */
+function timed(fn: () => unknown): number {
+  const first = fastest(fn);
+  if (first < BUDGET_MS) return first;
+  const again = fastest(fn);
+  return atUsualSpeed(Math.min(first, again), fastest(reference));
+}
+
+describe('the time budget', () => {
+  it('lets a linear case through on a busy machine, and still catches a quadratic one', () => {
+    // A linear case 20% over the budget, while the machine runs at two thirds of its usual speed.
+    expect(atUsualSpeed(1.2 * USUAL_BUDGET_MS, 1.5 * REFERENCE_MS)).toBeLessThan(USUAL_BUDGET_MS);
+    // The unclosed <pre> case, when it was quadratic: 3.2 times the budget at the usual speed.
+    expect(atUsualSpeed(3.2 * 1.5 * USUAL_BUDGET_MS, 1.5 * REFERENCE_MS)).toBeGreaterThan(
+      USUAL_BUDGET_MS,
+    );
+    // A machine faster than usual leaves the time as it is.
+    expect(atUsualSpeed(1.2 * USUAL_BUDGET_MS, REFERENCE_MS / 2)).toBe(1.2 * USUAL_BUDGET_MS);
+  });
+
+  // The reference is ondocs's own chunker, so a regression that made it slow would loosen every
+  // budget: it must stay well inside one.
+  it('measures the machine with a linear workload, one chunk per section, well inside the budget', () => {
+    expect(reference()).toHaveLength(6000);
+    const ms = fastest(reference);
+    // Not so short that the timer's resolution decides it.
+    expect(ms).toBeGreaterThan(2);
+    expect(ms).toBeLessThan(BUDGET_MS);
+  });
+});
 
 describe('linear-time parsing of hostile input', () => {
   it('parses headings with long whitespace runs quickly', () => {
