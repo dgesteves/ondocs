@@ -1,5 +1,6 @@
 // The options renamed in 0.9, one name per concept: each old name still works, does what its new
 // name does, and says once what it is called now. The dialog's are in deprecations-dialog.test.tsx.
+/* eslint-disable @typescript-eslint/no-deprecated -- these tests pass the old names on purpose */
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';

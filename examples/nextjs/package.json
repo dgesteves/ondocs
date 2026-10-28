@@ -22,9 +22,9 @@
     "cmdk": "^1.1.1",
     "geist": "^1.7.2",
     "marked": "^18.1.0",
-    "next": "16.4.1",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
+    "next": "16.4.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "shiki": "^4.5.0"
   },
   "devDependencies": {

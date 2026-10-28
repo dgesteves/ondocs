@@ -2,6 +2,7 @@
 // The dialog's options renamed in 0.9: each old name still works, does what its new name does,
 // and says once what it is called now. The shortcut is ⌘I or Ctrl+I everywhere, and `auto` means
 // the same in React as in the script embed and the plugins.
+/* eslint-disable @typescript-eslint/no-deprecated -- these tests pass the old names on purpose */
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';

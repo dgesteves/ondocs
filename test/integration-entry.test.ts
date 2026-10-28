@@ -194,8 +194,10 @@ describe('loadBuiltPage', () => {
     const built = loadBuiltPage(html, {
       url: '/setup',
       id: 'setup.md',
+      /* eslint-disable @typescript-eslint/no-deprecated -- their names before 0.14, still read */
       root: '.doc',
       ignore: '.anchor',
+      /* eslint-enable @typescript-eslint/no-deprecated */
       markdown: true,
     });
     expect(built?.document).toMatchObject({
@@ -211,6 +213,7 @@ describe('loadBuiltPage', () => {
   });
 
   it('skips a page with no content, or marked noindex', () => {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- its name before 0.14, still read
     expect(loadBuiltPage(page('<p>Hi.</p>'), { url: '/', root: '.doc' })).toBeNull();
     expect(loadBuiltPage(page('  '), { url: '/' })).toBeNull();
     expect(
@@ -352,6 +355,7 @@ describe('an integration for another framework, from ondocs/integration alone', 
     const pages: LlmsPage[] = [];
     for (const route of routes) {
       const html = await readBuiltHtml(outDir, route);
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- its name before 0.14, still read
       const built = html && loadBuiltPage(html, { url: route, root: '.content', markdown: true });
       if (!built) continue;
       documents.push(built.document);
