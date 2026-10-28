@@ -20,7 +20,7 @@ Add this tag to your base template, before `</body>` or in `<head>`:
 ></script>
 ```
 
-The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.16.0`, in production. [Pin the script tag](/guides/security/#pin-the-script-tag) shows how to check its files with Subresource Integrity too.
+The script mounts itself once the page has loaded. It opens the dialog from a floating "Ask AI" button and with ⌘I or Ctrl+I, so ⌘K stays with your site's search. Pin an exact version, such as `ondocs@0.16.1`, in production. [Pin the script tag](/guides/security/#pin-the-script-tag) shows how to check its files with Subresource Integrity too.
 
 ## Script size
 

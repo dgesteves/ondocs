@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "ai": "^7.0.0",
-    "ondocs": "^0.16.0",
+    "ondocs": "^0.16.1",
     "workers-ai-provider": "^4.0.0"
   },
   "devDependencies": {
