@@ -318,13 +318,22 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
 
   let current = await load();
   let loadedAt = (await stat(options.file)).mtimeMs;
-  // A rebuilt index replaces the handler before the next question is answered.
+  let reloading: Promise<void> | null = null;
+  // A rebuilt index replaces the handler before the next question is answered. The file counts as
+  // read only once it loads: a question that finds it half written fails, and the next one reads
+  // it again, though some file systems give the finished file the same modification time.
   const handlerFor = async () => {
     const modified = (await stat(options.file)).mtimeMs;
     if (modified !== loadedAt) {
-      loadedAt = modified;
-      current = await load();
-      options.log(`Reloaded the index (${String(current.chunks)} chunks).`);
+      // Questions that arrive during a reload wait for it, rather than each reading the file.
+      reloading ??= (async () => {
+        current = await load();
+        loadedAt = modified;
+        options.log(`Reloaded the index (${String(current.chunks)} chunks).`);
+      })().finally(() => {
+        reloading = null;
+      });
+      await reloading;
     }
     return current;
   };

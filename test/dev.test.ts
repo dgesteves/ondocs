@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, utimes } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -6,7 +6,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { startOpenAIStub } from '../scripts/openai-stub.mjs';
-import { buildIndex } from '../src';
+import { buildIndex, serializeIndexFile } from '../src';
 import { devModels, DevError, findIndexFile, startDevServer, type DevServer } from '../src/cli/dev';
 import { main } from '../src/cli/main';
 import { mockEmbeddingModel } from '../src/mock';
@@ -141,6 +141,28 @@ describe('ondocs dev', () => {
       body: '{}',
     });
     expect(foreign.status).toBe(403);
+  });
+
+  it('reads the index again after a reload fails, as when it is read half written', async () => {
+    const file = join(root, 'build/ask-index.json');
+    await indexAt('build/ask-index.json');
+    const { server, logs } = await serve('build/ask-index.json');
+    // A question while the build is writing the file: it is not JSON yet.
+    const { index } = await buildIndex({
+      documents: [{ id: 'new.md', url: '/new', title: 'Brand new', content: 'Zebras stripe.' }],
+      embeddingModel: mockEmbeddingModel(),
+    });
+    const written = serializeIndexFile(index);
+    await writeFile(file, written.slice(0, 40));
+    const later = new Date(Date.now() + 5000);
+    await utimes(file, later, later);
+    expect((await ask(server.endpoint, 'zebras')).status).toBe(500);
+    expect(logs.some((line) => line.includes('✗'))).toBe(true);
+    // The build finishes within the same second, which is all some file systems record.
+    await writeFile(file, written);
+    await utimes(file, later, later);
+    expect(await (await ask(server.endpoint, 'zebras')).text()).toContain('"url":"/new"');
+    expect(logs).toContain('Reloaded the index (1 chunks).');
   });
 
   it('picks up a rebuilt index on the next question', async () => {
