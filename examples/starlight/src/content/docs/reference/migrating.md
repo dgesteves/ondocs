@@ -16,7 +16,7 @@ sidebar:
 | Command                           | `npx ask-my-site index`, `init`, `dev`, `eval`                      | `npx ondocs index`, `init`, `dev`, `eval`                                |
 | Imports                           | `ask-my-site/server`, `/react`, `/docusaurus`, `/starlight`, …      | `ondocs/server`, `/react`, `/docusaurus`, `/starlight`, …                |
 | Stylesheets                       | `ask-my-site/react/styles.css`, `ask-my-site/embed/launcher.css`    | `ondocs/react/styles.css`, `ondocs/embed/launcher.css`                   |
-| Script tag                        | `https://cdn.jsdelivr.net/npm/ask-my-site@0.6/dist/embed.global.js` | `https://cdn.jsdelivr.net/npm/ondocs@0.15/dist/embed.global.js`          |
+| Script tag                        | `https://cdn.jsdelivr.net/npm/ask-my-site@0.6/dist/embed.global.js` | `https://cdn.jsdelivr.net/npm/ondocs@0.16/dist/embed.global.js`          |
 | Script tag's global               | `window.AskMySite.mount()`                                          | `window.Ondocs.mount()` (the old name still works)                       |
 | Docusaurus theme components       | `@theme/AskMySite`, `@theme/AskMySiteMcp`                           | `@theme/Ondocs`, `@theme/OndocsMcp` (the old names still work)           |
 | Docusaurus plugin's name          | `ask-my-site`                                                       | `ondocs`, as in `useAllPluginInstancesData('ondocs')`                    |
@@ -54,10 +54,10 @@ Then rename the imports, the commands in scripts and CI, the script tag's URL, t
 ```sh
 git ls-files -z -- '*.js' '*.jsx' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.mts' '*.md' '*.mdx' \
   '*.astro' '*.html' '*.css' '*.yml' '*.yaml' 'package.json' \
-  | xargs -0 perl -pi -e 's{(["\x27`])ask-my-site(?=[/"\x27`])}{$1ondocs}g; s{\bask-my-site (?=index|init|dev|eval)}{ondocs }g; s{(cdn\.jsdelivr\.net/npm|unpkg\.com)/ask-my-site(?:\@[\d.]+)?}{$1/ondocs\@0.15}g; s{ask-my-site-launcher}{ondocs-launcher}g; s{\.ask-my-site(?![\w-])}{.ondocs}g; s{\bAskMySite}{Ondocs}g; s{\baskMySite\b}{ondocs}g'
+  | xargs -0 perl -pi -e 's{(["\x27`])ask-my-site(?=[/"\x27`])}{$1ondocs}g; s{\bask-my-site (?=index|init|dev|eval)}{ondocs }g; s{(cdn\.jsdelivr\.net/npm|unpkg\.com)/ask-my-site(?:\@[\d.]+)?}{$1/ondocs\@0.16}g; s{ask-my-site-launcher}{ondocs-launcher}g; s{\.ask-my-site(?![\w-])}{.ondocs}g; s{\bAskMySite}{Ondocs}g; s{\baskMySite\b}{ondocs}g'
 ```
 
-It leaves links to `github.com/dgesteves/ask-my-site` and the demo site alone, since they still work. Check the result with `git diff` before you commit it. A script tag pinned to an exact version, such as `ask-my-site@0.6.0`, comes out as `ondocs@0.15`: pin it again, such as `ondocs@0.15.0`.
+It leaves links to `github.com/dgesteves/ask-my-site` and the demo site alone, since they still work. Check the result with `git diff` before you commit it. A script tag pinned to an exact version, such as `ask-my-site@0.6.0`, comes out as `ondocs@0.16`: pin it again, such as `ondocs@0.16.0`.
 
 ### Docusaurus
 
@@ -100,7 +100,7 @@ Point the tag at the new package:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.15/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.16/dist/embed.global.js"
   data-endpoint="/api/ask"
   defer
 ></script>
