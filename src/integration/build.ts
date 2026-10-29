@@ -7,7 +7,12 @@ import { dirname, join } from 'node:path';
 import type { EmbeddingModel } from 'ai';
 
 import { buildIndex, type EmbeddingProviderOptions } from '../build';
-import { parseIndexFile, serializeIndexFile, type AskIndexFile } from '../index-file';
+import {
+  parseIndexFile,
+  serializeIndexFile,
+  type AskIndexFile,
+  type IndexEmbedding,
+} from '../index-file';
 import {
   checkEmbeddingSpec,
   embeddingFromSpec,
@@ -338,6 +343,61 @@ export async function writeSiteIndex({
     : ', keyword-only';
   log.info(
     `Indexed ${String(documents.length)} pages into ${String(stats.chunks)} chunks${reuse} → ${name} (${String(Math.round(json.length / 1024))} KB, ${((Date.now() - started) / 1000).toFixed(1)}s)`,
+  );
+  // The plugins already write one index per locale.
+  const large = largeIndexWarning(name, Buffer.byteLength(json), index.embedding, {
+    dimensions: `dimensions: ${String(DEFAULT_DIMENSIONS)}`,
+    keywordOnly: "embedding: 'none'",
+    exclude: 'exclude',
+  });
+  if (large) log.warn(large);
+}
+
+/**
+ * The size past which `ondocs index` and the plugins warn about the index they wrote: 20 MiB,
+ * short of the 25 MiB that Cloudflare Pages and Workers allow a static asset, which is how the
+ * endpoints ondocs sets up there read the index.
+ */
+export const LARGE_INDEX_BYTES = 20 * 1024 * 1024;
+
+/** How a warning about a large index names each way to make it smaller: flags or options. */
+export interface IndexSizeLevers {
+  /** Sets the vector size, as `--dimensions 512`. */
+  dimensions: string;
+  /** Builds a keyword-only index, as `--embedding none`. */
+  keywordOnly: string;
+  /** Leaves pages out, as `--ignore <glob>`. */
+  exclude: string;
+  /** How to split the index per locale, when that is not done already. */
+  locales?: string;
+}
+
+/**
+ * The warning for an index of `bytes` that is over {@link LARGE_INDEX_BYTES}, or `undefined` for a
+ * smaller one: the host limits it comes near, and the ways to make it smaller that it does not
+ * take already. A keyword-only index has no vectors to make smaller.
+ */
+export function largeIndexWarning(
+  name: string,
+  bytes: number,
+  embedding: IndexEmbedding | null,
+  levers: IndexSizeLevers,
+): string | undefined {
+  if (bytes <= LARGE_INDEX_BYTES) return undefined;
+  const ways = [
+    ...(embedding && embedding.dimensions > DEFAULT_DIMENSIONS
+      ? [`build it at ${String(DEFAULT_DIMENSIONS)} dimensions (${levers.dimensions})`]
+      : []),
+    ...(embedding ? [`build it keyword-only (${levers.keywordOnly})`] : []),
+    `leave pages out (${levers.exclude})`,
+    ...(levers.locales ? [levers.locales] : []),
+  ];
+  const list = `${ways.slice(0, -1).join(', ')}${ways.length > 1 ? ' or ' : ''}${ways.at(-1) ?? ''}`;
+  return (
+    `${name} is ${(bytes / 1024 / 1024).toFixed(1)} MiB. Cloudflare Pages and Workers refuse a ` +
+    'static asset over 25 MiB, which is how the endpoints ondocs sets up there read the index, ' +
+    `and a Worker has 128 MB of memory to load it in. To make it smaller, ${list}. ` +
+    'See https://ondocs.vercel.app/docs/limits#index-size'
   );
 }
 

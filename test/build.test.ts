@@ -1,5 +1,9 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { MockEmbeddingModelV4 } from 'ai/test';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AskIndexError,
@@ -13,6 +17,7 @@ import {
   serializeIndexFile,
   validateIndexFile,
 } from '../src';
+import { LARGE_INDEX_BYTES, largeIndexWarning, writeSiteIndex } from '../src/integration/build';
 import { hashEmbedding } from '../src/mock';
 import { corpus } from './helpers';
 
@@ -287,5 +292,106 @@ describe('checkIndex', () => {
     ).toBe(true);
     const dims = await checkIndex({ documents: corpus, index, embeddingDimensions: 32 });
     expect(dims.problems).toEqual(['Index vectors have 16 dimensions, expected 32.']);
+  });
+});
+
+describe('large indexes', () => {
+  const MiB = 1024 * 1024;
+  const cli = {
+    dimensions: '--dimensions 512',
+    keywordOnly: '--embedding none',
+    exclude: '--ignore <glob>',
+  };
+
+  it('warns only over 20 MiB', () => {
+    expect(LARGE_INDEX_BYTES).toBe(20 * MiB);
+    expect(largeIndexWarning('ask-index.json', 20 * MiB, null, cli)).toBeUndefined();
+    expect(largeIndexWarning('ask-index.json', 20 * MiB + 1, null, cli)).toMatch(
+      /^ask-index\.json is 20\.0 MiB\. Cloudflare Pages and Workers refuse a static asset over 25 MiB/,
+    );
+  });
+
+  it('names only the ways to make it smaller that the index does not take already', () => {
+    const at = (dimensions: number | null) =>
+      largeIndexWarning(
+        'ask-index.json',
+        32.7 * MiB,
+        dimensions === null ? null : { model: 'text-embedding-3-small', dimensions },
+        cli,
+      );
+    expect(at(1536)).toContain(
+      'To make it smaller, build it at 512 dimensions (--dimensions 512), build it keyword-only ' +
+        '(--embedding none) or leave pages out (--ignore <glob>). See https://ondocs.vercel.app/docs/limits#index-size',
+    );
+    expect(at(512)).toContain(
+      'To make it smaller, build it keyword-only (--embedding none) or leave pages out (--ignore <glob>).',
+    );
+    expect(at(null)).toContain('To make it smaller, leave pages out (--ignore <glob>).');
+  });
+
+  it('links a section the limits page has', async () => {
+    const page = await readFile(
+      join(import.meta.dirname, '../examples/nextjs/content/docs/limits.md'),
+      'utf8',
+    );
+    expect(page).toMatch(/^## Index size$/m);
+    expect(page).toContain('25 MiB');
+  });
+
+  describe('from writeSiteIndex', () => {
+    let dir: string;
+    beforeEach(async () => {
+      dir = await mkdtemp(join(tmpdir(), 'ondocs-large-index-'));
+    });
+    afterEach(async () => {
+      await rm(dir, { recursive: true, force: true });
+    });
+
+    /** A model that gives every text the same vector, to build a large index quickly. */
+    const sameVector = (dims: number) => {
+      const vector = Array.from({ length: dims }, (_, i) => (i === 0 ? 1 : 0));
+      return new MockEmbeddingModelV4({
+        modelId: 'same-vector',
+        maxEmbeddingsPerCall: 100,
+        doEmbed: ({ values }) =>
+          Promise.resolve({ embeddings: values.map(() => vector), warnings: [] }),
+      });
+    };
+    /** `count` pages of about 1 MB, one chunk each. */
+    const pages = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        id: `p${String(i)}.md`,
+        url: `/p${String(i)}`,
+        title: `Page ${String(i)}`,
+        content: 'Deploy the site and the endpoint reads the index. '.repeat(21_000),
+      }));
+    const write = async (count: number, dims: number) => {
+      const log = { info: vi.fn(), warn: vi.fn() };
+      await writeSiteIndex({
+        documents: pages(count),
+        embeddingModel: sameVector(dims),
+        options: { chunking: { maxChars: 2_000_000, overlap: 0 } },
+        file: join(dir, 'dist/ask-index.json'),
+        cache: { path: join(dir, 'cache/ask-index.json') },
+        name: 'dist/ask-index.json',
+        log,
+      });
+      return log.warn.mock.calls.map(([message]) => String(message));
+    };
+
+    it('warns over 20 MiB, naming the plugin options that make it smaller', async () => {
+      const [warning, ...more] = await write(21, 1536);
+      expect(more).toEqual([]);
+      expect(warning).toMatch(/^dist\/ask-index\.json is 2\d\.\d MiB\. /);
+      expect(warning).toContain(
+        "To make it smaller, build it at 512 dimensions (dimensions: 512), build it keyword-only (embedding: 'none') or leave pages out (exclude).",
+      );
+      // The plugins write one index per locale already.
+      expect(warning).not.toContain('locale');
+    });
+
+    it('says nothing about a smaller index', async () => {
+      expect(await write(10, 1536)).toEqual([]);
+    });
   });
 });

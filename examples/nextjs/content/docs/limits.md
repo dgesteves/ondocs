@@ -14,6 +14,19 @@ Search is an exact scan over every vector, which is the right choice up to tens 
 
 If your platform limits function bundle size, serve the index as a static file and load it with `index: () => fetch(url).then((r) => r.text())` instead of importing it.
 
+## Index size
+
+Cloudflare Pages and Workers refuse a static asset over 25 MiB, so a deploy with a larger one fails. The endpoints `ondocs init` writes for them, and the Astro integration's routes with the Cloudflare adapter, read the index as a static asset, so on Cloudflare that is as large as an index can be. A Worker also has 128 MB of memory, and loading an index takes many times its size: [How large a site fits](/docs/workers-ai#how-large-a-site-fits) has the numbers.
+
+The index grows with the number of chunks and the size of their vectors. On a test site of 12,000 chunks of 600 to 1,000 characters, `ondocs index` wrote 34.8 MiB at 1,536 dimensions, the full size of OpenAI's `text-embedding-3-small`, 19.2 MiB at 512, the default, and 11.2 MiB keyword-only, with `--embedding mock:1536`, `mock:512` and `none`: a vector takes the same room whichever model made it. At that rate, 25 MiB is about 8,600 chunks at 1,536 dimensions and 15,600 at 512.
+
+`ondocs index` and the plugins warn when they write an index over 20 MiB, and name the ways to make it smaller that it does not take already:
+
+- **512 dimensions:** `--dimensions 512`, or `dimensions: 512` in a plugin's options, for a model that can shorten its vectors, as OpenAI's `text-embedding-3` models can. The default model is built at 512 unless you say otherwise.
+- **Keyword-only:** `--embedding none`, or `embedding: 'none'`. The index has no vectors, so a question worded differently from the page finds less.
+- **Fewer pages:** `--ignore <glob>`, or the plugins' `exclude`, for pages people do not ask about, such as old versions or a changelog.
+- **One index per locale:** the plugins write one per locale already. With `ondocs index`, index each locale's folder into a file of its own, and give the endpoint the other locales' as `indexes`.
+
 ## Freshness
 
 The index is rebuilt when you deploy. Content that changes between deploys, or differs per user, is not a fit: use a vector database that you write to at runtime.
