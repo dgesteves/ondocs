@@ -30,7 +30,7 @@ export function SiteAskDialog({
       endpoint="/api/ask"
       open={open}
       onOpenChange={onOpenChange}
-      // The site handles ⌘K and ⌘I itself, so they work before this component has loaded.
+      // The site handles ⌘K and ⌘I itself (components/ask.tsx): the dialog takes one shortcut key.
       shortcut={false}
       theme={scheme ?? 'auto'}
       title="Ask the ondocs documentation"
