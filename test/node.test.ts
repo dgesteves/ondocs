@@ -157,6 +157,10 @@ describe('framework URLs', () => {
       'website/docs/releases/2024-12-recap.md': '# Recap',
       'website/docs/raw/01-keep.md': '---\nparse_number_prefixes: false\n---\n# Keep',
       'website/docs/api/plugin.md': '---\nid: plugin-api\n---\n# Plugin',
+      // An id is used as written: Docusaurus strips number prefixes from file names only.
+      'website/docs/03-ids/01-intro.md': '---\nid: 01-intro\n---\n# Intro',
+      'website/docs/03-ids/setup.md': '---\nid: 2-step\n---\n# Two steps',
+      'website/docs/03-ids/04-deploy.md': '---\nid: deploy-guide\n---\n# Deploy',
       'website/docs/_partial.mdx': 'Shared text.',
       'website/docs/_snippets/note.md': 'Note.',
     });
@@ -167,6 +171,9 @@ describe('framework URLs', () => {
       '02-tutorial/01-setup.md': '/docs/tutorial/setup',
       // Not the folder's page: the index test compares names as written, prefix included.
       '02-tutorial/tutorial.md': '/docs/tutorial/tutorial',
+      '03-ids/01-intro.md': '/docs/ids/01-intro',
+      '03-ids/04-deploy.md': '/docs/ids/deploy-guide',
+      '03-ids/setup.md': '/docs/ids/2-step',
       'Category/category.md': '/docs/Category',
       'api/plugin.md': '/docs/api/plugin-api',
       'guides/creating-pages.md': '/docs/guides/creating-pages-guide',

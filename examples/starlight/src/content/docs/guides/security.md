@@ -69,7 +69,7 @@ A fleet of addresses gets past a per-client rate limit, and can use up the day's
 
 ## Cache repeated questions
 
-`answerCache: true` answers a question asked again from memory, without embedding it or calling the model, so the questions everyone asks cost nothing after the first time. Questions match when they are the same apart from case, spacing and trailing punctuation, and the cache starts fresh when the index is rebuilt. `{ store: upstashAnswerCache(Redis.fromEnv()) }` shares it between instances.
+`answerCache: true` answers a question asked again from memory, without embedding it or calling the model, so the questions everyone asks cost nothing after the first time. Questions match when they are the same apart from case, spacing and trailing punctuation, and the cache starts fresh when the index is rebuilt, or embedded with another model or size. `{ store: upstashAnswerCache(Redis.fromEnv()) }` shares it between instances.
 
 ## Cross-origin requests
 
