@@ -161,8 +161,16 @@ describe('ondocs dev', () => {
 
   it('finds the index the CLI, Docusaurus, Astro or VitePress wrote, or says how to make one', async () => {
     expect(() => findIndexFile(root)).toThrow(
-      /No index found: looked for ask-index.json, build\/ask-index.json, dist\/ask-index.json, dist\/client\/ask-index.json, \.vitepress\/dist\/ask-index.json, docs\/\.vitepress\/dist\/ask-index.json/,
+      /No index found: looked for ask-index.json, build\/ask-index.json, dist\/ask-index.json, dist\/client\/ask-index.json, \.vitepress\/dist\/ask-index.json, docs\/\.vitepress\/dist\/ask-index.json, public\/ask-index.json, site\/ask-index.json, _site\/ask-index.json\./,
     );
+    // Where `ondocs init` has `ondocs index -o` write it for a site no plugin builds: Jekyll's and
+    // Eleventy's _site/, MkDocs's site/, and Next.js's and Hugo's public/.
+    await indexAt('_site/ask-index.json');
+    expect(findIndexFile(root)).toBe(join(root, '_site/ask-index.json'));
+    await indexAt('site/ask-index.json');
+    expect(findIndexFile(root)).toBe(join(root, 'site/ask-index.json'));
+    await indexAt('public/ask-index.json');
+    expect(findIndexFile(root)).toBe(join(root, 'public/ask-index.json'));
     // VitePress, in docs/ as `vitepress init` suggests, or at the root.
     await indexAt('docs/.vitepress/dist/ask-index.json');
     expect(findIndexFile(root)).toBe(join(root, 'docs/.vitepress/dist/ask-index.json'));
