@@ -185,8 +185,9 @@ export interface AskHandlerOptions {
   budget?: BudgetOptions;
   /**
    * Answers a question asked again from a cache, without embedding it or calling the model:
-   * `true` for the memory store, or `{ store, ttlSeconds }`. Keyed by the index's content hash
-   * and the normalized question, so a rebuilt index starts fresh.
+   * `true` for the memory store, or `{ store, ttlSeconds }`. Keyed by the index's content hash,
+   * the model it was embedded with when questions are embedded, and the normalized question, so a
+   * rebuilt or re-embedded index starts fresh.
    */
   answerCache?: boolean | AnswerCacheOptions;
   /**
@@ -1150,7 +1151,8 @@ const modelName = (model: LanguageModel): string =>
 /**
  * The answer cache behind `answerCache`. A key covers the index's content hash and the normalized
  * question, and what else shapes the answer (the model, the instructions, the retrieval and
- * generation settings), so a rebuilt index or a new prompt starts fresh even in a shared store.
+ * generation settings, and for hybrid retrieval the embedding model and size), so a rebuilt or
+ * re-embedded index or a new prompt starts fresh even in a shared store.
  * The store failing never fails a request: it is reported, and the question is answered anew.
  */
 function answerCache(
@@ -1188,8 +1190,19 @@ function answerCache(
           options.generation?.maxOutputTokens ?? null,
         ]),
       );
+      // The content hash covers the pages' text, not their vectors: an answer found with them
+      // is kept for the model and size they were embedded with. Keyword-only keys are as before.
+      const embedding =
+        expectedMode(index, options) === 'hybrid' && index.embedding
+          ? [[index.embedding.model, index.embedding.dimensions, index.embedding.settings ?? null]]
+          : [];
       const digest = await sha256(
-        JSON.stringify([index.contentHash, await settings, normalizeQuestion(question)]),
+        JSON.stringify([
+          index.contentHash,
+          await settings,
+          normalizeQuestion(question),
+          ...embedding,
+        ]),
       );
       return `${prefix}${digest}`;
     },
