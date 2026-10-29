@@ -1,5 +1,12 @@
 # docusaurus-plugin-ondocs
 
+## 0.16.3
+
+### Patch Changes
+
+- Updated dependencies [[`3cdf7d0`](https://github.com/dgesteves/ondocs/commit/3cdf7d02ad44276b55decac32536234e6f6b50bd), [`86f1d2c`](https://github.com/dgesteves/ondocs/commit/86f1d2cda3e82796c9b48da006ca6378e800d2d5), [`09c87c4`](https://github.com/dgesteves/ondocs/commit/09c87c4b5d7691280de52c9eb5f3ce861f8e7d12), [`e8ffaba`](https://github.com/dgesteves/ondocs/commit/e8ffabaf976b27b2f3a5186c61588629d0883834), [`3df7321`](https://github.com/dgesteves/ondocs/commit/3df7321b642328652df187cf3adfec0f988575bc), [`5bbc11a`](https://github.com/dgesteves/ondocs/commit/5bbc11a013e5a9890bec9c04bd240ffa94d4d0c7)]:
+  - ondocs@0.16.3
+
 ## 0.16.2
 
 ### Patch Changes
