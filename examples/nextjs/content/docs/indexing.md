@@ -33,13 +33,13 @@ A file path becomes a URL by dropping the extension, so `guides/setup.md` is cit
 
 Docs frameworks don't all map files to URLs the same way, so the CLI looks for a framework's config in or above the content folder and follows its rules:
 
-| Framework                    | Detected from                              | Rules                                                                                                   |
-| ---------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| Docusaurus                   | `docusaurus.config.*`                      | `slug` and `id` frontmatter, number prefixes dropped (`01-intro.md` is `intro`), `_` files are partials |
-| Starlight                    | `astro.config.*` with `@astrojs/starlight` | `slug` frontmatter, slugified path segments, `_` files skipped                                          |
-| Fumadocs, or Next.js content | `next.config.*` or `source.config.ts`      | `index.mdx` is its folder's page, `(group)` folders left out, `[#id]` heading ids                       |
-| Nextra                       | the same, with `nextra` in `package.json`  | `index.mdx` is its folder's page, `(group)` folders kept, `[#id]` heading ids                           |
-| Next.js App Router           | the same, for an `app` or `src/app` folder | only `page.mdx` files, `(group)` folders left out, `_private` folders skipped                           |
+| Framework                    | Detected from                              | Rules                                                                                                                                                           |
+| ---------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Docusaurus                   | `docusaurus.config.*`                      | `slug` and `id` frontmatter (an `id` is used as written), number prefixes dropped from file and folder names (`01-intro.md` is `intro`), `_` files are partials |
+| Starlight                    | `astro.config.*` with `@astrojs/starlight` | `slug` frontmatter, slugified path segments, `_` files skipped                                                                                                  |
+| Fumadocs, or Next.js content | `next.config.*` or `source.config.ts`      | `index.mdx` is its folder's page, `(group)` folders left out, `[#id]` heading ids                                                                               |
+| Nextra                       | the same, with `nextra` in `package.json`  | `index.mdx` is its folder's page, `(group)` folders kept, `[#id]` heading ids                                                                                   |
+| Next.js App Router           | the same, for an `app` or `src/app` folder | only `page.mdx` files, `(group)` folders left out, `_private` folders skipped                                                                                   |
 
 `--framework` overrides the detection; `next` covers all three, told apart by the folder and `package.json`. Docusaurus serves docs under `/docs` by default, so pass `--base-url /docs` there. The Docusaurus rules were checked against Docusaurus's own `getSlug`: all 92 pages of docusaurus.io's docs get the URL Docusaurus serves.
 

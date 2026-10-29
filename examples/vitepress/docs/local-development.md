@@ -18,7 +18,7 @@ npx ondocs index ./docs -e mock   # writes ask-index.json
 npx ondocs dev                    # serves POST http://localhost:8787/api/ask
 ```
 
-`ondocs dev` answers from `ask-index.json`, or from `build/ask-index.json`, `dist/ask-index.json` or `.vitepress/dist/ask-index.json`, where the Docusaurus, Astro and VitePress plugins write theirs. It listens on 127.0.0.1 port 8787 (`--port`), answers pages on this machine only (`--allow-origin` adds another origin), and picks up a rebuilt index on the next question.
+`ondocs dev` answers from `ask-index.json`, or from `build/ask-index.json`, `dist/ask-index.json` or `.vitepress/dist/ask-index.json`, where the Docusaurus, Astro and VitePress plugins write theirs, or from `public/`, `site/` or `_site/ask-index.json`, where `ondocs init` has `ondocs index` write it on a Hugo, MkDocs, Jekyll or Eleventy site, or a Next.js site on GitHub Pages. It listens on 127.0.0.1 port 8787 (`--port`), answers pages on this machine only (`--allow-origin` adds another origin), and picks up a rebuilt index on the next question.
 
 ## Point the dialog at it
 
