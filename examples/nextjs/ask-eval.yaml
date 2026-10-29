@@ -35,6 +35,12 @@ questions:
     expect: /docs/fumadocs
   - question: How do I add ondocs to Nextra?
     expect: /docs/nextra
+  # In a reader's words, like questions asked of the live demos: the answer is a command or a
+  # package to install, which the default instructions ask the model to quote, from these pages.
+  - question: Can I use GitHub Pages with no OpenAI key?
+    expect: [/docs/workers-ai, /docs/faq, /docs/deployment]
+  - question: Can I use Claude instead of OpenAI?
+    expect: /docs/model-providers
 
   - question: What is the capital of France?
     unanswerable: true
