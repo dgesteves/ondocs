@@ -1,6 +1,5 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import {
   useCallback,
   useEffect,
@@ -10,18 +9,14 @@ import {
   type ReactNode,
 } from 'react';
 
+import { SiteAskDialog } from './ask-dialog';
+
 const OPEN_EVENT = 'ondocs:open';
 
 /** Opens the dialog from anywhere on the page. */
 export function openAsk(): void {
   window.dispatchEvent(new Event(OPEN_EVENT));
 }
-
-// The dialog's code (Radix, cmdk, the dialog itself) loads once the page is idle, or on the first
-// ⌘K, ⌘I or click, so it never competes with the first paint.
-const SiteAskDialog = dynamic(() => import('./ask-dialog').then((m) => m.SiteAskDialog), {
-  ssr: false,
-});
 
 /** ⌘K, as the dialog is this site's only search, and ⌘I, its shortcut in the plugins. */
 const SHORTCUT_KEYS = new Set(['k', 'i']);
@@ -35,7 +30,6 @@ const isEditable = (target: EventTarget | null): boolean =>
 /** The ask dialog, mounted once in the root layout and opened by ⌘K, ⌘I or any `AskButton`. */
 export function Ask({ mode }: { mode: 'openai' | 'mock' }) {
   const [open, setOpenState] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const openRef = useRef(false);
   const setOpen = useCallback((next: boolean) => {
     openRef.current = next;
@@ -43,38 +37,29 @@ export function Ask({ mode }: { mode: 'openai' | 'mock' }) {
   }, []);
 
   useEffect(() => {
-    const load = () => {
-      setLoaded(true);
-    };
     const show = () => {
-      load();
       setOpen(true);
     };
-    // The shortcuts are handled here rather than by the dialog, so they work before the dialog
-    // has loaded. As in the dialog: a text field keeps them, except the dialog's own input, which
+    // The shortcuts are handled here rather than by the dialog, which takes one key, and the site
+    // has two. As in the dialog: a text field keeps them, except the dialog's own input, which
     // closes it.
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || !SHORTCUT_KEYS.has(event.key.toLowerCase())) return;
       if (!openRef.current && isEditable(event.target)) return;
       event.preventDefault();
-      load();
       setOpen(!openRef.current);
     };
     window.addEventListener(OPEN_EVENT, show);
     window.addEventListener('keydown', onKeyDown);
-    const idle =
-      typeof window.requestIdleCallback === 'function'
-        ? window.requestIdleCallback(load, { timeout: 4000 })
-        : window.setTimeout(load, 2000);
     return () => {
       window.removeEventListener(OPEN_EVENT, show);
       window.removeEventListener('keydown', onKeyDown);
-      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idle);
-      else window.clearTimeout(idle);
     };
   }, [setOpen]);
 
-  return loaded ? <SiteAskDialog mode={mode} open={open} onOpenChange={setOpen} /> : null;
+  // Rendered from the start, closed: the dialog's own code (Radix, cmdk, the answer) still loads
+  // when it first opens, and what is typed after ⌘K or ⌘I until its input has focus is kept for it.
+  return <SiteAskDialog mode={mode} open={open} onOpenChange={setOpen} />;
 }
 
 const noSubscription = () => () => undefined;
