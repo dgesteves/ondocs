@@ -49,8 +49,8 @@ the next question. Up to 30 questions a minute are answered.`;
  * build output. Astro writes a static site to `dist/`, and a site with an adapter (server output)
  * to `dist/client/`. VitePress builds into `.vitepress/dist/` next to the docs, at the root or, as
  * `vitepress init` suggests, in `docs/`. Then the folders `ondocs init` has `ondocs index -o` write
- * to for a site no plugin builds: `public/` for Next.js and Hugo, `site/` for MkDocs, and `_site/`
- * for Jekyll and Eleventy.
+ * to for a site no plugin builds: `public/` for Hugo and for Next.js on GitHub Pages, `site/` for
+ * MkDocs, and `_site/` for Jekyll and Eleventy.
  */
 export const INDEX_FILES = [
   'ask-index.json',
