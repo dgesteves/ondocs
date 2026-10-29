@@ -182,17 +182,16 @@ export function askChallenge(env: Env): ChallengeVerifier | undefined {
 
 /**
  * A daily cap for the whole site and the live demos that send their questions here
- * (`allowedOrigins` below), so rotating IPs cannot run up the bill. Raised for launch week from 300
- * questions and 1M model tokens: an answer is about 3k tokens, so 5M leaves about 3,300 for each
- * of the 1,500 questions and the token cap does not run out first. Back to 300 and 1M after launch
- * week, from Thu 2026-10-29. With the Upstash keys set, the counts are one budget for every
- * instance (`budgetStore`); without them, or while Upstash fails, each instance has its own. The
- * hard cap is the spend limit on the OpenAI project.
+ * (`allowedOrigins` below), so rotating IPs cannot run up the bill: 300 questions and 1M model
+ * tokens a day. An answer is about 3k tokens, so 1M leaves about 3,300 for each of the 300
+ * questions and the token cap does not run out first. With the Upstash keys set, the counts are one
+ * budget for every instance (`budgetStore`); without them, or while Upstash fails, each instance
+ * has its own. The hard cap is the spend limit on the OpenAI project.
  */
 const store = budgetStore(process.env);
 export const ASK_BUDGET = {
-  requestsPerDay: 1_500,
-  tokensPerDay: 5_000_000,
+  requestsPerDay: 300,
+  tokensPerDay: 1_000_000,
   ...(store ? { store } : {}),
   message: `The live demo has answered all the questions it can today. The docs are at ${SITE_URL}/docs. To try it on your own docs with no key: npx ondocs index ./docs -e mock, then npx ondocs dev.`,
 } satisfies BudgetOptions;

@@ -31,8 +31,9 @@ the mock model.
 
 Options:
       --index <file>           Index file (default: ask-index.json, then build/ask-index.json,
-                               dist/ask-index.json, dist/client/ask-index.json, or VitePress's
-                               .vitepress/dist/ask-index.json or docs/.vitepress/dist/ask-index.json)
+                               dist/ask-index.json, dist/client/ask-index.json, VitePress's
+                               .vitepress/dist/ask-index.json or docs/.vitepress/dist/ask-index.json,
+                               or public/, site/ or _site/ask-index.json)
       --port <n>               Port on 127.0.0.1 (default: 8787)
       --allow-origin <origin>  Another origin allowed to call it, such as https://docs.example.com;
                                repeatable, or * for any (default: localhost, 127.0.0.1 and [::1]
@@ -47,7 +48,9 @@ the next question. Up to 30 questions a minute are answered.`;
  * Where `dev` looks for an index: the CLI's output, then Docusaurus's, Astro's and VitePress's
  * build output. Astro writes a static site to `dist/`, and a site with an adapter (server output)
  * to `dist/client/`. VitePress builds into `.vitepress/dist/` next to the docs, at the root or, as
- * `vitepress init` suggests, in `docs/`.
+ * `vitepress init` suggests, in `docs/`. Then the folders `ondocs init` has `ondocs index -o` write
+ * to for a site no plugin builds: `public/` for Hugo and for Next.js on GitHub Pages, `site/` for
+ * MkDocs, and `_site/` for Jekyll and Eleventy.
  */
 export const INDEX_FILES = [
   'ask-index.json',
@@ -56,6 +59,9 @@ export const INDEX_FILES = [
   'dist/client/ask-index.json',
   '.vitepress/dist/ask-index.json',
   'docs/.vitepress/dist/ask-index.json',
+  'public/ask-index.json',
+  'site/ask-index.json',
+  '_site/ask-index.json',
 ];
 
 /** A setup problem to explain, rather than a crash. */
@@ -318,13 +324,22 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
 
   let current = await load();
   let loadedAt = (await stat(options.file)).mtimeMs;
-  // A rebuilt index replaces the handler before the next question is answered.
+  let reloading: Promise<void> | null = null;
+  // A rebuilt index replaces the handler before the next question is answered. The file counts as
+  // read only once it loads: a question that finds it half written fails, and the next one reads
+  // it again, though some file systems give the finished file the same modification time.
   const handlerFor = async () => {
     const modified = (await stat(options.file)).mtimeMs;
     if (modified !== loadedAt) {
-      loadedAt = modified;
-      current = await load();
-      options.log(`Reloaded the index (${String(current.chunks)} chunks).`);
+      // Questions that arrive during a reload wait for it, rather than each reading the file.
+      reloading ??= (async () => {
+        current = await load();
+        loadedAt = modified;
+        options.log(`Reloaded the index (${String(current.chunks)} chunks).`);
+      })().finally(() => {
+        reloading = null;
+      });
+      await reloading;
     }
     return current;
   };
