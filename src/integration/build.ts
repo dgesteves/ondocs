@@ -344,9 +344,11 @@ export async function writeSiteIndex({
   log.info(
     `Indexed ${String(documents.length)} pages into ${String(stats.chunks)} chunks${reuse} → ${name} (${String(Math.round(json.length / 1024))} KB, ${((Date.now() - started) / 1000).toFixed(1)}s)`,
   );
-  // The plugins already write one index per locale.
+  // The plugins already write one index per locale. `dimensions` does not apply to a model of your
+  // own or to a Workers AI model, whose vector size is fixed.
+  const resizable = !options.embeddingModel && !options.embedding?.startsWith('workers-ai:');
   const large = largeIndexWarning(name, Buffer.byteLength(json), index.embedding, {
-    dimensions: `dimensions: ${String(DEFAULT_DIMENSIONS)}`,
+    ...(resizable ? { dimensions: `dimensions: ${String(DEFAULT_DIMENSIONS)}` } : {}),
     keywordOnly: "embedding: 'none'",
     exclude: 'exclude',
   });
@@ -362,8 +364,8 @@ export const LARGE_INDEX_BYTES = 20 * 1024 * 1024;
 
 /** How a warning about a large index names each way to make it smaller: flags or options. */
 export interface IndexSizeLevers {
-  /** Sets the vector size, as `--dimensions 512`. */
-  dimensions: string;
+  /** Sets the vector size, as `--dimensions 512`. Left out when the model's vector size is fixed. */
+  dimensions?: string;
   /** Builds a keyword-only index, as `--embedding none`. */
   keywordOnly: string;
   /** Leaves pages out, as `--ignore <glob>`. */
@@ -385,7 +387,7 @@ export function largeIndexWarning(
 ): string | undefined {
   if (bytes <= LARGE_INDEX_BYTES) return undefined;
   const ways = [
-    ...(embedding && embedding.dimensions > DEFAULT_DIMENSIONS
+    ...(embedding && levers.dimensions && embedding.dimensions > DEFAULT_DIMENSIONS
       ? [`build it at ${String(DEFAULT_DIMENSIONS)} dimensions (${levers.dimensions})`]
       : []),
     ...(embedding ? [`build it keyword-only (${levers.keywordOnly})`] : []),

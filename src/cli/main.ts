@@ -655,8 +655,11 @@ export async function main(args: string[], io: CliIO): Promise<number> {
     log(
       `✓ ${String(stats.chunks)} chunks${reuse} → ${outLabel} (${formatBytes(bytes)}, ${seconds}s)`,
     );
+    // --dimensions does not apply to the config's own model or to a Workers AI model.
+    const spec = flags.embedding ?? config.embedding;
+    const resizable = spec === undefined ? !config.embeddingModel : !spec.startsWith('workers-ai:');
     const large = largeIndexWarning(outLabel, bytes, index.embedding, {
-      dimensions: `--dimensions ${String(DEFAULT_DIMENSIONS)}`,
+      ...(resizable ? { dimensions: `--dimensions ${String(DEFAULT_DIMENSIONS)}` } : {}),
       keywordOnly: '--embedding none',
       exclude: '--ignore <glob>',
       locales: "split it into one index per locale, by indexing each locale's folder on its own",

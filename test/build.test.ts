@@ -17,7 +17,12 @@ import {
   serializeIndexFile,
   validateIndexFile,
 } from '../src';
-import { LARGE_INDEX_BYTES, largeIndexWarning, writeSiteIndex } from '../src/integration/build';
+import {
+  type IndexOptions,
+  LARGE_INDEX_BYTES,
+  largeIndexWarning,
+  writeSiteIndex,
+} from '../src/integration/build';
 import { hashEmbedding } from '../src/mock';
 import { corpus } from './helpers';
 
@@ -327,6 +332,18 @@ describe('large indexes', () => {
       'To make it smaller, build it keyword-only (--embedding none) or leave pages out (--ignore <glob>).',
     );
     expect(at(null)).toContain('To make it smaller, leave pages out (--ignore <glob>).');
+    // A model whose vector size is fixed (Workers AI, a model of your own): no dimensions lever.
+    const { dimensions: _, ...fixed } = cli;
+    expect(
+      largeIndexWarning(
+        'ask-index.json',
+        32.7 * MiB,
+        { model: '@cf/baai/bge-large-en-v1.5', dimensions: 1024 },
+        fixed,
+      ),
+    ).toContain(
+      'To make it smaller, build it keyword-only (--embedding none) or leave pages out (--ignore <glob>).',
+    );
   });
 
   it('links a section the limits page has', async () => {
@@ -365,12 +382,12 @@ describe('large indexes', () => {
         title: `Page ${String(i)}`,
         content: 'Deploy the site and the endpoint reads the index. '.repeat(21_000),
       }));
-    const write = async (count: number, dims: number) => {
+    const write = async (count: number, dims: number, options: IndexOptions = {}) => {
       const log = { info: vi.fn(), warn: vi.fn() };
       await writeSiteIndex({
         documents: pages(count),
         embeddingModel: sameVector(dims),
-        options: { chunking: { maxChars: 2_000_000, overlap: 0 } },
+        options: { ...options, chunking: { maxChars: 2_000_000, overlap: 0 } },
         file: join(dir, 'dist/ask-index.json'),
         cache: { path: join(dir, 'cache/ask-index.json') },
         name: 'dist/ask-index.json',
@@ -388,6 +405,18 @@ describe('large indexes', () => {
       );
       // The plugins write one index per locale already.
       expect(warning).not.toContain('locale');
+    });
+
+    it('leaves dimensions out for a model of your own or a Workers AI model', async () => {
+      for (const options of [
+        { embeddingModel: sameVector(1536) },
+        { embedding: 'workers-ai:@cf/baai/bge-m3' as const },
+      ]) {
+        const [warning] = await write(21, 1536, options);
+        expect(warning).toContain(
+          "To make it smaller, build it keyword-only (embedding: 'none') or leave pages out (exclude).",
+        );
+      }
     });
 
     it('says nothing about a smaller index', async () => {
