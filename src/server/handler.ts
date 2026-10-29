@@ -1,3 +1,4 @@
+import * as ai from 'ai';
 import {
   APICallError,
   createUIMessageStream,
@@ -8,7 +9,6 @@ import {
   LoadSettingError,
   RetryError,
   streamText,
-  toUIMessageStream,
   type EmbeddingModel,
   type LanguageModel,
   type LanguageModelUsage,
@@ -80,6 +80,34 @@ export type GenerationOptions = Pick<
 >;
 
 export type { IndexSource } from './shared';
+
+/**
+ * AI SDK 7's `toUIMessageStream`. AI SDK 6, which ondocs supports too, has none: there, an answer
+ * streams through its result's own `toUIMessageStream()`, and some settings have their older
+ * names (`forInstalledAiSdk`). Looked up on the module rather than imported by name: a name that
+ * AI SDK 6 does not export stops ondocs from loading there, and fails webpack's build of the site.
+ */
+const toUIMessageStream = Reflect.get(ai, 'toUIMessageStream') as
+  typeof ai.toUIMessageStream | undefined;
+
+/**
+ * `streamText` or `generateText` settings for the AI SDK installed. AI SDK 6 calls `instructions`
+ * `system`, `onEnd` `onFinish` and `telemetry` `experimental_telemetry`, names AI SDK 7 still
+ * reads, so the settings keep AI SDK 7's types. AI SDK 6 has no `reasoning` setting and no
+ * `firstChunkMs` timeout, and leaves both out.
+ */
+function forInstalledAiSdk<
+  T extends { instructions?: unknown; onEnd?: unknown; telemetry?: unknown },
+>(settings: T): T {
+  if (toUIMessageStream) return settings;
+  const { instructions, onEnd, telemetry, ...rest } = settings;
+  return {
+    ...rest,
+    system: instructions,
+    onFinish: onEnd,
+    experimental_telemetry: telemetry,
+  } as unknown as T;
+}
 
 export interface AskHandlerOptions {
   /**
@@ -174,7 +202,8 @@ export interface AskHandlerOptions {
   /**
    * Passed to `streamText`. `maxOutputTokens` defaults to 800, and `timeout` to 30 seconds for
    * the model's first word and 90 for the whole answer, so a provider that stalls ends the answer
-   * instead of holding it open; your own `timeout` replaces both.
+   * instead of holding it open; your own `timeout` replaces both. AI SDK 6 has no first-word
+   * timeout, so there only the 90 seconds hold.
    */
   generation?: GenerationOptions;
   /**
@@ -876,7 +905,7 @@ export function createAskHandler(
       if (reserved.result?.allowed) settle = reserved.result.settle;
     }
     try {
-      const result = await generateText({
+      const settings: Parameters<typeof generateText>[0] = {
         model: followUps.model,
         instructions: followUps.instructions,
         prompt,
@@ -886,7 +915,8 @@ export function createAskHandler(
         maxRetries: 1,
         timeout: FOLLOW_UP_TIMEOUT_MS,
         abortSignal: request.signal,
-      });
+      };
+      const result = await generateText(forInstalledAiSdk(settings));
       await settle?.(totalTokens(result.usage)).catch(reportError);
       const searched = standaloneQuestion(result.text, question, maxQuestionLength);
       return { searched, followUp: { question: searched, usage: result.usage }, admitted };
@@ -1000,7 +1030,7 @@ export function createAskHandler(
       const release = async (): Promise<void> => {
         if (settle && !begun) await settle(0).catch(reportError);
       };
-      return streamText({
+      const settings: StreamTextOptions = {
         maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
         ...options.generation,
         timeout: options.generation?.timeout ?? DEFAULT_GENERATION_TIMEOUT,
@@ -1044,7 +1074,8 @@ export function createAskHandler(
           reportError(new Error('The answer was aborted before it finished.', { cause: reason }));
           await release();
         },
-      });
+      };
+      return streamText(forInstalledAiSdk(settings));
     });
   }
 
@@ -1093,22 +1124,26 @@ export function createAskHandler(
         // call as it is set up is said to be misconfigured, after the error, so the dialog offers
         // no retry.
         let reply = '';
+        const ui: Omit<Parameters<typeof ai.toUIMessageStream>[0], 'stream'> = {
+          sendStart: false,
+          onError: (error) =>
+            isMisconfiguration(error) ? MISCONFIGURED_MESSAGE : MODEL_ERROR_MESSAGE,
+          messageMetadata: ({ part }) => {
+            if (part.type === 'text-delta') reply += part.text;
+            if (part.type === 'error' && isMisconfiguration(part.error)) {
+              return { ...metadata, misconfigured: true };
+            }
+            return part.type === 'finish' && saysOnlyIDontKnow(reply)
+              ? { ...metadata, refused: true }
+              : undefined;
+          },
+        };
+        const result = generate();
         writer.merge(
-          toUIMessageStream({
-            stream: generate().stream,
-            sendStart: false,
-            onError: (error) =>
-              isMisconfiguration(error) ? MISCONFIGURED_MESSAGE : MODEL_ERROR_MESSAGE,
-            messageMetadata: ({ part }) => {
-              if (part.type === 'text-delta') reply += part.text;
-              if (part.type === 'error' && isMisconfiguration(part.error)) {
-                return { ...metadata, misconfigured: true };
-              }
-              return part.type === 'finish' && saysOnlyIDontKnow(reply)
-                ? { ...metadata, refused: true }
-                : undefined;
-            },
-          }),
+          toUIMessageStream
+            ? toUIMessageStream({ stream: result.stream, ...ui })
+            : // eslint-disable-next-line @typescript-eslint/no-deprecated -- AI SDK 6's only way
+              result.toUIMessageStream(ui),
         );
         return undefined;
       },

@@ -233,13 +233,12 @@ jobs:
       - name: Write, build and ask the endpoint
         run: node scripts/deploy-recipes.mjs ${{ matrix.recipe }} "$RUNNER_TEMP"/ondocs-*.tgz "$RUNNER_TEMP/site"
 
-  # The oldest Node.js the engines field allows, 22.12.0, and the newest, 26: the tests and the
-  # built CLI on each. The tooling runs on 24, as it needs a newer 22 (pnpm 12 asks for 22.13 and
-  # tsdown for 22.18), so the job installs and builds there, then switches. On 22.12.0 the tests
-  # that run in jsdom are left out: jsdom 30 asks for Node 22.22, and what they test, the dialog,
-  # runs in a browser, not on Node.js. So is one case: on 22.12 alone (22.13 fixed it), require()
-  # of an ES module that throws as it loads also rejects, unhandled, which ends the process, and
-  # the case is a provider package that fails to load.
+  # The oldest Node.js the engines field allows, 22.13.0, and the newest, 26: the tests and the
+  # built CLI on each. The tooling runs on 24, as it needs a newer 22 (tsdown asks for 22.18), so
+  # the job installs and builds there, then switches. On 22.13.0 the tests that run in jsdom are
+  # left out: jsdom 30 asks for Node 22.22, and what they test, the dialog, runs in a browser, not
+  # on Node.js. The floor is 22.13 rather than 22.12, where require() of an ES module warns that it
+  # is experimental, and one that throws as it loads also rejects, unhandled, ending the process.
   node-compat:
     name: Test on Node ${{ matrix.node }}
     runs-on: ubuntu-latest
@@ -247,7 +246,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.12.0', 26]
+        node: ['22.13.0', 26]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # pnpm's own executable, which runs whichever Node.js is set up, as the tests call pnpm.
@@ -269,8 +268,8 @@ jobs:
           NODE_VERSION: ${{ matrix.node }}
         run: |
           node --version | grep "^v$NODE_VERSION"
-          if [ "$NODE_VERSION" = 22.12.0 ]; then
-            node node_modules/vitest/vitest.mjs run -t '^(?!.*installed but fails to load)' $(git grep -l -e '@vitest-environment jsdom' -- test | sed 's/^/--exclude=/')
+          if [ "$NODE_VERSION" = 22.13.0 ]; then
+            node node_modules/vitest/vitest.mjs run $(git grep -l -e '@vitest-environment jsdom' -- test | sed 's/^/--exclude=/')
           else
             pnpm test
           fi
@@ -379,13 +378,13 @@ jobs:
       - name: The tests with coverage, against the thresholds
         run: pnpm test:coverage
 
-  # The oldest ai the peer range allows, over the lockfile's: a site that already has an older
+  # The oldest ai 7 the peer range allows, over the lockfile's: a site that already has an older
   # ai 7 keeps it when it installs ondocs, while the jobs above run the lockfile's ai and the fresh
   # sites the latest. ai 7.0.0 to 7.0.50 crashed the Docusaurus plugin's load under jiti, and
   # before 7.0.92 the endpoint's onAbort had no reason. test/ai-peer-floor.test.ts keeps the ai
-  # version here at the peer range's floor.
+  # version here at the peer range's floor for 7, and ai-sdk-6's at its floor for 6.
   ai-floor:
-    name: Typecheck and test on the oldest ai the peer range allows
+    name: Typecheck and test on the oldest ai 7 the peer range allows
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -399,11 +398,47 @@ jobs:
       # The AI SDK's packages depend on each other at exact versions, so @ai-sdk/openai is one
       # released with this ai, on the same @ai-sdk/provider. A newer one brings a second copy of
       # the provider's types, which the typecheck rejects.
-      - name: Install ai at the peer range's floor, and an @ai-sdk/openai released with it
+      - name: Install ai at the peer range's floor for 7, and an @ai-sdk/openai released with it
         run: pnpm add -D -w ai@7.0.95 @ai-sdk/openai@4.0.63 --ignore-scripts
       - run: pnpm typecheck
       - run: node scripts/corpus.mjs
       - run: pnpm test
+
+  # AI SDK 6, which the peer range allows too: the package as it is published, built with the
+  # lockfile's AI SDK 7, then run on the newest AI SDK 6 and on the oldest the range allows, 6.0.16,
+  # the first whose timeout takes { totalMs }. Each comes with an @ai-sdk/openai 3 on the same
+  # @ai-sdk/provider. On each: the tests, but those that make models of their own with AI SDK 7's
+  # test classes or its v4 specification, the API report, which prints AI SDK 7's types, and the
+  # first-word timeout, which AI SDK 6 does not have; then the built CLI, which loads the endpoint
+  # and the mock models in Node.js as a site does, and a question to the built endpoint, on Bun.
+  # The source is typechecked against AI SDK 7 only.
+  ai-sdk-6:
+    name: Test on AI SDK 6, the newest and the oldest the peer range allows
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.x
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # Newest first: once 6.0.16 is installed, `pnpm add ai@^6` keeps it, as it satisfies ^6.
+      - name: The tests, the CLI and the endpoint on the newest AI SDK 6, then on 6.0.16
+        run: |
+          for versions in 'ai@^6 @ai-sdk/openai@^3' 'ai@6.0.16 @ai-sdk/openai@3.0.7'; do
+            pnpm add -D -w $versions --ignore-scripts
+            node -p "'ai ' + require('ai/package.json').version + ', @ai-sdk/openai ' + require('@ai-sdk/openai/package.json').version"
+            pnpm test --exclude=test/api-report.test.ts -t '^(?!.*first-word limit)' \
+              $(git grep -l -E "Mock[A-Za-z]+ModelV4|specificationVersion: 'v4'" -- 'test/*.ts' 'test/*.tsx' | sed 's/^/--exclude=/')
+            node dist/cli.js index examples/nextjs/content/docs --base-url /docs -e mock -o "$RUNNER_TEMP/ask-index.json"
+            bun scripts/runtime-smoke.mjs "$RUNNER_TEMP/ask-index.json"
+          done
 
   # Known advisories in the locked dependencies. pnpm audit reads pnpm-lock.yaml and asks the npm
   # registry, with no install. A high or critical advisory in a production dependency fails the job,
@@ -437,7 +472,17 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [verify, consumers, recipes, node-compat, windows, runtimes, coverage, ai-floor, audit]
+    needs:
+      - verify
+      - consumers
+      - recipes
+      - node-compat
+      - windows
+      - runtimes
+      - coverage
+      - ai-floor
+      - ai-sdk-6
+      - audit
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

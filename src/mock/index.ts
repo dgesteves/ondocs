@@ -12,7 +12,13 @@
  */
 
 import { simulateReadableStream } from 'ai';
-import { MockEmbeddingModelV4, MockLanguageModelV4 } from 'ai/test';
+import * as aiTest from 'ai/test';
+import {
+  MockEmbeddingModelV3,
+  MockLanguageModelV3,
+  type MockEmbeddingModelV4,
+  type MockLanguageModelV4,
+} from 'ai/test';
 
 import { createFenceScanner, parseAtxHeading, splitFenced } from '../text/markdown';
 import { tokenize } from '../text/tokenize';
@@ -27,6 +33,17 @@ import { tokenize } from '../text/tokenize';
  * (`similarityNeedsKeyword`).
  */
 export const MOCK_MIN_SIMILARITY = 0.2;
+
+/**
+ * What `ai/test` exports as `name`, looked up rather than imported, so that ondocs loads with AI
+ * SDK 6 as well as 7: AI SDK 6 has none of the v4 test models. Where it has none, its v3 ones
+ * stand in, which AI SDK 7 takes too, and what the models below return is the same for both.
+ */
+const fromAiTest = (name: string): unknown => Reflect.get(aiTest, name);
+const MockEmbeddingModel = (fromAiTest('MockEmbeddingModelV4') ??
+  MockEmbeddingModelV3) as typeof MockEmbeddingModelV4;
+const MockLanguageModel = (fromAiTest('MockLanguageModelV4') ??
+  MockLanguageModelV3) as typeof MockLanguageModelV4;
 
 export interface MockEmbeddingModelOptions {
   /** Vector size. Default 512. */
@@ -61,7 +78,7 @@ export function hashEmbedding(text: string, dimensions: number): number[] {
 /** A deterministic, offline embedding model. Its id is `mock-hash-<dimensions>`. */
 export function mockEmbeddingModel(options: MockEmbeddingModelOptions = {}): MockEmbeddingModelV4 {
   const dimensions = options.dimensions ?? 512;
-  return new MockEmbeddingModelV4({
+  return new MockEmbeddingModel({
     provider: 'ondocs',
     modelId: `mock-hash-${String(dimensions)}`,
     maxEmbeddingsPerCall: 2048,
@@ -481,7 +498,7 @@ export function mockStandaloneQuestion(prompt: string): string | null {
  * a follow-up, it joins the follow-up to the question before it (see `mockStandaloneQuestion`).
  */
 export function mockLanguageModel(options: MockLanguageModelOptions = {}): MockLanguageModelV4 {
-  return new MockLanguageModelV4({
+  return new MockLanguageModel({
     provider: 'ondocs',
     modelId: 'mock-extractive',
     doGenerate: ({ prompt }) => {

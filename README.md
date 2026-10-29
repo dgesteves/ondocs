@@ -188,4 +188,4 @@ What ondocs adds: open source you host. The index is a file in your build, the e
 - [Getting started](https://ondocs.vercel.app/docs/getting-started), [Deploying](https://ondocs.vercel.app/docs/deployment), [API](https://ondocs.vercel.app/docs/api), [CLI](https://ondocs.vercel.app/docs/cli), [Benchmarks](https://ondocs.vercel.app/docs/benchmarks) and [FAQ](https://ondocs.vercel.app/docs/faq)
 - [Changelog](./CHANGELOG.md), [Contributing](./CONTRIBUTING.md), [Security](./SECURITY.md)
 
-Requires Node.js 22.12 or later and AI SDK 7 (`ai@^7.0.95`); AI SDK 6 is not supported. [MIT](./LICENSE) © Diogo Esteves
+Requires Node.js 22.13 or later and AI SDK 6 (`ai@^6.0.16`) or 7 (`ai@^7.0.95`); see [Compatibility](https://ondocs.vercel.app/docs/getting-started#compatibility). [MIT](./LICENSE) © Diogo Esteves

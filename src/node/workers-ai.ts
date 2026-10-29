@@ -3,7 +3,9 @@
 // what the binding sends, `{ text: [...] }`, so both sides get the model's default pooling.
 import type { EmbeddingModel } from 'ai';
 
-type EmbeddingModelV4 = Extract<EmbeddingModel, { specificationVersion: 'v4' }>;
+// The embedding model specification both AI SDK 6 and 7 take: AI SDK 7 reads a v3 embedding model
+// as its own v4, with nothing to convert, and AI SDK 6 has no v4.
+type EmbeddingModelV3 = Extract<EmbeddingModel, { specificationVersion: 'v3' }>;
 
 export interface WorkersAiEmbeddingOptions {
   /** Your Cloudflare account's id. */
@@ -33,12 +35,12 @@ interface RunResponse {
 export function workersAiEmbedding(
   modelId: string,
   options: WorkersAiEmbeddingOptions,
-): EmbeddingModelV4 {
+): EmbeddingModelV3 {
   const base = (options.baseUrl ?? 'https://api.cloudflare.com/client/v4').replace(/\/+$/, '');
   const url = `${base}/accounts/${encodeURIComponent(options.accountId)}/ai/run/${modelId}`;
   const fetcher = options.fetch ?? fetch;
   return {
-    specificationVersion: 'v4',
+    specificationVersion: 'v3',
     provider: 'workers-ai',
     modelId,
     maxEmbeddingsPerCall: textsPerRequest(modelId),
