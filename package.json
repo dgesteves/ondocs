@@ -1,6 +1,6 @@
 {
   "name": "ondocs",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "description": "Open-source Ask AI for your docs, with an MCP server for agents: cited answers on your own model key, from one static index built with your site. No vendor, no vector database. Starlight, Docusaurus and VitePress plugins, Next.js, or one script tag.",
   "keywords": [
     "ask-ai",
