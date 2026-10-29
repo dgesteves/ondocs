@@ -464,6 +464,38 @@ describe('answer cache', () => {
     expect(second.model.doStreamCalls).toHaveLength(1);
   });
 
+  it('starts fresh for the same pages embedded, or embedded with another model', async () => {
+    // The content hash covers the pages' text, not the vectors, so these indexes share it.
+    const store = memoryAnswerCache();
+    const keywordOnly = await buildIndex({ documents: corpus });
+    const keyword = setup({
+      index: keywordOnly.index,
+      embeddingModel: undefined,
+      answerCache: { store },
+    });
+    await (await keyword.handler(post(QUESTION))).text();
+    const embedded = setup({ answerCache: { store } });
+    await (await embedded.handler(post(QUESTION))).text();
+    expect(embedded.model.doStreamCalls).toHaveLength(1);
+    expect(embedded.onFinish).toHaveBeenCalledWith(expect.objectContaining({ cached: false }));
+
+    const smaller = mockEmbeddingModel({ dimensions: 256 });
+    const resized = await buildIndex({ documents: corpus, embeddingModel: smaller });
+    expect(resized.index.contentHash).toBe(index.contentHash);
+    const other = setup({
+      index: resized.index,
+      embeddingModel: smaller,
+      answerCache: { store },
+    });
+    await (await other.handler(post(QUESTION))).text();
+    expect(other.model.doStreamCalls).toHaveLength(1);
+
+    // The same index and model still share their answers.
+    const again = setup({ answerCache: { store } });
+    await (await again.handler(post(QUESTION))).text();
+    expect(again.model.doStreamCalls).toHaveLength(0);
+  });
+
   it('keeps neither truncated answers nor keyword-fallback answers', async () => {
     const truncated = setup({ model: scriptedModel(['Vectors are'], 'length'), answerCache: true });
     await (await truncated.handler(post(QUESTION))).text();
