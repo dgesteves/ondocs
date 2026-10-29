@@ -239,9 +239,18 @@ function ids(html) {
   return found;
 }
 
+/** `text` with its percent-escapes decoded, or as it is when one is malformed (`%E0%A4%A`). */
+function decoded(text, decode = decodeURIComponent) {
+  try {
+    return decode(text);
+  } catch {
+    return text;
+  }
+}
+
 /** The built HTML file for `url` in `out`, as a static host serves it, or null. */
 function pageFile(out, url) {
-  const path = decodeURI(new URL(url, 'http://site').pathname).replace(/^\/+|\/+$/g, '');
+  const path = decoded(new URL(url, 'http://site').pathname, decodeURI).replace(/^\/+|\/+$/g, '');
   const candidates = /\.html$/.test(path)
     ? [path]
     : path === ''
@@ -336,7 +345,7 @@ for (const locale of site.locales) {
       pages.set(url, page ? ids(readFileSync(page, 'utf8')) : new Set());
     }
     const found = pages.get(url);
-    if (![chunk.anchor, decodeURIComponent(chunk.anchor)].some((id) => found.has(id))) {
+    if (![chunk.anchor, decoded(chunk.anchor)].some((id) => found.has(id))) {
       missing.push(`${url}#${chunk.anchor}`);
     }
   }

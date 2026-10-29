@@ -6,8 +6,9 @@
 //   pnpm build
 //   node dist/cli.js index examples/nextjs/content/docs --base-url /docs -e mock -o ask-index.json
 //   bun scripts/runtime-smoke.mjs ask-index.json
-//   deno run --allow-read --allow-net --allow-env scripts/runtime-smoke.mjs ask-index.json
+//   deno run --allow-read --allow-net --allow-env --allow-sys=hostname scripts/runtime-smoke.mjs ask-index.json
 //
+// Deno needs --allow-sys=hostname because the AI SDK reads the hostname as it loads.
 // CI's runtimes job runs it on both. Only this script reads the file; the handler gets the parsed
 // index, as a Worker or an edge function that imports it does.
 import { readFileSync } from 'node:fs';

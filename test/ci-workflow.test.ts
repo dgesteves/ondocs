@@ -199,8 +199,14 @@ describe('what CI runs for what ondocs claims', () => {
     expect(commands).toMatch(
       /deno run [^\n]*--allow-sys=hostname[^\n]* scripts\/runtime-smoke\.mjs/,
     );
-    const actions = workflow.jobs.runtimes?.steps.map((step) => step.uses?.split('@')[0]);
+    const steps = workflow.jobs.runtimes?.steps ?? [];
+    const actions = steps.map((step) => step.uses?.split('@')[0]);
     expect(actions).toEqual(expect.arrayContaining(['oven-sh/setup-bun', 'denoland/setup-deno']));
+    // A pinned minor of each, not the latest, which a required job would take unasked.
+    const version = (action: string, input: string) =>
+      steps.find((step) => step.uses?.startsWith(`${action}@`))?.with?.[input];
+    expect(version('oven-sh/setup-bun', 'bun-version')).toMatch(/^\d+\.\d+\.x$/);
+    expect(version('denoland/setup-deno', 'deno-version')).toMatch(/^\d+\.\d+\.x$/);
   });
 
   it('asks a question on each demo in a browser, and opens a citation with Enter', () => {
@@ -254,6 +260,8 @@ describe('what CI runs for what ondocs claims', () => {
     }
     expect(floor('astro')).toBe('5.0.0');
     expect(pinned('astro')).toBe('5.1.5');
+    // Starlight's example at the commit of its 0.32.0 tag, not the tag, which can be moved.
+    expect(script).toMatch(/STARLIGHT_OLDEST_COMMIT = '[0-9a-f]{40}'/);
   });
 });
 

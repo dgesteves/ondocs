@@ -58,6 +58,11 @@ const OLDEST_PEERS = {
   },
   starlight: { '@astrojs/starlight': '0.32.0', astro: '5.1.5' },
 };
+/**
+ * The commit tagged `@astrojs/starlight@0.32.0` in withastro/starlight, whose basics example is the
+ * oldest-peers Starlight site. A tag can be moved to other code; a commit can't.
+ */
+const STARLIGHT_OLDEST_COMMIT = '9b32c6a019efcc3815a9b82bfdab9bbadfe3107c';
 
 /**
  * Per site: how to create it, what to add, what to install and run, where the index lands and
@@ -67,9 +72,10 @@ const OLDEST_PEERS = {
  *
  * Some sites have more to check, such as where their pages are served (`check`, which returns the
  * problems it finds). Under pnpm, a plugin package installed without ondocs must stop the build
- * with a message that starts with `alone`. `llms` is where ondocs writes `llms.txt` and the `.md` copies; a site that
- * serves its own (Fumadocs) has none. The plugins' sites build their pages into `llms`, or into
- * `html`, and each indexed page must link its `.md` copy from its `<head>` (`linked`).
+ * with output that includes `alone`. `llms` is where ondocs writes `llms.txt` and the `.md`
+ * copies; a site that serves its own (Fumadocs) has none. The plugins' sites build their pages
+ * into `llms`, or into `html`, and each indexed page must link its `.md` copy from its `<head>`
+ * (`linked`).
  *
  * @type {Record<string, {
  *   create: (dir: string) => [string, string[], string?] | [string, string[], string?][],
@@ -543,24 +549,32 @@ function oldestPeers(name, site) {
       pin,
       create: (dir) => {
         const repository = `${dir}-repository`;
+        // The commit alone, with no history and only the example's files: GitHub serves a
+        // commit by its id.
         return [
           ['rm', ['-rf', repository]],
+          ['git', ['init', '-q', repository]],
+          ['git', ['sparse-checkout', 'set', 'examples/basics'], repository],
+          [
+            'git',
+            ['remote', 'add', 'origin', 'https://github.com/withastro/starlight.git'],
+            repository,
+          ],
           [
             'git',
             [
-              'clone',
+              'fetch',
+              '-q',
               '--depth',
               '1',
-              '--branch',
-              `@astrojs/starlight@${pin['@astrojs/starlight']}`,
               '--filter',
               'blob:none',
-              '--sparse',
-              'https://github.com/withastro/starlight.git',
-              repository,
+              'origin',
+              STARLIGHT_OLDEST_COMMIT,
             ],
+            repository,
           ],
-          ['git', ['sparse-checkout', 'set', 'examples/basics'], repository],
+          ['git', ['-c', 'advice.detachedHead=false', 'checkout', '-q', 'FETCH_HEAD'], repository],
           ['cp', ['-R', join(repository, 'examples/basics'), dir]],
         ];
       },
@@ -698,15 +712,19 @@ async function run(command, args, { cwd, env } = {}) {
 /**
  * Runs a command and returns its exit code and output, which it also prints unless `quiet`
  * leaves the output to the terminal. On Windows, npm and npx are .cmd files, which only a shell
- * runs; the arguments the Windows job passes have no spaces or quotes.
+ * runs, so there the shell gets one command line: Node warns (DEP0190) when a shell is given
+ * arguments, which it does not quote. The arguments the Windows job passes have no spaces or
+ * quotes.
  */
 async function capture(command, args, { cwd, env, quiet = false } = {}) {
-  console.log(`\n$ ${[command, ...args].join(' ')}`);
-  const child = spawn(command, args, {
+  const line = [command, ...args].join(' ');
+  console.log(`\n$ ${line}`);
+  const shell = process.platform === 'win32';
+  const child = spawn(shell ? line : command, shell ? [] : args, {
     cwd,
     env: { ...process.env, ...env },
     stdio: quiet ? 'inherit' : ['ignore', 'pipe', 'pipe'],
-    shell: process.platform === 'win32',
+    shell,
   });
   let output = '';
   for (const stream of [child.stdout, child.stderr]) {

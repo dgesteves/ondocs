@@ -345,8 +345,14 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # The newest patch of a pinned minor, so a new minor of either runtime is a change here
+      # rather than a red required job on an unrelated pull request.
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.x
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.x
       - name: Index the website's docs with the mock model
         run: node dist/cli.js index examples/nextjs/content/docs --base-url /docs -e mock -o "$RUNNER_TEMP/ask-index.json"
       - name: Ask the endpoint on Bun
