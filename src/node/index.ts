@@ -33,10 +33,11 @@ export const DEFAULT_EXTENSIONS = ['.md', '.mdx', '.markdown', '.html', '.htm'] 
  * How a docs framework turns content files into URLs:
  *
  * - `docusaurus` (docs plugin): frontmatter `slug` (absolute, or resolved against the page's
- *   folder) and `id`, number prefixes dropped (`01-intro.md` → `intro`, but not `2024-12-recap.md`
- *   or `1.0-release.md`), `index`, `README` or a file named like its folder as the folder's page,
- *   and `_`-prefixed files and folders as partials. A heading's footnote references (`[^1]`) are
- *   left out of its anchor, as Docusaurus leaves them out of its id.
+ *   folder) and `id`, which is used as written, number prefixes dropped from file and folder
+ *   names (`01-intro.md` → `intro`, but not `2024-12-recap.md` or `1.0-release.md`), `index`,
+ *   `README` or a file named like its folder as the folder's page, and `_`-prefixed files and
+ *   folders as partials. A heading's footnote references (`[^1]`) are left out of its anchor, as
+ *   Docusaurus leaves them out of its id.
  * - `starlight`: frontmatter `slug` replaces the path, segments are slugified, `index` is the
  *   folder's page, and `_`-prefixed files are skipped.
  * - `next`: a Next.js site, by the rules of the folder read: in an App Router folder (`app` or
@@ -211,9 +212,10 @@ export function frameworkUrl(
     const slugValue = text(frontmatter.slug);
     if (slugValue !== undefined) return toUrl(posix.resolve(folder, slugValue));
     if (isIndex) return toUrl(folder);
+    // As Docusaurus's own `frontMatter.id ?? unprefixedFileName`: an id is used as written.
     const id = text(frontmatter.id);
-    const page = id && !id.includes('/') ? id : name;
-    return toUrl(posix.resolve(folder, strip ? stripNumberPrefix(page) : page));
+    const page = id && !id.includes('/') ? id : strip ? stripNumberPrefix(name) : name;
+    return toUrl(posix.resolve(folder, page));
   }
   if (framework === 'starlight') {
     const slugValue = text(frontmatter.slug);
