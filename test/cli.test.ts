@@ -401,6 +401,33 @@ describe('ondocs index', () => {
     expect(index.chunks.every((c) => c.vector === undefined)).toBe(true);
   });
 
+  it('warns when the index it writes is over 20 MiB, naming the limits and the ways to shrink it', async () => {
+    // 22 pages of about 1 MB each: a keyword-only index of about 25 MB.
+    await rm(join(cwd, 'content'), { recursive: true });
+    await mkdir(join(cwd, 'content'));
+    const page = `# Page\n\n${'Deploy the site and the endpoint reads the index. '.repeat(21_000)}\n`;
+    for (let i = 0; i < 22; i += 1) await writeFile(join(cwd, `content/p${String(i)}.md`), page);
+
+    const large = await run('index', 'content', '-e', 'none');
+    expect(large.code).toBe(0);
+    const warning = large.stdout.split('\n').find((line) => line.startsWith('! '));
+    expect(warning).toMatch(/^! ask-index\.json is 2\d\.\d MiB\. Cloudflare Pages and Workers /);
+    expect(warning).toContain('over 25 MiB');
+    expect(warning).toContain('128 MB of memory');
+    expect(warning).toContain('leave pages out (--ignore <glob>)');
+    expect(warning).toContain('one index per locale');
+    expect(warning).toContain('https://ondocs.vercel.app/docs/limits#index-size');
+    // A keyword-only index has no vectors to make smaller.
+    expect(warning).not.toContain('--dimensions');
+    expect(warning).not.toContain('--embedding none');
+
+    // Half the pages make an index under the threshold, with no warning.
+    const small = await run('index', 'content', '-e', 'none', '--ignore', 'p1*.md');
+    expect(small.code).toBe(0);
+    expect(small.stdout).toMatch(/✓ 9\d{3} chunks → ask-index\.json/);
+    expect(small.stdout).not.toContain('! ');
+  });
+
   it('honours --ignore and a config module with extra documents', async () => {
     await writeFile(
       join(cwd, 'ask.config.mjs'),

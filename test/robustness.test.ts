@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, inject, it } from 'vitest';
 
 import GithubSlugger from 'github-slugger';
 
@@ -28,23 +28,108 @@ const doc = (content: string, title = 'Page'): SourceDocument => ({
  * The budget for one hostile input. The slowest linear cases here take under 100 ms on a laptop and
  * have measured 261 to 328 ms on CI runners, while the fastest quadratic case they catch took 0.8 s
  * on a laptop (unclosed `<pre>`, below) and several times that on CI. So 250 ms locally and 1 s on
- * CI both tell them apart.
+ * CI both tell them apart, on a machine running at its usual speed.
  */
-const BUDGET_MS = process.env.CI ? 1000 : 250;
+const LOCAL_BUDGET_MS = 250;
+const USUAL_BUDGET_MS = process.env.CI ? 1000 : LOCAL_BUDGET_MS;
 
 /**
- * Runs `fn` three times and returns the fastest, in milliseconds. A GC pause or a busy CI runner
- * can slow one run several times over; the quadratic cases these tests guard against take seconds.
+ * Under coverage the times say little: the instrumentation slowed chunking 2.3 times and init's
+ * config reader 5.8 times (the line of `/`s below), so the cases run with no budget there.
+ * vitest.config.ts provides `coverage` from the resolved config, however coverage was turned on;
+ * `pnpm test` and CI's verify job keep the budget.
  */
-function timed(fn: () => unknown): number {
-  let fastest = Infinity;
+const BUDGET_MS = inject('coverage') ? Infinity : USUAL_BUDGET_MS;
+
+/**
+ * A linear workload to measure the machine's speed by, which runs none of ondocs's code, so no
+ * change to ondocs can make it slow and loosen the budget: 1.9 MB of Markdown, split into lines,
+ * the headings found and the other lines' marks stripped, in plain JavaScript. It takes about
+ * 20 ms on an Apple M1 Max shared with other work, and on CI the budget allows 4 times that.
+ */
+const REFERENCE = Array.from(
+  { length: 15_000 },
+  (_, i) =>
+    `## Section ${String(i)}\n\nA paragraph with a [link](/x/${String(i)}), some \`code\`, and *emphasis*.\n\n- one\n- two\n\n\`\`\`js\nconst x = ${String(i)};\n\`\`\`\n`,
+).join('\n');
+const REFERENCE_MS = 20 * (USUAL_BUDGET_MS / LOCAL_BUDGET_MS);
+function reference(): string[] {
+  const sections: string[][] = [];
+  for (const line of REFERENCE.split('\n')) {
+    if (/^#{1,6} /.test(line)) sections.push([]);
+    else sections.at(-1)?.push(line.replace(/[`*[\]()]/g, ''));
+  }
+  return sections.map((lines) => lines.join(' ').trim());
+}
+
+/**
+ * The most a busy machine can excuse. However slow the reference runs, a case 3 times over the
+ * budget at the usual speed still fails, as the unclosed `<pre>` case did when it was quadratic
+ * (3.2 times over).
+ */
+const MAX_SLOWDOWN = 3;
+
+/** The fastest of three runs of `fn`, in milliseconds. A GC pause can slow one run several times over. */
+function fastest(fn: () => unknown): number {
+  let best = Infinity;
   for (let run = 0; run < 3; run++) {
     const start = performance.now();
     fn();
-    fastest = Math.min(fastest, performance.now() - start);
+    best = Math.min(best, performance.now() - start);
   }
-  return fastest;
+  return best;
 }
+
+/**
+ * A case's time, `ms`, as on a machine running at its usual speed: divided by how many times
+ * slower than `REFERENCE_MS` the reference ran, `referenceMs`, when it was slower, up to
+ * `MAX_SLOWDOWN`. Other work on the machine slows a linear case as much as it slows the
+ * reference, so the case stays under the budget; a quadratic case takes seconds at the usual
+ * speed, and stays over it.
+ */
+function atUsualSpeed(ms: number, referenceMs: number): number {
+  return ms / Math.min(MAX_SLOWDOWN, Math.max(1, referenceMs / REFERENCE_MS));
+}
+
+/**
+ * How long `fn` takes, in milliseconds, for the budget. Over the budget, it measures `fn` again,
+ * with the reference just before and just after, and gives the time `atUsualSpeed` by the slower
+ * of the two. Sampled every 20 s for 20 minutes on a 10-core machine shared with other builds, at
+ * load averages from 7 to 24, the reference then (ondocs's chunker, on 730 KB) took 18.7 to
+ * 34.3 ms: a fixed budget that holds on a quiet machine fails on a busy one.
+ */
+function timed(fn: () => unknown): number {
+  const first = fastest(fn);
+  if (first < BUDGET_MS) return first;
+  const before = fastest(reference);
+  const again = fastest(fn);
+  const after = fastest(reference);
+  return atUsualSpeed(Math.min(first, again), Math.max(before, after));
+}
+
+describe('the time budget', () => {
+  it('lets a linear case through on a busy machine, and still catches a quadratic one', () => {
+    // A linear case 20% over the budget, while the machine runs at two thirds of its usual speed.
+    expect(atUsualSpeed(1.2 * USUAL_BUDGET_MS, 1.5 * REFERENCE_MS)).toBeLessThan(USUAL_BUDGET_MS);
+    // A linear case at 2.5 times the budget, on a machine at a third of its usual speed.
+    expect(atUsualSpeed(2.5 * USUAL_BUDGET_MS, 3 * REFERENCE_MS)).toBeLessThan(USUAL_BUDGET_MS);
+    // The unclosed <pre> case, when it was quadratic: 3.2 times the budget at the usual speed.
+    expect(atUsualSpeed(3.2 * 1.5 * USUAL_BUDGET_MS, 1.5 * REFERENCE_MS)).toBeGreaterThan(
+      USUAL_BUDGET_MS,
+    );
+    // The same case with the reference 10 times slower than usual, whatever slowed it: the
+    // slowdown is capped, so the case still fails.
+    expect(atUsualSpeed(3.2 * USUAL_BUDGET_MS, 10 * REFERENCE_MS)).toBeGreaterThan(USUAL_BUDGET_MS);
+    // A machine faster than usual leaves the time as it is.
+    expect(atUsualSpeed(1.2 * USUAL_BUDGET_MS, REFERENCE_MS / 2)).toBe(1.2 * USUAL_BUDGET_MS);
+  });
+
+  it('measures the machine with plain JavaScript of a fixed size, one text per section', () => {
+    expect(reference()).toHaveLength(15_000);
+    // Not so short that the timer's resolution decides it.
+    expect(fastest(reference)).toBeGreaterThan(2);
+  });
+});
 
 describe('linear-time parsing of hostile input', () => {
   it('parses headings with long whitespace runs quickly', () => {
