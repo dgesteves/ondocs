@@ -113,6 +113,11 @@ jobs:
         run: pnpm exec playwright-core install --with-deps --only-shell chromium
       - name: JavaScript per page and the dialog's focus, in a browser
         run: node scripts/js-weight.mjs docusaurus starlight vitepress next embed --check
+      # A question asked on each demo and on the script tag's page, as a visitor asks it, with a
+      # handler in the script answering: the answer's citations and sources, axe on the dialog in
+      # the light and dark schemes, and Enter on a citation opening the cited section.
+      - name: Ask a question on each demo in a browser, and open a citation with Enter
+        run: node scripts/browser-ask.mjs docusaurus starlight vitepress embed
       - name: Every page of the website fits a 390px screen, without scrolling sideways
         run: node scripts/mobile-width.mjs
 
@@ -124,8 +129,13 @@ jobs:
   # Nextra has no scaffolder, so its site is the docs starter from the Nextra repository at a
   # pinned tag. The Fumadocs and Nextra sites' index must have every docs page next build
   # generated, and nothing else.
+  #
+  # Each site installs with npm and the latest of its framework. Five more runs install with pnpm,
+  # which gives a site only its direct dependencies where npm hoists the rest (starlight-ondocs
+  # alone must stop the build and say to install ondocs), or on the oldest Docusaurus, React,
+  # Astro and Starlight the peer ranges allow.
   consumers:
-    name: Fresh ${{ matrix.site }} site, from the packed package
+    name: Fresh ${{ matrix.site }} site, from the packed package${{ matrix.variant && format(', {0}', matrix.variant) || '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -141,6 +151,23 @@ jobs:
           - vitepress
           - docusaurus-plugin-ondocs
           - starlight-ondocs
+        variant: ['']
+        include:
+          - site: starlight
+            variant: with pnpm
+            flags: --pm=pnpm
+          - site: starlight-ondocs
+            variant: with pnpm
+            flags: --pm=pnpm
+          - site: docusaurus-plugin-ondocs
+            variant: with pnpm
+            flags: --pm=pnpm
+          - site: docusaurus
+            variant: on the oldest peers
+            flags: --oldest-peers
+          - site: starlight
+            variant: on the oldest peers
+            flags: --oldest-peers
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -155,13 +182,13 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.npm
-          key: consumer-${{ matrix.site }}-${{ steps.week.outputs.week }}
-          restore-keys: consumer-${{ matrix.site }}-
+          key: consumer-${{ matrix.site }}${{ matrix.flags }}-${{ steps.week.outputs.week }}
+          restore-keys: consumer-${{ matrix.site }}${{ matrix.flags }}-
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: npm pack --pack-destination "$RUNNER_TEMP"
       - name: Create, build and check the site
-        run: node scripts/consumer-site.mjs ${{ matrix.site }} "$RUNNER_TEMP"/ondocs-*.tgz "$RUNNER_TEMP/site"
+        run: node scripts/consumer-site.mjs ${{ matrix.site }} "$RUNNER_TEMP"/ondocs-*.tgz "$RUNNER_TEMP/site" ${{ matrix.flags }}
 
   # What `ondocs init` writes for each host, built with that host's own tooling (vercel build,
   # netlify build --offline and serve, wrangler --dry-run and local dev), signed in to nothing, then
@@ -206,24 +233,151 @@ jobs:
       - name: Write, build and ask the endpoint
         run: node scripts/deploy-recipes.mjs ${{ matrix.recipe }} "$RUNNER_TEMP"/ondocs-*.tgz "$RUNNER_TEMP/site"
 
+  # The oldest Node.js the engines field allows, 22.12.0, and the newest, 26: the tests and the
+  # built CLI on each. The tooling runs on 24, as it needs a newer 22 (pnpm 12 asks for 22.13 and
+  # tsdown for 22.18), so the job installs and builds there, then switches. On 22.12.0 the tests
+  # that run in jsdom are left out: jsdom 30 asks for Node 22.22, and what they test, the dialog,
+  # runs in a browser, not on Node.js. So is one case: on 22.12 alone (22.13 fixed it), require()
+  # of an ES module that throws as it loads also rejects, unhandled, which ends the process, and
+  # the case is a provider package that fails to load.
   node-compat:
     name: Test on Node ${{ matrix.node }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
-        node: [22]
+        node: ['22.12.0', 26]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # pnpm's own executable, which runs whichever Node.js is set up, as the tests call pnpm.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          standalone: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/corpus.mjs
+      - run: pnpm build
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - name: The tests, on Node ${{ matrix.node }}
+        env:
+          NODE_VERSION: ${{ matrix.node }}
+        run: |
+          node --version | grep "^v$NODE_VERSION"
+          if [ "$NODE_VERSION" = 22.12.0 ]; then
+            node node_modules/vitest/vitest.mjs run -t '^(?!.*installed but fails to load)' $(git grep -l -e '@vitest-environment jsdom' -- test | sed 's/^/--exclude=/')
+          else
+            pnpm test
+          fi
+      - name: CLI smoke test, on Node ${{ matrix.node }}
+        run: |
+          node dist/cli.js index examples/nextjs/content/docs --base-url /docs -e mock -o "$RUNNER_TEMP/ask-index.json" --llms-txt "$RUNNER_TEMP/llms"
+          node dist/cli.js index examples/nextjs/content/docs --base-url /docs -e mock -o "$RUNNER_TEMP/ask-index.json" --check
+          test -s "$RUNNER_TEMP/llms/llms.txt" && test -s "$RUNNER_TEMP/llms/docs/mcp.md"
+
+  # Windows, where many Docusaurus and Starlight sites are built: the tests, and a fresh
+  # Docusaurus site from the packed package, as the consumers job builds one. Paths there have
+  # backslashes, which the plugins turn into URLs (src/node/index.ts, src/integration/llms.ts).
+  windows:
+    name: Test on Windows, and build a fresh Docusaurus site there
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Git for Windows checks text files out with CRLF line ends; the tests and the
+      # repository's files expect LF, as on every other runner.
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/corpus.mjs
+      # Every test file but these, which fail on Windows for reasons of their own: they compare
+      # paths, file lists or messages with `/` where Windows gives `\` (astro, cli, dev,
+      # framework-guides, init, readme-claims, runtime-neutral, website, eval/real-questions),
+      # spawn npm or pnpm without a shell, which Windows needs for their .cmd files (npm-readme,
+      # plugin-packages), or put POSIX shell stand-ins on PATH (release-workflow). Each one that
+      # is made to pass leaves this list.
+      - name: The tests, but those that assume POSIX paths and tools
+        run: >-
+          pnpm test
+          --exclude test/astro.test.ts
+          --exclude test/cli.test.ts
+          --exclude test/dev.test.ts
+          --exclude test/eval/real-questions.test.ts
+          --exclude test/framework-guides.test.ts
+          --exclude test/init.test.ts
+          --exclude test/npm-readme.test.ts
+          --exclude test/plugin-packages.test.ts
+          --exclude test/readme-claims.test.ts
+          --exclude test/release-workflow.test.ts
+          --exclude test/runtime-neutral.test.ts
+          --exclude test/website.test.tsx
+      - run: pnpm build
+      - run: npm pack
+      - name: Create, build and check a fresh Docusaurus site
+        run: node scripts/consumer-site.mjs docusaurus ondocs-*.tgz "$RUNNER_TEMP/site"
+
+  # The endpoint on Bun and on Deno, which Getting started says it runs on: the built handler,
+  # served by Bun.serve and Deno.serve as the docs show, asked a question over HTTP with the mock
+  # models (scripts/runtime-smoke.mjs). Deno also asks for the hostname to be allowed, which the
+  # AI SDK reads as it loads.
+  runtimes:
+    name: The endpoint on Bun and Deno
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # The newest patch of a pinned minor, so a new minor of either runtime is a change here
+      # rather than a red required job on an unrelated pull request.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.x
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: 2.9.x
+      - name: Index the website's docs with the mock model
+        run: node dist/cli.js index examples/nextjs/content/docs --base-url /docs -e mock -o "$RUNNER_TEMP/ask-index.json"
+      - name: Ask the endpoint on Bun
+        run: bun --version && bun scripts/runtime-smoke.mjs "$RUNNER_TEMP/ask-index.json"
+      - name: Ask the endpoint on Deno
+        run: deno --version && deno run --allow-read --allow-net --allow-env --allow-sys=hostname scripts/runtime-smoke.mjs "$RUNNER_TEMP/ask-index.json"
+
+  # The tests with coverage of src/ (vitest.config.ts), which fail under its thresholds. The
+  # robustness tests run without their time budget there: coverage slows code by how much depends
+  # on the code. The verify job keeps the budget.
+  coverage:
+    name: Test coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: node scripts/corpus.mjs
-      - run: pnpm test
-      - run: pnpm build
+      - name: The tests with coverage, against the thresholds
+        run: pnpm test:coverage
 
   # The oldest ai the peer range allows, over the lockfile's: a site that already has an older
   # ai 7 keeps it when it installs ondocs, while the jobs above run the lockfile's ai and the fresh
@@ -283,7 +437,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [verify, consumers, recipes, node-compat, ai-floor, audit]
+    needs: [verify, consumers, recipes, node-compat, windows, runtimes, coverage, ai-floor, audit]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
