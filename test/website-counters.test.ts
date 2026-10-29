@@ -92,26 +92,25 @@ async function ask(question: string, client: number, origin?: string, route = as
 // ─── Ask's budget ───────────────────────────────────────────────────────────
 
 describe("the website's Ask budget", () => {
-  it('allows 1,500 questions and 5M tokens a day for launch week', () => {
-    expect(ASK_BUDGET).toMatchObject({ requestsPerDay: 1_500, tokensPerDay: 5_000_000 });
+  it('allows 300 questions and 1M tokens a day', () => {
+    expect(ASK_BUDGET).toMatchObject({ requestsPerDay: 300, tokensPerDay: 1_000_000 });
     // An answer spends about 3k tokens, prompt and sources included, so the token cap must leave
     // more than that for each question, or it runs out before the question cap.
     expect(ASK_BUDGET.tokensPerDay / ASK_BUDGET.requestsPerDay).toBeGreaterThan(3_000);
   });
 
-  it('answers the 1,500 questions a day the site and the demos share, then turns them away', async () => {
+  it('answers the 300 questions a day the site and the demos share, then turns them away', async () => {
     // A new instance, with the whole day's budget.
     vi.resetModules();
     const route = await loadAskRoute();
     const statuses: number[] = [];
-    for (let n = 0; n < 1_500; n++) {
+    for (let n = 0; n < ASK_BUDGET.requestsPerDay; n++) {
       // Five questions from each client, its rate limit's burst.
       statuses.push((await ask(unanswerable(n), Math.floor(n / 5), undefined, route)).status);
     }
-    // Before launch week's caps, the 301st already got a 429 (budget_exceeded), on every surface.
     expect(statuses.findIndex((status) => status !== 200)).toBe(-1);
     const over = await ask(
-      unanswerable(1_500),
+      unanswerable(ASK_BUDGET.requestsPerDay),
       1_000,
       'https://ondocs-vitepress.vercel.app',
       route,
