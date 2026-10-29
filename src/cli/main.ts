@@ -10,7 +10,7 @@ import { DEFAULT_CHUNKING } from '../chunk';
 import type { AskIndexFile } from '../index-file';
 import { embeddingFromSpec, EmbeddingSpecError } from '../node/embedding';
 import { nextRouting, type NextRouting } from '../node/next';
-import { checkIndexOptions, DEFAULT_DIMENSIONS } from '../integration/build';
+import { checkIndexOptions, DEFAULT_DIMENSIONS, largeIndexWarning } from '../integration/build';
 import { llmsOutputs, writeLlmsFiles } from '../integration/llms';
 import { checkOptions, optionRules } from '../integration/options';
 import { markdownCopies, resolveMarkdownLinks, rootedPath, type LlmsPage } from '../llms';
@@ -651,9 +651,20 @@ export async function main(args: string[], io: CliIO): Promise<number> {
     const reuse = index.embedding
       ? `, ${String(stats.embedded)} embedded, ${String(stats.reused)} reused`
       : '';
+    const bytes = statSync(out).size;
     log(
-      `✓ ${String(stats.chunks)} chunks${reuse} → ${outLabel} (${formatBytes(statSync(out).size)}, ${seconds}s)`,
+      `✓ ${String(stats.chunks)} chunks${reuse} → ${outLabel} (${formatBytes(bytes)}, ${seconds}s)`,
     );
+    // --dimensions does not apply to the config's own model or to a Workers AI model.
+    const spec = flags.embedding ?? config.embedding;
+    const resizable = spec === undefined ? !config.embeddingModel : !spec.startsWith('workers-ai:');
+    const large = largeIndexWarning(outLabel, bytes, index.embedding, {
+      ...(resizable ? { dimensions: `--dimensions ${String(DEFAULT_DIMENSIONS)}` } : {}),
+      keywordOnly: '--embedding none',
+      exclude: '--ignore <glob>',
+      locales: "split it into one index per locale, by indexing each locale's folder on its own",
+    });
+    if (large) log(`! ${large}`);
     if (flags.llms) {
       await writeLlms(flags.llms, config, directory, documents, io, log);
     }
