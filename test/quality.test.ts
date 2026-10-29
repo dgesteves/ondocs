@@ -340,13 +340,17 @@ describe('the answer prompt', () => {
     // In the brevity rule itself, so that being short never reads as leaving the step out.
     const concise = /^4\. Be concise:.*$/m.exec(await rules())?.[0] ?? '';
     expect(concise).toContain(
-      'For a how-to question, include the exact command, option or config line from the sources, as code',
+      'For a how-to question, when the sources give the command, option or config line, quote it exactly, as code',
     );
     expect(concise).toContain('concise never means leaving out the step');
     // One answer never named the lint rule it was about; another gave AI SDK 7's option and left
     // out AI SDK 6's, which the same page gives.
-    expect(concise).toContain('name the component, rule or function it uses');
-    expect(concise).toContain('more than one version or setup, give each');
+    expect(concise).toContain('name the component, rule or function they say it uses');
+    // Only what the sources show, and every setup only when the question names none.
+    expect(concise).toContain('Never write a command, option or name the sources do not show.');
+    expect(concise).toContain(
+      'If the question does not say which version or setup and the sources give the step for several, give each.',
+    );
   });
 
   it('keeps five numbered rules, so `(defaults) => defaults + "\\n6. …"` still reads in order', async () => {
