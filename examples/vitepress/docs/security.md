@@ -97,11 +97,11 @@ The answer is rendered from a small Markdown subset into React nodes, never as H
 
 ## Pin the script tag
 
-`ondocs@0.17` in the script tag's URL follows that minor version's patches, so a new patch reaches your pages without a change on your side. In production, pin an exact version and check both files with [Subresource Integrity](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity): the browser then runs them only if they are the bytes you checked. `integrity` covers `embed.global.js`, and `data-dialog-integrity` (read from ondocs 0.16 on) the dialog's file, `embed-dialog.global.js`, which the script adds to the page when the dialog is first wanted:
+`ondocs@0.18` in the script tag's URL follows that minor version's patches, so a new patch reaches your pages without a change on your side. In production, pin an exact version and check both files with [Subresource Integrity](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity): the browser then runs them only if they are the bytes you checked. `integrity` covers `embed.global.js`, and `data-dialog-integrity` (read from ondocs 0.16 on) the dialog's file, `embed-dialog.global.js`, which the script adds to the page when the dialog is first wanted:
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.17.0/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.18.0/dist/embed.global.js"
   integrity="sha384-…"
   data-dialog-integrity="sha384-…"
   crossorigin="anonymous"
@@ -114,7 +114,7 @@ Get the two hashes for the version you pin:
 
 ```sh
 for file in embed.global.js embed-dialog.global.js; do
-  hash=$(set -o pipefail; curl -fsSL "https://cdn.jsdelivr.net/npm/ondocs@0.17.0/dist/$file" | openssl dgst -sha384 -binary | openssl base64 -A) || break
+  hash=$(set -o pipefail; curl -fsSL "https://cdn.jsdelivr.net/npm/ondocs@0.18.0/dist/$file" | openssl dgst -sha384 -binary | openssl base64 -A) || break
   echo "$file sha384-$hash"
 done
 ```
