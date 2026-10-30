@@ -18,18 +18,17 @@ describe('what the README claims', () => {
     expect(read('CONTRIBUTING.md')).toContain(`Node ${String(required)} or later`);
   });
 
-  it('states the AI SDK version the ai peer range requires', () => {
-    // ondocs uses AI SDK 7's API, which AI SDK 6 lacks, and ai 7.0s before the floor fail
-    // (test/ai-peer-floor.test.ts): "any AI SDK provider" alone does not say so.
+  it('states each AI SDK version the ai peer range allows', () => {
+    // ondocs runs on AI SDK 6 and 7, each from the floor CI tests (test/ai-peer-floor.test.ts):
+    // "any AI SDK provider" alone does not say which.
     const range = (JSON.parse(read('package.json')) as { peerDependencies: { ai: string } })
       .peerDependencies.ai;
-    const major = /^\^(\d+)\./.exec(range)?.[1];
-    expect(major).toBeDefined();
-    expect(readme).toContain(`AI SDK ${String(major)} (\`ai@${range}\`)`);
-    // A project on AI SDK 6 has to move to 7 first: say so, as Getting started does.
+    const [six, seven] = range.split(' || ');
+    expect([six?.slice(0, 3), seven?.slice(0, 3)]).toEqual(['^6.', '^7.']);
     expect(readme).toContain(
-      `AI SDK ${String(major)} (\`ai@${range}\`); AI SDK ${String(Number(major) - 1)} is not supported`,
+      `AI SDK 6 (\`ai@${String(six)}\`) or 7 (\`ai@${String(seven)}\`); see [Compatibility]`,
     );
+    expect(readme).not.toMatch(/AI SDK \d+ is not supported/);
   });
 
   it('does not say the live demo runs without a model key', () => {

@@ -607,6 +607,7 @@ interface FollowUpOptions {
   model?: LanguageModel
 }
 type GenerationOptions = {
+  telemetry?: SettingOf<StreamTextOptions, 'telemetry', SettingOf<StreamTextOptions, 'experimental_telemetry'>>
 }
 type IndexSource = object | string
 const MCP_PROTOCOL_VERSIONS: readonly string[]
@@ -995,8 +996,8 @@ interface MockLanguageModelOptions {
 }
 function extractiveAnswer(prompt: string): string
 function hashEmbedding(text: string, dimensions: number): number[]
-function mockEmbeddingModel(options?: MockEmbeddingModelOptions): MockEmbeddingModelV4
-function mockLanguageModel(options?: MockLanguageModelOptions): MockLanguageModelV4
+function mockEmbeddingModel(options?: MockEmbeddingModelOptions): InstanceType<EmbeddingModelClass>
+function mockLanguageModel(options?: MockLanguageModelOptions): InstanceType<LanguageModelClass>
 function mockStandaloneQuestion(prompt: string): string | null
 
 # ondocs/embed

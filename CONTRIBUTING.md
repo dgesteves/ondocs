@@ -12,7 +12,7 @@ Fixes to the integrations ondocs has are welcome all along, and so is moving one
 
 ## Setup
 
-Node 22.12 or later (CI uses 24) and pnpm (the version in `package.json`'s `packageManager`; `corepack enable` picks it up).
+Node 22.13 or later (CI uses 24) and pnpm (the version in `package.json`'s `packageManager`; `corepack enable` picks it up).
 
 ```bash
 pnpm install

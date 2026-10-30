@@ -90,12 +90,14 @@ describe('the ondocs-setup skill', () => {
       peerDependencies: { ai: string };
     };
     const node = /^>=(\d+\.\d+)\.0$/.exec(engines.node)?.[1];
-    const ai = /^\^(\d+)\./.exec(peerDependencies.ai)?.[1];
+    const [six, seven] = peerDependencies.ai.split(' || ').map((range) => range.replace(/^\^/, ''));
     expect(node).toBeDefined();
-    expect(ai).toBeDefined();
+    expect([six?.split('.')[0], seven?.split('.')[0]]).toEqual(['6', '7']);
     expect(body).toContain(`ondocs needs Node.js ${String(node)} or later`);
-    expect(body).toContain(`ondocs needs AI SDK ${String(ai)}.`);
-    expect(body).toContain(`version ${String(Number(ai) - 1)} or lower`);
+    expect(body).toContain(
+      `ondocs needs AI SDK 6 (${String(six)} or later) or 7 (${String(seven)} or later).`,
+    );
+    expect(body).toContain('version 5 or lower');
   });
 
   it('installs what each framework’s guide installs: ondocs and its peers', () => {
