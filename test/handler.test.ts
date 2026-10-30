@@ -493,6 +493,9 @@ describe('createAskHandler', () => {
       expect(() => setup({ allowedOrigins: ['*'] })).toThrow(
         "allowedOrigins lists '*': pass allowedOrigins: '*' to allow any origin.",
       );
+      expect(() => setup({ allowedOrigins: ['https://*.blog.example'] })).toThrow(
+        'allowedOrigins takes exact origins, not patterns (got "https://*.blog.example"): list each origin.',
+      );
       // From JavaScript, a string was searched as text: 'https://blog.example' let https://b in.
       expect(() => setup({ allowedOrigins: 'https://blog.example' as '*' })).toThrow(
         /^allowedOrigins takes '\*' or a list of origins/,

@@ -99,6 +99,8 @@ function cleanProse(prose: string, mdx: boolean, markdown: boolean): string {
 
 const ESM_START = /^(?:import|export)\s/;
 const FENCE_LIKE = /^\s*(?:`{3,}|~{3,})/;
+/** Lines after which MDX starts a block: a JSX tag or `{expression}` on its own line, a thematic break or a setext underline. */
+const BLOCK_LINE = /^ {0,3}(?:<\/?[A-Za-z][^<>]*>|\{.*\}|(?:[-*_][ \t]*){3,}|=+[ \t]*|-+[ \t]*)$/;
 
 /**
  * MDX's `import` and `export` blocks dropped: one starts a line that starts a block (the first
@@ -109,19 +111,23 @@ function removeEsm(prose: string): string {
   if (!prose.includes('import') && !prose.includes('export')) return prose;
   const kept: string[] = [];
   let inEsm = false;
+  let inFence = false;
   let blockStart = true;
   for (const line of prose.split('\n')) {
     const blank = line.trim() === '';
+    const fence = FENCE_LIKE.test(line);
     if (inEsm) {
       // A fence line ends it too: code that is not a fence here, such as one indented in JSX.
-      if (!blank && !FENCE_LIKE.test(line)) continue;
+      if (!blank && !fence) continue;
       inEsm = false;
-    } else if (blockStart && ESM_START.test(line)) {
+    } else if (!inFence && blockStart && ESM_START.test(line)) {
       inEsm = true;
       continue;
     }
+    // A fence indented in JSX is code to MDX: an `export` line inside it stays.
+    if (fence) inFence = !inFence;
     kept.push(line);
-    blockStart = blank || parseAtxHeading(line) !== null;
+    blockStart = blank || parseAtxHeading(line) !== null || BLOCK_LINE.test(line);
   }
   return kept.join('\n');
 }
