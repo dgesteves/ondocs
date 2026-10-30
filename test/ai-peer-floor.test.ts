@@ -51,6 +51,14 @@ describe('the ai peer range', () => {
       expect(script).toContain(command);
     }
     expect(script).toContain('bun scripts/runtime-smoke.mjs');
+    // The real-world docs that test/corpus.test.ts searches, fetched before the tests.
+    expect(runs('ai-sdk-6').indexOf('node scripts/corpus.mjs')).toBeGreaterThan(
+      runs('ai-sdk-6').indexOf('pnpm install --frozen-lockfile'),
+    );
+    // An index file for each version: given one already there, the CLI would reuse its embeddings.
+    expect(script).toContain('-o "$RUNNER_TEMP/ask-index-$ai.json"');
+    // The built type declarations, checked on each AI SDK 6 as a project without skipLibCheck does.
+    expect(script).toContain('pnpm exec tsc --ignoreConfig --noEmit --strict --skipLibCheck false');
   });
 
   it('is what Getting started’s Compatibility table gives, with the Node.js floor', () => {

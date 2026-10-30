@@ -1,4 +1,3 @@
-import * as ai from 'ai';
 import {
   APICallError,
   createUIMessageStream,
@@ -65,6 +64,13 @@ import {
 
 type StreamTextOptions = Parameters<typeof streamText>[0];
 
+/**
+ * The type of `T`'s setting `K`, or `Else` where `T` has none: AI SDK 6 has some of AI SDK 7's
+ * settings under other names. The published type declarations name no setting AI SDK 6 lacks, so
+ * a project on AI SDK 6 typechecks them too.
+ */
+type SettingOf<T, K extends PropertyKey, Else = never> = K extends keyof T ? T[K] : Else;
+
 /** Model settings passed through to `streamText`. */
 export type GenerationOptions = Pick<
   StreamTextOptions,
@@ -76,38 +82,16 @@ export type GenerationOptions = Pick<
   | 'maxRetries'
   | 'timeout'
   | 'headers'
-  | 'telemetry'
->;
+> & {
+  /** AI SDK 7's `telemetry`, which AI SDK 6 calls `experimental_telemetry`. */
+  telemetry?: SettingOf<
+    StreamTextOptions,
+    'telemetry',
+    SettingOf<StreamTextOptions, 'experimental_telemetry'>
+  >;
+};
 
 export type { IndexSource } from './shared';
-
-/**
- * AI SDK 7's `toUIMessageStream`. AI SDK 6, which ondocs supports too, has none: there, an answer
- * streams through its result's own `toUIMessageStream()`, and some settings have their older
- * names (`forInstalledAiSdk`). Looked up on the module rather than imported by name: a name that
- * AI SDK 6 does not export stops ondocs from loading there, and fails webpack's build of the site.
- */
-const toUIMessageStream = Reflect.get(ai, 'toUIMessageStream') as
-  typeof ai.toUIMessageStream | undefined;
-
-/**
- * `streamText` or `generateText` settings for the AI SDK installed. AI SDK 6 calls `instructions`
- * `system`, `onEnd` `onFinish` and `telemetry` `experimental_telemetry`, names AI SDK 7 still
- * reads, so the settings keep AI SDK 7's types. AI SDK 6 has no `reasoning` setting and no
- * `firstChunkMs` timeout, and leaves both out.
- */
-function forInstalledAiSdk<
-  T extends { instructions?: unknown; onEnd?: unknown; telemetry?: unknown },
->(settings: T): T {
-  if (toUIMessageStream) return settings;
-  const { instructions, onEnd, telemetry, ...rest } = settings;
-  return {
-    ...rest,
-    system: instructions,
-    onFinish: onEnd,
-    experimental_telemetry: telemetry,
-  } as unknown as T;
-}
 
 export interface AskHandlerOptions {
   /**
@@ -905,9 +889,12 @@ export function createAskHandler(
       if (reserved.result?.allowed) settle = reserved.result.settle;
     }
     try {
-      const settings: Parameters<typeof generateText>[0] = {
+      const result = await generateText({
         model: followUps.model,
         instructions: followUps.instructions,
+        // AI SDK 6's name; AI SDK 7 reads `instructions` first.
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        system: followUps.instructions,
         prompt,
         maxOutputTokens: FOLLOW_UP_MAX_TOKENS,
         temperature: 0,
@@ -915,8 +902,7 @@ export function createAskHandler(
         maxRetries: 1,
         timeout: FOLLOW_UP_TIMEOUT_MS,
         abortSignal: request.signal,
-      };
-      const result = await generateText(forInstalledAiSdk(settings));
+      });
       await settle?.(totalTokens(result.usage)).catch(reportError);
       const searched = standaloneQuestion(result.text, question, maxQuestionLength);
       return { searched, followUp: { question: searched, usage: result.usage }, admitted };
@@ -1075,7 +1061,16 @@ export function createAskHandler(
           await release();
         },
       };
-      return streamText(forInstalledAiSdk(settings));
+      return streamText({
+        ...settings,
+        // AI SDK 6's names for `instructions`, `onEnd` and `telemetry`; AI SDK 7 reads its own
+        // first, and these only when its own are unset.
+        /* eslint-disable @typescript-eslint/no-deprecated */
+        system: settings.instructions,
+        onFinish: settings.onEnd,
+        experimental_telemetry: settings.telemetry,
+        /* eslint-enable @typescript-eslint/no-deprecated */
+      });
     });
   }
 
@@ -1124,7 +1119,10 @@ export function createAskHandler(
         // call as it is set up is said to be misconfigured, after the error, so the dialog offers
         // no retry.
         let reply = '';
-        const ui: Omit<Parameters<typeof ai.toUIMessageStream>[0], 'stream'> = {
+        // The result's own toUIMessageStream(): AI SDK 6 has no standalone one, and AI SDK 7's
+        // calls its standalone one with the result's stream.
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        const stream = generate().toUIMessageStream({
           sendStart: false,
           onError: (error) =>
             isMisconfiguration(error) ? MISCONFIGURED_MESSAGE : MODEL_ERROR_MESSAGE,
@@ -1137,14 +1135,8 @@ export function createAskHandler(
               ? { ...metadata, refused: true }
               : undefined;
           },
-        };
-        const result = generate();
-        writer.merge(
-          toUIMessageStream
-            ? toUIMessageStream({ stream: result.stream, ...ui })
-            : // eslint-disable-next-line @typescript-eslint/no-deprecated -- AI SDK 6's only way
-              result.toUIMessageStream(ui),
-        );
+        });
+        writer.merge(stream);
         return undefined;
       },
       onError: (error) => {

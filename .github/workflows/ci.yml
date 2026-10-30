@@ -411,7 +411,8 @@ jobs:
   # test classes or its v4 specification, the API report, which prints AI SDK 7's types, and the
   # first-word timeout, which AI SDK 6 does not have; then the built CLI, which loads the endpoint
   # and the mock models in Node.js as a site does, and a question to the built endpoint, on Bun.
-  # The source is typechecked against AI SDK 7 only.
+  # The source is typechecked against AI SDK 7 only, and the type declarations it builds, of the
+  # entries that use the AI SDK's types, on each AI SDK 6, as a project without skipLibCheck does.
   ai-sdk-6:
     name: Test on AI SDK 6, the newest and the oldest the peer range allows
     runs-on: ubuntu-latest
@@ -427,17 +428,23 @@ jobs:
         with:
           bun-version: 1.4.x
       - run: pnpm install --frozen-lockfile
+      - run: node scripts/corpus.mjs
       - run: pnpm build
-      # Newest first: once 6.0.16 is installed, `pnpm add ai@^6` keeps it, as it satisfies ^6.
-      - name: The tests, the CLI and the endpoint on the newest AI SDK 6, then on 6.0.16
+      # Newest first: once 6.0.16 is installed, `pnpm add ai@^6` keeps it, as it satisfies ^6. Each
+      # gets an index file of its own, as the CLI reuses the embeddings of the one it would replace.
+      - name: The type declarations, the tests, the CLI and the endpoint on the newest AI SDK 6, then on 6.0.16
         run: |
           for versions in 'ai@^6 @ai-sdk/openai@^3' 'ai@6.0.16 @ai-sdk/openai@3.0.7'; do
             pnpm add -D -w $versions --ignore-scripts
-            node -p "'ai ' + require('ai/package.json').version + ', @ai-sdk/openai ' + require('@ai-sdk/openai/package.json').version"
+            ai=$(node -p "require('ai/package.json').version")
+            echo "ai $ai, @ai-sdk/openai $(node -p "require('@ai-sdk/openai/package.json').version")"
+            printf "import type {} from 'ondocs%s';\n" '' /mock /node /server > ai-sdk-6-types.ts
+            pnpm exec tsc --ignoreConfig --noEmit --strict --skipLibCheck false --target es2023 \
+              --module esnext --moduleResolution bundler --types node ai-sdk-6-types.ts
             pnpm test --exclude=test/api-report.test.ts -t '^(?!.*first-word limit)' \
               $(git grep -l -E "Mock[A-Za-z]+ModelV4|specificationVersion: 'v4'" -- 'test/*.ts' 'test/*.tsx' | sed 's/^/--exclude=/')
-            node dist/cli.js index examples/nextjs/content/docs --base-url /docs -e mock -o "$RUNNER_TEMP/ask-index.json"
-            bun scripts/runtime-smoke.mjs "$RUNNER_TEMP/ask-index.json"
+            node dist/cli.js index examples/nextjs/content/docs --base-url /docs -e mock -o "$RUNNER_TEMP/ask-index-$ai.json"
+            bun scripts/runtime-smoke.mjs "$RUNNER_TEMP/ask-index-$ai.json"
           done
 
   # Known advisories in the locked dependencies. pnpm audit reads pnpm-lock.yaml and asks the npm

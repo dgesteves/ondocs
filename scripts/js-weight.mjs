@@ -78,9 +78,11 @@ const SITES = {
     // docs shell (On this page, the docs bar, page actions, tabs), and 174.5 KB once ondocs's
     // package.json, which client code reached through the site's constants, left the bundle.
     // 180.5 KB with the dialog's styles for touch screens, forced colors and cited sources: the
-    // site inlines ondocs/react/styles.css in its page payload, so every rule counts here.
+    // site inlines ondocs/react/styles.css in its page payload, so every rule counts here. 181.5 KB
+    // before Getting started, the page measured, had its Compatibility table, and 182.0 KB with
+    // it: the page's own HTML is in its payload too.
     launcher: false,
-    budget: 182,
+    budget: 183,
     // The dialog, Radix and cmdk, on the site's React: 27.8 KB.
     open: 31,
   },
