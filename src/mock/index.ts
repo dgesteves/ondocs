@@ -12,7 +12,8 @@
  */
 
 import { simulateReadableStream } from 'ai';
-import { MockEmbeddingModelV4, MockLanguageModelV4 } from 'ai/test';
+import * as aiTest from 'ai/test';
+import { MockEmbeddingModelV3, MockLanguageModelV3 } from 'ai/test';
 
 import { createFenceScanner, parseAtxHeading, splitFenced } from '../text/markdown';
 import { tokenize } from '../text/tokenize';
@@ -27,6 +28,27 @@ import { tokenize } from '../text/tokenize';
  * (`similarityNeedsKeyword`).
  */
 export const MOCK_MIN_SIMILARITY = 0.2;
+
+/**
+ * The class `ai/test` exports as `Name`, or `Else` where it exports none. These types name no class
+ * that AI SDK 6 lacks, so the published type declarations typecheck on AI SDK 6 too.
+ */
+type TestModelClass<Name extends string, Else> = Name extends keyof typeof aiTest
+  ? (typeof aiTest)[Name]
+  : Else;
+type EmbeddingModelClass = TestModelClass<'MockEmbeddingModelV4', typeof MockEmbeddingModelV3>;
+type LanguageModelClass = TestModelClass<'MockLanguageModelV4', typeof MockLanguageModelV3>;
+
+/**
+ * What `ai/test` exports as `name`, looked up rather than imported, so that ondocs loads with AI
+ * SDK 6 as well as 7: AI SDK 6 has none of the v4 test models. Where it has none, its v3 ones
+ * stand in, which AI SDK 7 takes too, and what the models below return is the same for both.
+ */
+const fromAiTest = (name: string): unknown => Reflect.get(aiTest, name);
+const MockEmbeddingModel = (fromAiTest('MockEmbeddingModelV4') ??
+  MockEmbeddingModelV3) as EmbeddingModelClass;
+const MockLanguageModel = (fromAiTest('MockLanguageModelV4') ??
+  MockLanguageModelV3) as LanguageModelClass;
 
 export interface MockEmbeddingModelOptions {
   /** Vector size. Default 512. */
@@ -59,9 +81,11 @@ export function hashEmbedding(text: string, dimensions: number): number[] {
 }
 
 /** A deterministic, offline embedding model. Its id is `mock-hash-<dimensions>`. */
-export function mockEmbeddingModel(options: MockEmbeddingModelOptions = {}): MockEmbeddingModelV4 {
+export function mockEmbeddingModel(
+  options: MockEmbeddingModelOptions = {},
+): InstanceType<EmbeddingModelClass> {
   const dimensions = options.dimensions ?? 512;
-  return new MockEmbeddingModelV4({
+  return new MockEmbeddingModel({
     provider: 'ondocs',
     modelId: `mock-hash-${String(dimensions)}`,
     maxEmbeddingsPerCall: 2048,
@@ -438,7 +462,9 @@ function clip(text: string, max: number): string {
   return `${cut.slice(0, cut.lastIndexOf(' '))}…`;
 }
 
-function promptText(prompt: MockLanguageModelV4['doStreamCalls'][number]['prompt']): string {
+function promptText(
+  prompt: InstanceType<LanguageModelClass>['doStreamCalls'][number]['prompt'],
+): string {
   for (let i = prompt.length - 1; i >= 0; i -= 1) {
     const message = prompt[i];
     if (message?.role === 'user') {
@@ -480,8 +506,10 @@ export function mockStandaloneQuestion(prompt: string): string | null {
  * its prompt. Use it for demos, tests and local development without an API key. Asked to rewrite
  * a follow-up, it joins the follow-up to the question before it (see `mockStandaloneQuestion`).
  */
-export function mockLanguageModel(options: MockLanguageModelOptions = {}): MockLanguageModelV4 {
-  return new MockLanguageModelV4({
+export function mockLanguageModel(
+  options: MockLanguageModelOptions = {},
+): InstanceType<LanguageModelClass> {
+  return new MockLanguageModel({
     provider: 'ondocs',
     modelId: 'mock-extractive',
     doGenerate: ({ prompt }) => {

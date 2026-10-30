@@ -8,7 +8,6 @@ import {
   LoadSettingError,
   RetryError,
   streamText,
-  toUIMessageStream,
   type EmbeddingModel,
   type LanguageModel,
   type LanguageModelUsage,
@@ -65,6 +64,13 @@ import {
 
 type StreamTextOptions = Parameters<typeof streamText>[0];
 
+/**
+ * The type of `T`'s setting `K`, or `Else` where `T` has none: AI SDK 6 has some of AI SDK 7's
+ * settings under other names. The published type declarations name no setting AI SDK 6 lacks, so
+ * a project on AI SDK 6 typechecks them too.
+ */
+type SettingOf<T, K extends PropertyKey, Else = never> = K extends keyof T ? T[K] : Else;
+
 /** Model settings passed through to `streamText`. */
 export type GenerationOptions = Pick<
   StreamTextOptions,
@@ -76,8 +82,14 @@ export type GenerationOptions = Pick<
   | 'maxRetries'
   | 'timeout'
   | 'headers'
-  | 'telemetry'
->;
+> & {
+  /** AI SDK 7's `telemetry`, which AI SDK 6 calls `experimental_telemetry`. */
+  telemetry?: SettingOf<
+    StreamTextOptions,
+    'telemetry',
+    SettingOf<StreamTextOptions, 'experimental_telemetry'>
+  >;
+};
 
 export type { IndexSource } from './shared';
 
@@ -174,7 +186,8 @@ export interface AskHandlerOptions {
   /**
    * Passed to `streamText`. `maxOutputTokens` defaults to 800, and `timeout` to 30 seconds for
    * the model's first word and 90 for the whole answer, so a provider that stalls ends the answer
-   * instead of holding it open; your own `timeout` replaces both.
+   * instead of holding it open; your own `timeout` replaces both. AI SDK 6 has no first-word
+   * timeout, so there only the 90 seconds hold.
    */
   generation?: GenerationOptions;
   /**
@@ -879,6 +892,9 @@ export function createAskHandler(
       const result = await generateText({
         model: followUps.model,
         instructions: followUps.instructions,
+        // AI SDK 6's name; AI SDK 7 reads `instructions` first.
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        system: followUps.instructions,
         prompt,
         maxOutputTokens: FOLLOW_UP_MAX_TOKENS,
         temperature: 0,
@@ -1000,7 +1016,7 @@ export function createAskHandler(
       const release = async (): Promise<void> => {
         if (settle && !begun) await settle(0).catch(reportError);
       };
-      return streamText({
+      const settings: StreamTextOptions = {
         maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
         ...options.generation,
         timeout: options.generation?.timeout ?? DEFAULT_GENERATION_TIMEOUT,
@@ -1044,6 +1060,16 @@ export function createAskHandler(
           reportError(new Error('The answer was aborted before it finished.', { cause: reason }));
           await release();
         },
+      };
+      return streamText({
+        ...settings,
+        // AI SDK 6's names for `instructions`, `onEnd` and `telemetry`; AI SDK 7 reads its own
+        // first, and these only when its own are unset.
+        /* eslint-disable @typescript-eslint/no-deprecated */
+        system: settings.instructions,
+        onFinish: settings.onEnd,
+        experimental_telemetry: settings.telemetry,
+        /* eslint-enable @typescript-eslint/no-deprecated */
       });
     });
   }
@@ -1093,23 +1119,24 @@ export function createAskHandler(
         // call as it is set up is said to be misconfigured, after the error, so the dialog offers
         // no retry.
         let reply = '';
-        writer.merge(
-          toUIMessageStream({
-            stream: generate().stream,
-            sendStart: false,
-            onError: (error) =>
-              isMisconfiguration(error) ? MISCONFIGURED_MESSAGE : MODEL_ERROR_MESSAGE,
-            messageMetadata: ({ part }) => {
-              if (part.type === 'text-delta') reply += part.text;
-              if (part.type === 'error' && isMisconfiguration(part.error)) {
-                return { ...metadata, misconfigured: true };
-              }
-              return part.type === 'finish' && saysOnlyIDontKnow(reply)
-                ? { ...metadata, refused: true }
-                : undefined;
-            },
-          }),
-        );
+        // The result's own toUIMessageStream(): AI SDK 6 has no standalone one, and AI SDK 7's
+        // calls its standalone one with the result's stream.
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        const stream = generate().toUIMessageStream({
+          sendStart: false,
+          onError: (error) =>
+            isMisconfiguration(error) ? MISCONFIGURED_MESSAGE : MODEL_ERROR_MESSAGE,
+          messageMetadata: ({ part }) => {
+            if (part.type === 'text-delta') reply += part.text;
+            if (part.type === 'error' && isMisconfiguration(part.error)) {
+              return { ...metadata, misconfigured: true };
+            }
+            return part.type === 'finish' && saysOnlyIDontKnow(reply)
+              ? { ...metadata, refused: true }
+              : undefined;
+          },
+        });
+        writer.merge(stream);
         return undefined;
       },
       onError: (error) => {

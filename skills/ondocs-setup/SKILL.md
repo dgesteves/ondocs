@@ -23,8 +23,8 @@ Work in the docs site's folder, the one with its `package.json` and framework co
 
 Before you install, check two things:
 
-- ondocs needs Node.js 22.12 or later: run `node --version`.
-- ondocs needs AI SDK 7. If `package.json` already has `ai` at version 6 or lower, stop and ask the user before you move it to 7.
+- ondocs needs Node.js 22.13 or later: run `node --version`.
+- ondocs needs AI SDK 6 (6.0.16 or later) or 7 (7.0.95 or later). If `package.json` already has `ai` at version 5 or lower, stop and ask the user before you move it to 7. An older 6 or 7 only needs `ai` and its provider packages updated within that version.
 
 ## 2. Install the packages
 

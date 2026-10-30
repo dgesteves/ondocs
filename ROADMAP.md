@@ -7,6 +7,7 @@ ondocs is built in the open, and this page is the plan: what is in review, what 
 - Keys typed right after ⌘I are kept while the dialog loads, so the start of a question is no longer lost. [#183](https://github.com/dgesteves/ondocs/pull/183)
 - A 1.0 contract: an API report in CI, one meaning per option name (the old names work until 1.0), options checked when the handler is made, and a policy for the index format. [#185](https://github.com/dgesteves/ondocs/pull/185)
 - `ondocs index` skips a static site's 404 page. [#200](https://github.com/dgesteves/ondocs/issues/200)
+- AI SDK 6 support next to AI SDK 7, and one compatibility statement. [#265](https://github.com/dgesteves/ondocs/pull/265)
 
 ## In review
 
@@ -32,7 +33,6 @@ ondocs is built in the open, and this page is the plan: what is in review, what 
 ### Endpoint and security
 
 - Safer defaults: answer links only to cited sources, SRI for the script tag, `allowedHosts` for MCP, a CSP snippet, and Turnstile fixes. [#193](https://github.com/dgesteves/ondocs/issues/193)
-- AI SDK 6 support next to AI SDK 7, and one compatibility statement. [#194](https://github.com/dgesteves/ondocs/issues/194)
 
 ### MCP
 

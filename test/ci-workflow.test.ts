@@ -165,7 +165,7 @@ const manifest = JSON.parse(read('package.json')) as {
 describe('what CI runs for what ondocs claims', () => {
   it('tests on the oldest Node.js the engines field allows, and on Node 26', () => {
     const floor = /^>=(\d+\.\d+\.\d+)$/.exec(manifest.engines.node)?.[1];
-    expect(floor).toBe('22.12.0');
+    expect(floor).toBe('22.13.0');
     const compat = workflow.jobs['node-compat'];
     expect(compat?.strategy?.matrix?.node).toEqual([floor, 26]);
     // The exact version, not the newest 22, which setup-node would install for `22`.

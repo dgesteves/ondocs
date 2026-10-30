@@ -25,7 +25,7 @@ Install the package with the Vercel AI SDK and a model provider. The two package
 npm i ondocs ai @ai-sdk/openai @radix-ui/react-dialog cmdk
 ```
 
-ondocs is built on AI SDK 7: install `ai` 7 and its provider packages, such as `@ai-sdk/openai` 4. A project still on AI SDK 6 has to move to 7 first. ondocs needs Node.js 22.12 or later to build the index. The endpoint itself uses Web APIs only, so it also runs on Bun, Deno and Cloudflare Workers, and CI asks it a question on each. On Deno, allow the hostname as well as the network (`--allow-sys=hostname`): the AI SDK reads it as it loads.
+ondocs works with AI SDK 6 and 7, and provider packages of the same major, such as `@ai-sdk/openai` 3 or 4: see [Compatibility](#compatibility). ondocs needs Node.js 22.13 or later to build the index. The endpoint itself uses Web APIs only, so it also runs on Bun, Deno and Cloudflare Workers, and CI asks it a question on each. On Deno, allow the hostname as well as the network (`--allow-sys=hostname`): the AI SDK reads it as it loads.
 
 ## Build the index
 
@@ -74,6 +74,17 @@ import 'ondocs/embed/launcher.css';
 ## Try it without an API key
 
 Mock mode runs the whole pipeline offline: a deterministic embedding model and a scripted model that answers by quoting the best-matching sentences, with citations. Build with `-e mock` and serve the endpoint locally with `npx ondocs dev`. [Try it locally](./local-development.md) walks through it. With a plugin, its guide does the same in three commands, right after adding it.
+
+## Compatibility
+
+What `package.json` declares and CI runs:
+
+| With            | Supported                                                                                                                                                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node.js         | 22.13 or later (`engines`). CI runs the CLI and the tests on 22.13.0 (all but the dialog's jsdom tests), 24 and 26, and the endpoint on Bun and Deno                                                                                    |
+| AI SDK          | 7 (`ai@^7.0.95`) and 6 (`ai@^6.0.16`), with providers of the same major. CI runs everything on 7; on 6.0.16 and the newest 6, the types, the tests not written for 7 only, the CLI and the endpoint. AI SDK 6 has no first-word timeout |
+| React           | 18.3 and 19, on React sites. CI builds a Docusaurus site on 18.3.0 and the others on 19                                                                                                                                                 |
+| Site frameworks | Tier 1, built in CI: Next.js, Fumadocs, Nextra, Docusaurus 3, Starlight, Astro, VitePress and the script tag. [Support tiers](./limits.md#support-tiers) has the rest                                                                   |
 
 ## When something fails
 
