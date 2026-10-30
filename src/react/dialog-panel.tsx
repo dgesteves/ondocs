@@ -221,8 +221,10 @@ function Feedback({
               onSubmit={submit}
               onKeyDown={keepKeys}
             >
+              {/* As the question's input: the page's direction while empty, for the placeholder. */}
               <input
                 className="ask-feedback-input"
+                dir={text ? 'auto' : undefined}
                 aria-label={labels.comment}
                 placeholder={labels.commentPlaceholder}
                 maxLength={1000}
@@ -556,10 +558,15 @@ export function DialogPanel({
           <Command shouldFilter={false} loop className="ask-command">
             <div className="ask-input-row">
               <SearchIcon />
+              {/* What people type, and the suggestions, read in their own direction: an English
+                  question on an Arabic page keeps its question mark at the end. Empty, the input
+                  keeps the page's, which places the placeholder by the icon: an empty field with
+                  dir="auto" is left to right. */}
               <Command.Input
                 ref={setInput}
                 value={query}
                 onValueChange={setQuery}
+                dir={query ? 'auto' : undefined}
                 placeholder={placeholder}
                 maxLength={500}
                 className={cx('ask-input', classNames.input)}
@@ -608,7 +615,9 @@ export function DialogPanel({
                       <span className="ask-item-label">
                         {followingUp ? labels.followUp : labels.ask}
                       </span>
-                      <span className="ask-item-text">{trimmedQuery}</span>
+                      <span className="ask-item-text" dir="auto">
+                        {trimmedQuery}
+                      </span>
                       <kbd className="ask-kbd" aria-hidden="true">
                         ↵
                       </kbd>
@@ -625,7 +634,9 @@ export function DialogPanel({
                           }}
                           className={cx('ask-item', classNames.item)}
                         >
-                          <span className="ask-item-text">{suggestion}</span>
+                          <span className="ask-item-text" dir="auto">
+                            {suggestion}
+                          </span>
                         </Command.Item>
                       ))}
                     </Command.Group>
@@ -710,7 +721,9 @@ function AnswerPanel({
       {/* The thread so far: each answer with its own citations, which link to its own sources. */}
       {state.turns.map((turn, i) => (
         <div key={i} className="ask-turn">
-          <h3 className="ask-turn-question">{turn.question}</h3>
+          <h3 className="ask-turn-question" dir="auto">
+            {turn.question}
+          </h3>
           <div className="ask-answer" data-refused={turn.refused || undefined}>
             <AskAnswer
               text={turn.refused && labels.noAnswer !== undefined ? labels.noAnswer : turn.answer}
@@ -725,7 +738,9 @@ function AnswerPanel({
       ))}
       {/* The question over its answer in a thread, and over an error, so it says what failed. */}
       {(thread || state.status === 'error') && state.question ? (
-        <h3 className="ask-turn-question">{state.question}</h3>
+        <h3 className="ask-turn-question" dir="auto">
+          {state.question}
+        </h3>
       ) : null}
       <div
         className={cx('ask-answer', classNames.answer)}
@@ -820,7 +835,7 @@ function AnswerPanel({
                         </>
                       ) : null}
                     </span>
-                    <span className="ask-source-url" aria-hidden="true">
+                    <span className="ask-source-url" dir="ltr" aria-hidden="true">
                       {mapSourceUrl(source.url, sourceUrls)}
                     </span>
                   </a>

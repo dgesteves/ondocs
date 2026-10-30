@@ -210,6 +210,69 @@ describe('ondocs/astro with an SSR adapter', () => {
     );
   });
 
+  it('words "I don’t know" as route.noAnswerMessage says, for every locale or for each', () => {
+    const i18n = { defaultLocale: 'en', locales: ['en', 'fr', 'de'] };
+    const settings = (route: object) =>
+      JSON.parse(
+        /^export const settings = (.*);$/m.exec(
+          setup(integration({ route: { model: 'mock', ...route } }), { i18n }).module ?? '',
+        )?.[1] ?? 'null',
+      ) as RouteSettings;
+    expect(settings({})).not.toHaveProperty('noAnswerMessage');
+    expect(settings({})).not.toHaveProperty('localeNoAnswerMessages');
+    expect(settings({ noAnswerMessage: 'Nothing on that here.' })).toMatchObject({
+      noAnswerMessage: 'Nothing on that here.',
+    });
+    expect(
+      settings({
+        noAnswerMessage: { root: 'Nothing on that here.', fr: 'Rien là-dessus ici.' },
+      }),
+    ).toMatchObject({
+      noAnswerMessage: 'Nothing on that here.',
+      localeNoAnswerMessages: { fr: 'Rien là-dessus ici.' },
+    });
+    expect(() => settings({ noAnswerMessage: { en: 'Nothing on that here.' } })).toThrow(
+      "route.noAnswerMessage has a message for 'en', which is not a locale of the site: key them by the locales' paths (fr, de, root), with root for the pages under none.",
+    );
+    expect(() => ondocs({ route: { noAnswerMessage: ['Nothing.'] as unknown as string } })).toThrow(
+      /route\.noAnswerMessage/,
+    );
+    // Starlight's own words in each locale's language, under the site's.
+    const starlight = (route: object) => {
+      let added: AstroIntegration | undefined;
+      const plugin = starlightOndocs({ embedding: 'mock', route: { model: 'mock', ...route } });
+      (plugin.hooks['config:setup'] as unknown as (options: unknown) => void)({
+        config: {
+          title: { en: 'Acme Docs', fr: 'Docs Acme' },
+          locales: {
+            root: { label: 'English', lang: 'en' },
+            fr: { label: 'Français' },
+            ja: { label: '日本語' },
+          },
+        },
+        addIntegration: (integration: AstroIntegration) => (added = integration),
+      });
+      if (!added) throw new Error('the plugin added no integration');
+      return JSON.parse(
+        /^export const settings = (.*);$/m.exec(setup(added).module ?? '')?.[1] ?? 'null',
+      ) as RouteSettings;
+    };
+    expect(starlight({})).not.toHaveProperty('noAnswerMessage');
+    expect(starlight({}).localeNoAnswerMessages).toEqual({
+      fr: 'Je ne sais pas. Je n’ai rien trouvé à ce sujet sur Docs Acme.',
+    });
+    expect(starlight({ siteName: 'Acme' }).localeNoAnswerMessages).toEqual({
+      fr: 'Je ne sais pas. Je n’ai rien trouvé à ce sujet sur Acme.',
+    });
+    expect(starlight({ noAnswerMessage: { fr: 'Rien.' } }).localeNoAnswerMessages).toEqual({
+      fr: 'Rien.',
+    });
+    expect(starlight({ noAnswerMessage: 'Nothing.' })).toMatchObject({
+      noAnswerMessage: 'Nothing.',
+    });
+    expect(starlight({ noAnswerMessage: 'Nothing.' })).not.toHaveProperty('localeNoAnswerMessages');
+  });
+
   /**
    * The middleware `astro dev` gets in `astro:server:setup`, for a site at `base`, and what it
    * does with a request for `url`. Astro's own base middleware runs first: it strips `base` from
@@ -652,6 +715,17 @@ describe('the injected routes', () => {
       expect([name, en, answer]).toEqual([name, 200, expect.stringContaining('"/en/pricing/"')]);
       const [fr, réponse] = await ask({ question: 'Combien coûte le forfait ?', locale: 'fr' });
       expect([name, fr, réponse]).toEqual([name, 200, expect.stringContaining('"/fr/tarifs/"')]);
+      // Starlight says "I don't know" in French on French pages, as its own words are.
+      const [, refusal] = await ask({
+        question: 'Quelle est la capitale du Pérou ?',
+        locale: 'fr',
+      });
+      expect([name, refusal]).toEqual([
+        name,
+        expect.stringContaining(
+          name === 'starlight' ? 'Je ne sais pas. Je n’ai rien trouvé' : "I don't know.",
+        ),
+      ]);
       // A question from no locale, and agents, get the default locale's pages.
       const [none, fallback] = await ask({ question });
       expect([name, none, fallback]).toEqual([
@@ -674,7 +748,187 @@ describe('the injected routes', () => {
         200,
         expect.stringContaining('/en/pricing/'),
       ]);
+      // Agents name the locale, as the dialog does: search and list_pages read its index, and
+      // fetch finds a page in whichever index has it.
+      const tool = async (id: number, toolName: string, args: Record<string, unknown>) => {
+        const response = await serve(
+          handlers,
+          'mcp',
+          context('/api/mcp', {
+            jsonrpc: '2.0',
+            id,
+            method: 'tools/call',
+            params: { name: toolName, arguments: args },
+          }),
+        );
+        return (
+          (await response.json()) as {
+            result: { isError?: boolean; structuredContent?: Record<string, unknown> };
+          }
+        ).result;
+      };
+      const french = await tool(2, 'search', { query: 'forfait', locale: 'fr' });
+      expect([name, JSON.stringify(french.structuredContent)]).toEqual([
+        name,
+        expect.stringContaining('/fr/tarifs/'),
+      ]);
+      const listed = (await tool(3, 'list_pages', { locale: 'fr' })).structuredContent as {
+        total: number;
+        pages: { url: string }[];
+      };
+      expect([name, listed.total, listed.pages.map((entry) => entry.url)]).toEqual([
+        name,
+        1,
+        [expect.stringContaining('/fr/tarifs/')],
+      ]);
+      const page = await tool(4, 'fetch', { id: '/fr/tarifs/' });
+      expect([name, page.isError ?? false, JSON.stringify(page)]).toEqual([
+        name,
+        false,
+        expect.stringContaining('dix dollars'),
+      ]);
     }
+  });
+
+  /** The routes of a site with a French index and "I don't know" in English and French. */
+  const localeRoutes = async (settings: Partial<RouteSettings>) => {
+    const index = async (documents: typeof corpus) =>
+      serializeIndexFile(
+        (await buildIndex({ documents, embeddingModel: mockEmbeddingModel() })).index,
+      );
+    const files: Record<string, string> = {
+      '/ask-index.json': await index(corpus),
+      '/fr/ask-index.json': await index([
+        {
+          id: 'tarifs.md',
+          url: '/fr/tarifs',
+          title: 'Tarifs',
+          content: 'Le forfait coûte dix dollars par mois.',
+        },
+      ]),
+    };
+    return routeHandlers({
+      settings: {
+        siteName: 'Acme',
+        indexPath: '/ask-index.json',
+        localeIndexPaths: { fr: '/fr/ask-index.json' },
+        noAnswerMessage: 'Nothing on that here.',
+        localeNoAnswerMessages: { fr: 'Rien là-dessus ici.' },
+        rateLimit: false,
+        mcpRateLimit: false,
+        budget: false,
+        answerCache: false,
+        ...settings,
+      },
+      chatModel: () => mockLanguageModel({ initialDelayMs: 0, wordDelayMs: 0 }),
+      openaiEmbedding: null,
+      secret: () => undefined,
+      assets: () => ({
+        fetch: (request: Request) => {
+          const file = files[new URL(request.url).pathname];
+          return Promise.resolve(
+            file === undefined ? new Response(null, { status: 404 }) : new Response(file),
+          );
+        },
+      }),
+    });
+  };
+
+  it('say "I don’t know" in each locale’s words, from one budget for all', async () => {
+    const handlers = await localeRoutes({ budget: { requestsPerDay: 4 } });
+    const ask = async (body: object) => {
+      const response = await serve(handlers, 'ask', context('/api/ask', body));
+      return [response.status, await response.text()] as const;
+    };
+    const capital = 'What is the capital of Peru?';
+    const [, root] = await ask({ question: capital });
+    expect(root).toContain('Nothing on that here.');
+    const [, french] = await ask({ question: 'Quelle est la capitale du Pérou ?', locale: 'fr' });
+    expect(french).toContain('Rien là-dessus ici.');
+    // Answered from its locale's index, as without the message.
+    const [, answer] = await ask({ question: 'Combien coûte le forfait ?', locale: 'fr' });
+    expect(answer).toContain('"url":"/fr/tarifs"');
+    // A locale without a message of its own gets the root's.
+    const [, other] = await ask({ question: capital, locale: 'de' });
+    expect(other).toContain('Nothing on that here.');
+    // Four questions a day between the locales' handlers, not four each.
+    const [status, body] = await ask({ question: capital, locale: 'fr' });
+    expect(status).toBe(429);
+    expect(body).toContain('budget_exceeded');
+  });
+
+  /** A question as a site's visitor sends it: its body as text, or streamed, without a length. */
+  const posted = (
+    body: string | ReadableStream<Uint8Array>,
+    headers: Record<string, string> = {},
+    clientAddress = '203.0.113.1',
+  ): RouteContext => {
+    const request = new Request('https://acme.dev/api/ask', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body,
+      duplex: 'half',
+    } as RequestInit);
+    return { request, url: new URL(request.url), clientAddress, locals: {} };
+  };
+
+  /** `text` in chunks of 4 KiB, and then, unless `end` is false, the end of the body. */
+  const streamed = (text: string, end = true): ReadableStream<Uint8Array> => {
+    const bytes = new TextEncoder().encode(text);
+    let offset = 0;
+    return new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (offset < bytes.byteLength) {
+          controller.enqueue(bytes.slice(offset, offset + 4096));
+          offset += 4096;
+        } else if (end) {
+          controller.close();
+        }
+      },
+    });
+  };
+
+  it('turn away a body over 64 KiB with a 413 when a locale has its own "I don’t know"', async () => {
+    const handlers = await localeRoutes({ rateLimit: { limit: 10, windowMs: 60_000 } });
+    const question = (size: number) =>
+      JSON.stringify({
+        question: 'Combien coûte le forfait ?',
+        locale: 'fr',
+        note: 'x'.repeat(size),
+      });
+    const status = async (context: RouteContext) => (await serve(handlers, 'ask', context)).status;
+    // By its Content-Length, by its bytes when it has none, and streamed in chunks.
+    const large = question(70 * 1024);
+    expect(await status(posted(large, { 'content-length': String(large.length) }))).toBe(413);
+    expect(await status(posted(large))).toBe(413);
+    expect(await status(posted(streamed(question(200 * 1024))))).toBe(413);
+    // The route still reads a question's locale after them.
+    const response = await serve(
+      handlers,
+      'ask',
+      posted(JSON.stringify({ question: 'Quelle est la capitale du Pérou ?', locale: 'fr' })),
+    );
+    expect(await response.text()).toContain('Rien là-dessus ici.');
+  });
+
+  it('read no question’s locale before the rate limit, and count each question once', async () => {
+    const handlers = await localeRoutes({ rateLimit: { limit: 2, windowMs: 60_000 } });
+    const ask = async (context: RouteContext) => {
+      const response = await serve(handlers, 'ask', context);
+      return [response.status, await response.text()] as const;
+    };
+    const french = JSON.stringify({ question: 'Quelle est la capitale du Pérou ?', locale: 'fr' });
+    // Two questions a minute: the reading of the locale and the handler count each once.
+    expect(await ask(posted(french))).toEqual([200, expect.stringContaining('Rien là-dessus')]);
+    expect(await ask(posted(french))).toEqual([200, expect.stringContaining('Rien là-dessus')]);
+    // Over the limit, a body that never ends gets its 429 at once: nothing waits to read it.
+    const [status] = await ask(posted(streamed(french.slice(0, -1), false)));
+    expect(status).toBe(429);
+    // Another client is within its own.
+    expect(await ask(posted(french, {}, '203.0.113.2'))).toEqual([
+      200,
+      expect.stringContaining('Rien là-dessus'),
+    ]);
   });
 
   it('answer 500 while there is no index, and try again on the next request', async () => {

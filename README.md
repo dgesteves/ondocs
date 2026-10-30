@@ -6,7 +6,7 @@ For teams that run their own developer docs, at product, API and platform compan
 
 [![CI](https://img.shields.io/github/actions/workflow/status/dgesteves/ondocs/ci.yml?branch=main&label=CI&style=flat-square&labelColor=181c22)](https://github.com/dgesteves/ondocs/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ondocs?style=flat-square&labelColor=181c22&color=0e7490)](https://www.npmjs.com/package/ondocs)
-[![Script tag: 3.5 KB gzipped](https://img.shields.io/badge/script_tag-3.5_KB_gzipped-0e7490?style=flat-square&labelColor=181c22)](https://ondocs.vercel.app/docs/script-tag)
+[![Script tag: 3.6 KB gzipped](https://img.shields.io/badge/script_tag-3.6_KB_gzipped-0e7490?style=flat-square&labelColor=181c22)](https://ondocs.vercel.app/docs/script-tag)
 [![License: MIT](https://img.shields.io/badge/license-MIT-0e7490?style=flat-square&labelColor=181c22)](./LICENSE)
 [![Types](https://img.shields.io/badge/types-included-0e7490?style=flat-square&labelColor=181c22)](https://ondocs.vercel.app/docs/api)
 

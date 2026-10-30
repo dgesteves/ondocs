@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { keyBuffer } from '../embed/mount';
+import { keyBuffer, pressesShortcut } from '../embed/mount';
 import type { OndocsTheme } from '../embed/options';
 import type { AnswerLinks, SourceUrls } from './answer';
 import type { AskDialogLabels } from './labels';
@@ -232,10 +232,7 @@ export function AskDialog({
         setOpen(false);
         return;
       }
-      if (shortcut === false) return;
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== shortcut.toLowerCase()) {
-        return;
-      }
+      if (shortcut === false || !pressesShortcut(event, shortcut.toUpperCase())) return;
       // In a text field the keys are often the field's own (⌘I is italic), so they are left to it.
       // The dialog's own input still closes it.
       if (!openRef.current && isEditable(event.target)) return;

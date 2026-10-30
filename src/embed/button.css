@@ -84,7 +84,8 @@
    <kbd> styles. ⌘ or Ctrl comes from here, by what the page marks on <html>. */
 .ondocs-button > kbd {
   display: none;
-  margin: 0 0 0 0.1rem;
+  margin: 0;
+  margin-inline-start: 0.1rem;
   padding: 0.2rem 0.35rem;
   border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
   border-radius: 0.35rem;
