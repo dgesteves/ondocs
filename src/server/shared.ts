@@ -254,6 +254,12 @@ function originList(allowed: AllowedOrigins | undefined): AllowedOrigins | undef
         "allowedOrigins lists '*': pass allowedOrigins: '*' to allow any origin.",
       );
     }
+    // `new URL` takes 'https://*.example.com' as a host, which no browser sends as its Origin.
+    if (typeof entry === 'string' && entry.includes('*')) {
+      throw new TypeError(
+        `allowedOrigins takes exact origins, not patterns (got ${JSON.stringify(entry)}): list each origin.`,
+      );
+    }
     // `new URL` writes an http(s) origin as browsers do: lowercase, without the default port.
     const parsed = typeof entry === 'string' && URL.canParse(entry) ? new URL(entry) : null;
     const web = parsed?.protocol === 'http:' || parsed?.protocol === 'https:';
