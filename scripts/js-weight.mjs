@@ -1,6 +1,6 @@
 // Measures the JavaScript a docs page of each example loads in headless Chrome, gzipped: before
 // any interaction, and after the visitor opens the dialog. With --check, fails when a page loads
-// more than its budget for either.
+// more than its budget for either, or when the dialog loses keys typed straight after its shortcut.
 //
 //   pnpm build && pnpm --filter <example> build
 //   node scripts/js-weight.mjs [docusaurus|starlight|vitepress|next|embed ...] [--check] [--json]
@@ -78,7 +78,10 @@ const SITES = {
     // docs shell (On this page, the docs bar, page actions, tabs), and 174.5 KB once ondocs's
     // package.json, which client code reached through the site's constants, left the bundle.
     // 180.5 KB with the dialog's styles for touch screens, forced colors and cited sources: the
-    // site inlines ondocs/react/styles.css in its page payload, so every rule counts here.
+    // site inlines ondocs/react/styles.css in its page payload, so every rule counts here. 181.5
+    // KB since, and 179.4 KB with `AskDialog` in the page's own code, not in a chunk that loaded
+    // when the page was idle and lost what was typed before it came; the dialog's code proper,
+    // counted below, still loads on the first open.
     launcher: false,
     budget: 182,
     // The dialog, Radix and cmdk, on the site's React: 27.8 KB.
@@ -100,6 +103,9 @@ const SITES = {
  * plugins' `dialog.navbar` puts there instead, as on the three live demos.
  */
 const BUTTON = '.ondocs-launcher, .ondocs-button';
+
+/** The question typed straight after the shortcut. It is never sent. */
+const QUESTION = 'How do I roll back a release?';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -187,6 +193,48 @@ async function serveNext(dir, port) {
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
   return { url, close: () => child.kill() };
+}
+
+/**
+ * Opens `url` on a fresh page, as a first visit, presses the shortcut once the page has loaded and
+ * types QUESTION straight away, 40 ms a key, as a visitor who came to ask does. Returns the text
+ * the dialog's input ends up with, or null without an input. The page has not been idle yet, so
+ * its idle callbacks never run, and every script from the shortcut on comes 400 ms late, so the
+ * keys arrive while the dialog's code is on its way. The website loaded its dialog through
+ * next/dynamic once the page was idle, or on the first shortcut, and lost what was typed while
+ * that code came: "I roll back a release?".
+ */
+async function typeStraightAfterShortcut(browser, url, key) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.addInitScript(() => {
+      window.requestIdleCallback = () => 0;
+      window.cancelIdleCallback = () => undefined;
+    });
+    await page.goto(url, { waitUntil: 'networkidle' });
+    await context.route('**/*.js', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await route.continue();
+    });
+    const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+    await page.keyboard.press(`${modifier}+${key}`);
+    await page.keyboard.type(QUESTION, { delay: 40 });
+    await page
+      .waitForFunction(
+        (text) =>
+          document.activeElement?.classList.contains('ask-input') &&
+          document.activeElement.value === text,
+        QUESTION,
+        { timeout: 5000 },
+      )
+      .catch(() => undefined);
+    return await page.evaluate(() => document.querySelector('.ask-input')?.value ?? null);
+  } finally {
+    // A script still held back has nowhere to go once the page has closed.
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
+    await context.close();
+  }
 }
 
 async function measure(name, dir, baseline, port) {
@@ -359,6 +407,7 @@ async function measure(name, dir, baseline, port) {
     }
     await page.unroute('**/*.js');
     await page.waitForLoadState('networkidle');
+    const typed = await typeStraightAfterShortcut(browser, `${server.url}${site.page}`, site.key);
 
     const sum = (wanted) =>
       [...scripts.values()]
@@ -374,6 +423,7 @@ async function measure(name, dir, baseline, port) {
       dialogFocused: /ask-input/.test(focused),
       focusReturned,
       launcherFocusReturned,
+      typed,
       budgetKB: site.budget,
       openBudgetKB: site.open,
     };
@@ -413,7 +463,7 @@ else {
       continue;
     }
     console.log(
-      `${result.site.padEnd(11)} ${String(result.initialKB).padStart(6)} KB before interaction (budget ${String(result.budgetKB)}), +${String(result.onOpenKB)} KB on open (budget ${String(result.openBudgetKB)}); button ${result.launcher ? 'shown' : 'missing'}; shortcut while loading: input ${result.dialogFocused ? 'focused' : 'NOT focused'}, focus ${result.focusReturned ? 'back on the page' : 'NOT back'} after Escape${result.launcher ? `, ${result.launcherFocusReturned ? 'and back on the button' : 'NOT back on the button'} after a click` : ''}`,
+      `${result.site.padEnd(11)} ${String(result.initialKB).padStart(6)} KB before interaction (budget ${String(result.budgetKB)}), +${String(result.onOpenKB)} KB on open (budget ${String(result.openBudgetKB)}); button ${result.launcher ? 'shown' : 'missing'}; shortcut while loading: input ${result.dialogFocused ? 'focused' : 'NOT focused'}, focus ${result.focusReturned ? 'back on the page' : 'NOT back'} after Escape${result.launcher ? `, ${result.launcherFocusReturned ? 'and back on the button' : 'NOT back on the button'} after a click` : ''}; typed straight after the shortcut: ${result.typed === QUESTION ? 'every key kept' : `input ${JSON.stringify(result.typed)}`}`,
     );
   }
 }
@@ -425,12 +475,13 @@ const failures = results.filter(
       (SITES[result.site].launcher !== false && !result.launcher) ||
       !result.dialogFocused ||
       !result.focusReturned ||
-      result.launcherFocusReturned === false),
+      result.launcherFocusReturned === false ||
+      result.typed !== QUESTION),
 );
 if (check && failures.length > 0) {
   for (const failure of failures) {
     console.error(
-      `✗ ${failure.site}: ${String(failure.initialKB)} KB of JavaScript before interaction (budget ${String(failure.budgetKB)} KB), +${String(failure.onOpenKB)} KB on open (budget ${String(failure.openBudgetKB)} KB)${failure.launcher || SITES[failure.site].launcher === false ? '' : ', no button'}${failure.dialogFocused ? '' : ', the dialog input did not get focus'}${failure.focusReturned ? '' : ', focus did not come back after Escape'}${failure.launcherFocusReturned === false ? ', focus did not come back to the button' : ''}`,
+      `✗ ${failure.site}: ${String(failure.initialKB)} KB of JavaScript before interaction (budget ${String(failure.budgetKB)} KB), +${String(failure.onOpenKB)} KB on open (budget ${String(failure.openBudgetKB)} KB)${failure.launcher || SITES[failure.site].launcher === false ? '' : ', no button'}${failure.dialogFocused ? '' : ', the dialog input did not get focus'}${failure.focusReturned ? '' : ', focus did not come back after Escape'}${failure.launcherFocusReturned === false ? ', focus did not come back to the button' : ''}${failure.typed === QUESTION ? '' : `, the question typed straight after the shortcut left the input with ${JSON.stringify(failure.typed)}`}`,
     );
   }
   process.exit(1);
