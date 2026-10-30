@@ -783,7 +783,7 @@ interface DevServer {
   middlewares: {
     use: (
       handler: (
-        request: { url?: string; method?: string },
+        request: { url?: string; originalUrl?: string; method?: string },
         response: {
           statusCode: number;
           setHeader: (name: string, value: string) => void;
@@ -811,7 +811,8 @@ function serveBuiltIndex(
   );
   let warned = false;
   server.middlewares.use((request, response, next) => {
-    if ((request.url ?? '').split('?')[0] !== path) {
+    // The path as requested: Astro's base middleware, which runs first, strips `base` from `url`.
+    if ((request.originalUrl ?? request.url ?? '').split('?')[0] !== path) {
       next();
       return;
     }
