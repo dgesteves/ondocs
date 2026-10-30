@@ -1,6 +1,6 @@
 {
   "name": "starlight-ondocs",
-  "version": "0.16.4",
+  "version": "0.17.0",
   "description": "The ondocs Starlight plugin, under the name Starlight users search for: open-source Ask AI for your docs, with an MCP server for agents. Cited answers on your own model key, from one static index, with no vendor and no vector database.",
   "keywords": [
     "starlight",

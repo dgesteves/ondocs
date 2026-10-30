@@ -27,7 +27,8 @@ overrides:
   # High GHSA-587h-7wmj-h5pm and GHSA-fx2h-pf6j-xcff, in the dev server on Windows. VitePress 1.6.4,
   # its latest release, asks for vite ^5.4.14, no vite 5 release fixes them, and VitePress 2 is still
   # an alpha. Its @vitejs/plugin-vue 5 accepts vite 6, and the VitePress example builds with it.
-  vitepress>vite: ^6.4.4
+  # 6.4.5 also fixes moderate GHSA-8g5g-mxqh-grgj (server.fs.deny bypassed with a query string).
+  vitepress>vite: ^6.4.5
   # Moderate GHSA-rj75-hqrm-r3gf: a long flat selector such as .a.a.a... parses in quadratic time.
   # cssnano 6, which @docusaurus/bundler 3.10 asks for, and postcss-nested 6, through Starlight's
   # Expressive Code 0.44.2, ask for ^6. 6.1.5 backports the fix, but the advisory still lists every
