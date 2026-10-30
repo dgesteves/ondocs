@@ -151,7 +151,7 @@
   "devDependencies": {
     "@ai-sdk/openai": "^4.0.91",
     "@arethetypeswrong/cli": "^0.18.5",
-    "@astrojs/starlight": "0.42.6",
+    "@astrojs/starlight": "0.42.7",
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
     "@docusaurus/module-type-aliases": "3.10.2",
