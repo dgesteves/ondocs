@@ -1,5 +1,6 @@
 // The quality loop: `ondocs eval` scoring retrieval against known answers, and the handler's
-// feedback and low-confidence signals, the raw material of an "unanswered questions" report.
+// feedback and low-confidence signals, the raw material of an "unanswered questions" report, and
+// what the default instructions ask of an answer.
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -320,5 +321,39 @@ describe('lowConfidence', () => {
       refused: true,
       lowConfidence: false,
     });
+  });
+});
+
+describe('the answer prompt', () => {
+  // Seven questions asked of the live sites in October 2026 (blind labels by an AI reviewer): all
+  // grounded and cited, and three left out the command, option or name the reader came for,
+  // under a rule that asked only for brevity.
+  const rules = async () => {
+    const model = answering('Use `upstashRateLimit()` [1].');
+    const { handler } = handlerWith({ model });
+    await (await handler(post({ question: 'How do I rate limit with Upstash?' }))).text();
+    const system = model.doStreamCalls[0]?.prompt.find((message) => message.role === 'system');
+    return typeof system?.content === 'string' ? system.content : '';
+  };
+
+  it('asks a how-to answer for the exact command, option or config line, as code', async () => {
+    // In the brevity rule itself, so that being short never reads as leaving the step out.
+    const concise = /^4\. Be concise:.*$/m.exec(await rules())?.[0] ?? '';
+    expect(concise).toContain(
+      'For a how-to question, when the sources give the command, option or config line, quote it exactly, as code',
+    );
+    expect(concise).toContain('concise never means leaving out the step');
+    // One answer never named the lint rule it was about; another gave AI SDK 7's option and left
+    // out AI SDK 6's, which the same page gives.
+    expect(concise).toContain('name the component, rule or function they say it uses');
+    // Only what the sources show, and every setup only when the question names none.
+    expect(concise).toContain('Never write a command, option or name the sources do not show.');
+    expect(concise).toContain(
+      'If the question does not say which version or setup and the sources give the step for several, give each.',
+    );
+  });
+
+  it('keeps five numbered rules, so `(defaults) => defaults + "\\n6. …"` still reads in order', async () => {
+    expect((await rules()).match(/^\d+\. /gm)).toEqual(['1. ', '2. ', '3. ', '4. ', '5. ']);
   });
 });

@@ -41,7 +41,7 @@ Requests without the header share one `"anonymous"` bucket. On a platform that d
 
 ## When the rate limiter fails
 
-If the limiter throws, for example because Redis is unreachable, the handler fails closed: it reports the error and answers 503 without calling the model. Set `rateLimitFailure: 'open'` to keep answering during an outage and rely on your provider's spend limits instead.
+If the limiter throws, for example because Redis is unreachable, the handler fails closed: it reports the error and answers 503 without calling the model. Set `failureMode: 'open'` to keep answering during an outage and rely on your provider's spend limits instead. It covers the `budget` store and the bot check too.
 
 ## Cap the daily spend
 
@@ -71,7 +71,7 @@ A fleet of addresses gets past a per-client rate limit, and can use up the day's
 
 ## Cross-origin requests
 
-The endpoint only accepts `application/json` bodies and answers anything else with a 415. Browsers send a cross-origin JSON POST only after a CORS preflight, which fails unless you allow the origin, so another site cannot make its visitors' browsers spend your model budget. To call the endpoint from another origin on purpose, list it in the handler's `allowedOrigins`, as `allowedOrigins: ['https://blog.example.com']`, and in Next.js also `export const OPTIONS = POST`.
+The endpoint only accepts `application/json` bodies and answers anything else with a 415. Browsers send a cross-origin JSON POST only after a CORS preflight, which fails unless you allow the origin, so another site cannot make its visitors' browsers spend your model budget. To call the endpoint from another origin on purpose, list it in the handler's `allowedOrigins`, as `allowedOrigins: ['https://blog.example.com']`, and in Next.js also `export const OPTIONS = POST`. Write each origin as browsers send it, in lowercase with no path, trailing slash or default port: `https://blog.example.com/` matches no request, so the handler fails as it is made and says what to write instead.
 
 Each listed origin gets `access-control-allow-origin` with its own origin and `vary: origin`, its preflight is told it may post JSON, and the dialog on it can read `Retry-After` when a question is rate-limited. Any other origin gets no CORS headers. Its requests are still answered, so the site's own pages and clients outside a browser are never turned away, but a browser on it cannot get past the preflight. `'*'` allows every origin, and every site's visitors can then spend your budget. [This site's endpoint](https://github.com/dgesteves/ondocs/blob/main/examples/nextjs/lib/ask-handler.ts) lists its three live demos this way. When the pages on the other origin are a copy of the site's, `sourceUrls` sends the citations to their own pages; see [The ask dialog](./ask-dialog.md#citations-and-navigation).
 
@@ -99,7 +99,7 @@ The answer is rendered from a small Markdown subset into React nodes, never as H
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.16.2/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.16.3/dist/embed.global.js"
   integrity="sha384-…"
   data-dialog-integrity="sha384-…"
   crossorigin="anonymous"
@@ -112,7 +112,7 @@ Get the two hashes for the version you pin:
 
 ```sh
 for file in embed.global.js embed-dialog.global.js; do
-  hash=$(set -o pipefail; curl -fsSL "https://cdn.jsdelivr.net/npm/ondocs@0.16.2/dist/$file" | openssl dgst -sha384 -binary | openssl base64 -A) || break
+  hash=$(set -o pipefail; curl -fsSL "https://cdn.jsdelivr.net/npm/ondocs@0.16.3/dist/$file" | openssl dgst -sha384 -binary | openssl base64 -A) || break
   echo "$file sha384-$hash"
 done
 ```

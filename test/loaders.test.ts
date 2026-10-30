@@ -95,6 +95,75 @@ describe('fromMarkdown', () => {
     expect(doc?.content).toContain('<Callout>kept in code</Callout>');
   });
 
+  it('keeps paragraph lines that start with import or export, as MDX reads them', () => {
+    // MDX reads an import or export only where a block starts: a line that continues a
+    // paragraph is text, wherever it was wrapped.
+    const source = [
+      'Run the build, then you can',
+      'export the site as static files and upload',
+      'them to any host.',
+      '',
+      'The CLI can',
+      'import a sitemap too.',
+      '',
+      '- A list item that goes on',
+      'export to the next line.',
+    ].join('\n');
+    expect(fromMarkdown(source, { ...meta, mdx: true })?.content).toBe(source);
+  });
+
+  it('drops MDX import and export blocks wherever a block starts', () => {
+    const source = [
+      "import Tabs from '@theme/Tabs';",
+      "import TabItem from '@theme/TabItem';",
+      '',
+      '# Usage',
+      "export const versions = ['1.0', '2.0'];",
+      '',
+      'Before.',
+      '',
+      'export const meta = {',
+      '  title: `Usage`,',
+      "  tags: ['a'],",
+      '};',
+      '',
+      'After.',
+    ].join('\n');
+    expect(fromMarkdown(source, { ...meta, mdx: true })?.content).toBe(
+      '# Usage\n\nBefore.\n\nAfter.',
+    );
+    // Plain Markdown has no ESM: the same lines are text.
+    expect(fromMarkdown('export const a = 1;', meta)?.content).toBe('export const a = 1;');
+  });
+
+  it('starts an MDX block after a JSX line, an expression, a break or a setext underline', () => {
+    for (const before of ['</Tabs>', '{/* c */}', '---', 'Title\n=====']) {
+      const source = `Intro.\n\n${before}\nexport const x = 1;\n\nAfter.`;
+      expect(fromMarkdown(source, { ...meta, mdx: true })?.content, before).not.toContain(
+        'export const x',
+      );
+    }
+  });
+
+  it('keeps an export in a fence indented in JSX, which MDX reads as code', () => {
+    // As Astro's docs write one (guides/migrate-to-astro/from-create-react-app.mdx).
+    const source = [
+      '<AstroJSXTabs>',
+      '  <Fragment slot="jsx">',
+      '    ```jsx',
+      '    function Component() {',
+      '};',
+      '',
+      'export default Component;',
+      '    ```',
+      '  </Fragment>',
+      '</AstroJSXTabs>',
+    ].join('\n');
+    expect(fromMarkdown(source, { ...meta, mdx: true })?.content).toContain(
+      'export default Component;',
+    );
+  });
+
   it('keeps the heading ids Docusaurus reads from MDX comments, and drops the other comments', () => {
     // As docusaurus.io's own docs write them: 164 of their 776 differ from the heading's slug.
     const source = [

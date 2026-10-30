@@ -473,6 +473,44 @@ describe('createAskHandler', () => {
       }
     });
 
+    it('fails as the handler is made for an entry no browser sends as its Origin', () => {
+      // Each would match no request, so a page on that origin would silently get no CORS headers.
+      for (const [entry, fix] of [
+        ['https://blog.example/', 'https://blog.example'],
+        ['https://Blog.Example', 'https://blog.example'],
+        ['https://blog.example:443', 'https://blog.example'],
+        ['https://blog.example/docs', 'https://blog.example'],
+      ] as const) {
+        expect(() => setup({ allowedOrigins: [entry] }), entry).toThrow(
+          `allowedOrigins takes origins as browsers send them, such as "https://blog.example.com", with no path or trailing slash (got ${JSON.stringify(entry)}; use ${JSON.stringify(fix)}).`,
+        );
+      }
+      for (const entry of ['blog.example', '', 42]) {
+        expect(() => setup({ allowedOrigins: [entry as string] }), String(entry)).toThrow(
+          /^allowedOrigins takes origins as browsers send them/,
+        );
+      }
+      expect(() => setup({ allowedOrigins: ['*'] })).toThrow(
+        "allowedOrigins lists '*': pass allowedOrigins: '*' to allow any origin.",
+      );
+      expect(() => setup({ allowedOrigins: ['https://*.blog.example'] })).toThrow(
+        'allowedOrigins takes exact origins, not patterns (got "https://*.blog.example"): list each origin.',
+      );
+      // From JavaScript, a string was searched as text: 'https://blog.example' let https://b in.
+      expect(() => setup({ allowedOrigins: 'https://blog.example' as '*' })).toThrow(
+        /^allowedOrigins takes '\*' or a list of origins/,
+      );
+    });
+
+    it('takes origins of any scheme, ports and an empty list', () => {
+      for (const allowedOrigins of [
+        ['http://localhost:3000', 'https://[::1]:8443', 'chrome-extension://abcdefgh'],
+        [],
+      ]) {
+        expect(() => setup({ allowedOrigins }), JSON.stringify(allowedOrigins)).not.toThrow();
+      }
+    });
+
     it("takes '*' for any origin, without vary", async () => {
       const { handler } = setup({ allowedOrigins: '*' });
       const response = await preflight(handler, 'https://anywhere.example');

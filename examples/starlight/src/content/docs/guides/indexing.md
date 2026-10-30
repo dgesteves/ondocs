@@ -10,7 +10,7 @@ Indexing turns your pages into chunks, embeds each chunk and writes everything t
 
 ## Supported content
 
-The CLI reads `.md`, `.mdx`, `.markdown`, `.html` and `.htm` files recursively, and skips dot-folders, `node_modules` and the 404 page a generator writes: `404.html`, `404.htm` or `404/index.html`, at any depth. A page such as `404-errors.html` is still indexed. MDX is reduced to text without being evaluated, so code fences stay as they are but components that render content from props are invisible to the index. HTML is read from each page's `<main>`, then its `<article>`s, then `<body>`, with navigation, scripts, forms and other chrome stripped and heading `id`s kept.
+The CLI reads `.md`, `.mdx`, `.markdown`, `.html` and `.htm` files recursively, and skips dot-folders, `node_modules` and the 404 page a generator writes: `404.html`, `404.htm` or `404/index.html`, at any depth. A page such as `404-errors.html` is still indexed. MDX is reduced to text without being evaluated: imports and exports are dropped where MDX reads them, at the start of a block, so a wrapped line that starts with `export` stays in its paragraph; code fences stay as they are; and components that render content from props are invisible to the index. HTML is read from each page's `<main>`, then its `<article>`s, then `<body>`, with navigation, scripts, forms and other chrome stripped and heading `id`s kept.
 
 For content that is not on disk, such as a CMS, pass `{ id, url, title, content }` records through the `documents` field of a [config file](/reference/cli/#the-config-file), or call `buildIndex` yourself.
 
