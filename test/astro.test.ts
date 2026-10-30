@@ -11,7 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import ondocs from '../src/astro';
 import { parseIndexFile } from '../src/index-file';
 import { mockEmbeddingModel } from '../src/mock';
+import { DEFAULT_LABELS } from '../src/react/labels';
 import starlightOndocs from '../src/starlight';
+import { ENGLISH, TRANSLATIONS } from '../src/starlight/translations';
 
 let root: string;
 beforeEach(async () => {
@@ -574,6 +576,111 @@ describe('ondocs/starlight', () => {
       exports: Record<string, unknown>;
     };
     expect(manifest.exports['./astro/McpInstall.astro']).toBe('./dist/astro/McpInstall.astro');
+  });
+});
+
+describe('ondocs/starlight in other languages', () => {
+  /** The page script's options for the root, and for each locale, as the plugin builds them. */
+  async function pageOptions(
+    options: Parameters<typeof starlightOndocs>[0],
+    config: Partial<StarlightUserConfig>,
+  ) {
+    const injected: [string, string][] = [];
+    const hooks = starlightIntegration(options, config).hooks as Record<
+      string,
+      (options: unknown) => unknown
+    >;
+    await hooks['astro:config:setup']?.({
+      config: { base: '/' },
+      injectScript: (stage: string, content: string) => injected.push([stage, content]),
+      updateConfig: vi.fn(),
+      logger: { info: vi.fn(), warn: vi.fn() },
+    });
+    const script = injected.find(([stage]) => stage === 'page')?.[1] ?? '';
+    const json = (name: string) =>
+      JSON.parse(new RegExp(`^const ${name} = (.*);$`, 'm').exec(script)?.[1] ?? 'null') as {
+        title?: string;
+        labels?: Record<string, string>;
+      } & Record<string, { title?: string; labels?: Record<string, string> }>;
+    return { root: json('options'), locales: json('locales') };
+  }
+
+  it('words the dialog in French, German and Spanish, under the site’s own words', async () => {
+    const { root, locales } = await pageOptions(
+      { dialog: { locales: { fr: { labels: { placeholder: 'Une question ?' } } } } },
+      {
+        title: { en: 'Zephyr Docs', fr: 'Docs Zephyr' },
+        locales: {
+          root: { label: 'English', lang: 'en' },
+          fr: { label: 'Français' },
+          de: { label: 'Deutsch', lang: 'de-CH' },
+          es: { label: 'Español' },
+          ja: { label: '日本語' },
+        },
+      },
+    );
+    // The root keeps the dialog's English defaults, which need no words in the script.
+    expect(root.labels).toBeUndefined();
+    expect(root.title).toBe('Ask Zephyr Docs');
+    expect(locales.fr?.title).toBe('Demander à Docs Zephyr');
+    expect(locales.fr?.labels).toMatchObject({
+      launcher: 'Demander à l’IA',
+      placeholder: 'Une question ?',
+      footer: 'Les réponses proviennent de ce site et peuvent être erronées. Vérifiez les sources.',
+    });
+    // By the language of `lang`, with the root's title where the site has none in it.
+    expect(locales.de?.title).toBe('Zephyr Docs fragen');
+    expect(locales.de?.labels).toMatchObject({ launcher: 'KI fragen', controlKey: 'Strg' });
+    expect(locales.es?.labels).toMatchObject({ launcher: 'Preguntar a la IA' });
+    // A language ondocs has no words in keeps the root's, as Starlight does.
+    expect(locales.ja?.labels).toBeUndefined();
+    expect(locales.ja?.title).toBe('Ask Zephyr Docs');
+  });
+
+  it('words the root in its language, and an English locale in English', async () => {
+    const { root, locales } = await pageOptions(
+      { dialog: { labels: { footer: 'Vérifiez toujours.' } } },
+      {
+        title: 'Zephyr',
+        locales: { root: { label: 'Français', lang: 'fr' }, en: { label: 'English' } },
+      },
+    );
+    expect(root.title).toBe('Demander à Zephyr');
+    expect(root.labels).toMatchObject({
+      launcher: 'Demander à l’IA',
+      footer: 'Vérifiez toujours.',
+    });
+    expect(locales.en?.title).toBe('Ask Zephyr');
+    expect(locales.en?.labels).toMatchObject({
+      launcher: 'Ask AI',
+      placeholder: 'Ask a question…',
+    });
+  });
+
+  it('has every label in each language, with the same placeholders as in English', () => {
+    const placeholders = (text: string) => [...text.matchAll(/\{\w+\}/g)].map(([name]) => name);
+    for (const [lang, words] of Object.entries(TRANSLATIONS)) {
+      expect([lang, Object.keys(words.labels).sort()]).toEqual([
+        lang,
+        Object.keys(ENGLISH.labels).sort(),
+      ]);
+      for (const [name, label] of Object.entries(words.labels)) {
+        expect([lang, name, placeholders(label)]).toEqual([
+          lang,
+          name,
+          placeholders(ENGLISH.labels[name as keyof typeof ENGLISH.labels]),
+        ]);
+      }
+      expect([lang, placeholders(words.title), placeholders(words.noAnswer)]).toEqual([
+        lang,
+        ['{site}'],
+        ['{site}'],
+      ]);
+    }
+    expect(Object.keys(TRANSLATIONS)).toEqual(['en', 'fr', 'de', 'es']);
+    // English is the dialog's own defaults.
+    const { title: _title, ...defaults } = DEFAULT_LABELS;
+    expect(ENGLISH.labels).toEqual(defaults);
   });
 });
 

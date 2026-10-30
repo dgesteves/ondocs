@@ -143,6 +143,81 @@ describe('ondocs dev', () => {
     expect(foreign.status).toBe(403);
   });
 
+  it('answers each locale from its index beside the root one, on both endpoints', async () => {
+    await indexAt('dist/ask-index.json');
+    const { index: french } = await buildIndex({
+      documents: [
+        {
+          id: 'installer.md',
+          url: '/fr/guides/installation',
+          title: 'Installation',
+          content: 'Pour installer la CLI, lancez npm i ondocs dans le dossier du site.',
+        },
+      ],
+      embeddingModel: mockEmbeddingModel(),
+    });
+    await writeIndexFile(join(root, 'dist/fr/ask-index.json'), french);
+    // A folder without an index is no locale.
+    await mkdir(join(root, 'dist/assets'), { recursive: true });
+    const { server } = await serve('dist/ask-index.json');
+    expect(server.locales).toEqual({
+      fr: { file: join(root, 'dist/fr/ask-index.json'), chunks: 1 },
+    });
+    const asked = async (body: object) =>
+      (
+        await fetch(server.endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+      ).text();
+    expect(await asked({ question: 'Comment installer la CLI ?', locale: 'fr' })).toContain(
+      '"url":"/fr/guides/installation"',
+    );
+    expect(await asked({ question: 'How is an int8 vector scaled?' })).toContain(
+      '"url":"/docs/quantization#why-int8"',
+    );
+    const search = async (args: Record<string, unknown>) =>
+      (
+        (await (
+          await fetch(server.mcp, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              accept: 'application/json, text/event-stream',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'tools/call',
+              params: { name: 'search', arguments: args },
+            }),
+          })
+        ).json()) as { result: { structuredContent: { results: { url: string }[] } } }
+      ).result.structuredContent.results.map((result) => result.url);
+    expect(await search({ query: 'installer la CLI', locale: 'fr' })).toEqual([
+      expect.stringMatching(/^\/fr\/guides\/installation/),
+    ]);
+    // A rebuilt locale's index is picked up on the next question, as the root's is.
+    const { index: rebuilt } = await buildIndex({
+      documents: [
+        {
+          id: 'tarifs.md',
+          url: '/fr/tarifs',
+          title: 'Tarifs',
+          content: 'Le forfait coûte dix euros.',
+        },
+      ],
+      embeddingModel: mockEmbeddingModel(),
+    });
+    await writeIndexFile(join(root, 'dist/fr/ask-index.json'), rebuilt);
+    const later = new Date(Date.now() + 5000);
+    await utimes(join(root, 'dist/fr/ask-index.json'), later, later);
+    expect(await asked({ question: 'Combien coûte le forfait ?', locale: 'fr' })).toContain(
+      '"url":"/fr/tarifs"',
+    );
+  });
+
   it('reads the index again after a reload fails, as when it is read half written', async () => {
     const file = join(root, 'build/ask-index.json');
     await indexAt('build/ask-index.json');
@@ -318,10 +393,12 @@ describe('ondocs dev on the command line', () => {
 
   it('says where it listens and what to set, and stops when asked', async () => {
     await indexAt('build/ask-index.json');
+    await indexAt('build/fr/ask-index.json');
     const result = await run(['--port', '0']);
     expect(result.code).toBe(0);
     const endpoint = /Endpoint {2}(\S+)/.exec(result.stdout)?.[1] ?? '';
     expect(result.stdout).toContain('build/ask-index.json');
+    expect(result.stdout).toMatch(/\n {12}fr: build\/fr\/ask-index\.json \(\d+ chunks\)\n/);
     expect(result.stdout).toContain(`ASK_ENDPOINT=${endpoint}`);
     expect(result.stdout).toContain(`endpoint: '${endpoint}'`);
     expect(result.stdout).toContain(`<AskDialog endpoint="${endpoint}" />`);

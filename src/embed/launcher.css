@@ -32,7 +32,8 @@
 }
 .ondocs-launcher {
   position: fixed;
-  right: max(1rem, env(safe-area-inset-right));
+  /* In the corner where lines end: on the left on a right-to-left page. */
+  inset-inline-end: max(1rem, env(safe-area-inset-right));
   bottom: max(1rem, env(safe-area-inset-bottom));
   /* Under the dialog's overlay (1000). */
   z-index: 999;

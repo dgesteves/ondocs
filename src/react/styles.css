@@ -219,7 +219,7 @@
   justify-content: center;
   width: 44px;
   height: 44px;
-  margin-right: -13px;
+  margin-inline-end: -13px;
   padding: 0;
   color: var(--ask-muted);
   cursor: pointer;
@@ -273,6 +273,14 @@
   color: var(--ask-fg);
   background: var(--ask-raised);
   box-shadow: inset 2px 0 0 var(--ask-accent);
+}
+
+/* The bar on the text's start, which is the right on a right-to-left page. Docusaurus flips left
+   and right in every stylesheet on its right-to-left locales (RTLCSS), the rule above included;
+   the directive keeps it from flipping this one back. */
+.ask-item[data-selected='true']:dir(rtl) {
+  /* rtl:ignore */
+  box-shadow: inset -2px 0 0 var(--ask-accent);
 }
 
 .ask-item-label {
@@ -365,7 +373,7 @@
 
 .ask-markdown ul,
 .ask-markdown ol {
-  padding-left: 1.25em;
+  padding-inline-start: 1.25em;
 }
 
 .ask-markdown li + li {
@@ -464,7 +472,7 @@
   display: inline-block;
   width: 0.5em;
   height: 1.05em;
-  margin-left: 2px;
+  margin-inline-start: 2px;
   vertical-align: -0.15em;
   background: var(--ask-accent);
   border-radius: 1px;
@@ -613,7 +621,8 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 8px 12px 8px 8px;
+  padding-block: 8px;
+  padding-inline: 8px 12px;
   color: inherit;
   text-decoration: none;
   background: var(--ask-bg);
@@ -759,7 +768,7 @@
   }
 
   .ask-citation[data-after-citation] {
-    margin-left: 12px;
+    margin-inline-start: 12px;
   }
 
   .ask-citation::after {

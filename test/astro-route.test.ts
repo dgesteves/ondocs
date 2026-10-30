@@ -210,6 +210,69 @@ describe('ondocs/astro with an SSR adapter', () => {
     );
   });
 
+  it('words "I don’t know" as route.noAnswerMessage says, for every locale or for each', () => {
+    const i18n = { defaultLocale: 'en', locales: ['en', 'fr', 'de'] };
+    const settings = (route: object) =>
+      JSON.parse(
+        /^export const settings = (.*);$/m.exec(
+          setup(integration({ route: { model: 'mock', ...route } }), { i18n }).module ?? '',
+        )?.[1] ?? 'null',
+      ) as RouteSettings;
+    expect(settings({})).not.toHaveProperty('noAnswerMessage');
+    expect(settings({})).not.toHaveProperty('localeNoAnswerMessages');
+    expect(settings({ noAnswerMessage: 'Nothing on that here.' })).toMatchObject({
+      noAnswerMessage: 'Nothing on that here.',
+    });
+    expect(
+      settings({
+        noAnswerMessage: { root: 'Nothing on that here.', fr: 'Rien là-dessus ici.' },
+      }),
+    ).toMatchObject({
+      noAnswerMessage: 'Nothing on that here.',
+      localeNoAnswerMessages: { fr: 'Rien là-dessus ici.' },
+    });
+    expect(() => settings({ noAnswerMessage: { en: 'Nothing on that here.' } })).toThrow(
+      "route.noAnswerMessage has a message for 'en', which is not a locale of the site: key them by the locales' paths (fr, de, root), with root for the pages under none.",
+    );
+    expect(() => ondocs({ route: { noAnswerMessage: ['Nothing.'] as unknown as string } })).toThrow(
+      /route\.noAnswerMessage/,
+    );
+    // Starlight's own words in each locale's language, under the site's.
+    const starlight = (route: object) => {
+      let added: AstroIntegration | undefined;
+      const plugin = starlightOndocs({ embedding: 'mock', route: { model: 'mock', ...route } });
+      (plugin.hooks['config:setup'] as unknown as (options: unknown) => void)({
+        config: {
+          title: { en: 'Acme Docs', fr: 'Docs Acme' },
+          locales: {
+            root: { label: 'English', lang: 'en' },
+            fr: { label: 'Français' },
+            ja: { label: '日本語' },
+          },
+        },
+        addIntegration: (integration: AstroIntegration) => (added = integration),
+      });
+      if (!added) throw new Error('the plugin added no integration');
+      return JSON.parse(
+        /^export const settings = (.*);$/m.exec(setup(added).module ?? '')?.[1] ?? 'null',
+      ) as RouteSettings;
+    };
+    expect(starlight({})).not.toHaveProperty('noAnswerMessage');
+    expect(starlight({}).localeNoAnswerMessages).toEqual({
+      fr: 'Je ne sais pas. Je n’ai rien trouvé à ce sujet sur Docs Acme.',
+    });
+    expect(starlight({ siteName: 'Acme' }).localeNoAnswerMessages).toEqual({
+      fr: 'Je ne sais pas. Je n’ai rien trouvé à ce sujet sur Acme.',
+    });
+    expect(starlight({ noAnswerMessage: { fr: 'Rien.' } }).localeNoAnswerMessages).toEqual({
+      fr: 'Rien.',
+    });
+    expect(starlight({ noAnswerMessage: 'Nothing.' })).toMatchObject({
+      noAnswerMessage: 'Nothing.',
+    });
+    expect(starlight({ noAnswerMessage: 'Nothing.' })).not.toHaveProperty('localeNoAnswerMessages');
+  });
+
   /**
    * The middleware `astro dev` gets in `astro:server:setup`, for a site at `base`, and what it
    * does with a request for `url`. Astro's own base middleware runs first: it strips `base` from
@@ -652,6 +715,17 @@ describe('the injected routes', () => {
       expect([name, en, answer]).toEqual([name, 200, expect.stringContaining('"/en/pricing/"')]);
       const [fr, réponse] = await ask({ question: 'Combien coûte le forfait ?', locale: 'fr' });
       expect([name, fr, réponse]).toEqual([name, 200, expect.stringContaining('"/fr/tarifs/"')]);
+      // Starlight says "I don't know" in French on French pages, as its own words are.
+      const [, refusal] = await ask({
+        question: 'Quelle est la capitale du Pérou ?',
+        locale: 'fr',
+      });
+      expect([name, refusal]).toEqual([
+        name,
+        expect.stringContaining(
+          name === 'starlight' ? 'Je ne sais pas. Je n’ai rien trouvé' : "I don't know.",
+        ),
+      ]);
       // A question from no locale, and agents, get the default locale's pages.
       const [none, fallback] = await ask({ question });
       expect([name, none, fallback]).toEqual([
@@ -674,7 +748,107 @@ describe('the injected routes', () => {
         200,
         expect.stringContaining('/en/pricing/'),
       ]);
+      // Agents name the locale, as the dialog does: search and list_pages read its index, and
+      // fetch finds a page in whichever index has it.
+      const tool = async (id: number, toolName: string, args: Record<string, unknown>) => {
+        const response = await serve(
+          handlers,
+          'mcp',
+          context('/api/mcp', {
+            jsonrpc: '2.0',
+            id,
+            method: 'tools/call',
+            params: { name: toolName, arguments: args },
+          }),
+        );
+        return (
+          (await response.json()) as {
+            result: { isError?: boolean; structuredContent?: Record<string, unknown> };
+          }
+        ).result;
+      };
+      const french = await tool(2, 'search', { query: 'forfait', locale: 'fr' });
+      expect([name, JSON.stringify(french.structuredContent)]).toEqual([
+        name,
+        expect.stringContaining('/fr/tarifs/'),
+      ]);
+      const listed = (await tool(3, 'list_pages', { locale: 'fr' })).structuredContent as {
+        total: number;
+        pages: { url: string }[];
+      };
+      expect([name, listed.total, listed.pages.map((entry) => entry.url)]).toEqual([
+        name,
+        1,
+        [expect.stringContaining('/fr/tarifs/')],
+      ]);
+      const page = await tool(4, 'fetch', { id: '/fr/tarifs/' });
+      expect([name, page.isError ?? false, JSON.stringify(page)]).toEqual([
+        name,
+        false,
+        expect.stringContaining('dix dollars'),
+      ]);
     }
+  });
+
+  it('say "I don’t know" in each locale’s words, from one budget for all', async () => {
+    const index = async (documents: typeof corpus) =>
+      serializeIndexFile(
+        (await buildIndex({ documents, embeddingModel: mockEmbeddingModel() })).index,
+      );
+    const files: Record<string, string> = {
+      '/ask-index.json': await index(corpus),
+      '/fr/ask-index.json': await index([
+        {
+          id: 'tarifs.md',
+          url: '/fr/tarifs',
+          title: 'Tarifs',
+          content: 'Le forfait coûte dix dollars par mois.',
+        },
+      ]),
+    };
+    const handlers = routeHandlers({
+      settings: {
+        siteName: 'Acme',
+        indexPath: '/ask-index.json',
+        localeIndexPaths: { fr: '/fr/ask-index.json' },
+        noAnswerMessage: 'Nothing on that here.',
+        localeNoAnswerMessages: { fr: 'Rien là-dessus ici.' },
+        rateLimit: false,
+        mcpRateLimit: false,
+        budget: { requestsPerDay: 4 },
+        answerCache: false,
+      },
+      chatModel: () => mockLanguageModel({ initialDelayMs: 0, wordDelayMs: 0 }),
+      openaiEmbedding: null,
+      secret: () => undefined,
+      assets: () => ({
+        fetch: (request: Request) => {
+          const file = files[new URL(request.url).pathname];
+          return Promise.resolve(
+            file === undefined ? new Response(null, { status: 404 }) : new Response(file),
+          );
+        },
+      }),
+    });
+    const ask = async (body: object) => {
+      const response = await serve(handlers, 'ask', context('/api/ask', body));
+      return [response.status, await response.text()] as const;
+    };
+    const capital = 'What is the capital of Peru?';
+    const [, root] = await ask({ question: capital });
+    expect(root).toContain('Nothing on that here.');
+    const [, french] = await ask({ question: 'Quelle est la capitale du Pérou ?', locale: 'fr' });
+    expect(french).toContain('Rien là-dessus ici.');
+    // Answered from its locale's index, as without the message.
+    const [, answer] = await ask({ question: 'Combien coûte le forfait ?', locale: 'fr' });
+    expect(answer).toContain('"url":"/fr/tarifs"');
+    // A locale without a message of its own gets the root's.
+    const [, other] = await ask({ question: capital, locale: 'de' });
+    expect(other).toContain('Nothing on that here.');
+    // Four questions a day between the locales' handlers, not four each.
+    const [status, body] = await ask({ question: capital, locale: 'fr' });
+    expect(status).toBe(429);
+    expect(body).toContain('budget_exceeded');
   });
 
   it('answer 500 while there is no index, and try again on the next request', async () => {

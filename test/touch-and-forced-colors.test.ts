@@ -70,7 +70,7 @@ describe('on a touch screen', () => {
     expect(rule(coarse, '.ask-citation')).not.toMatch(/margin/);
     const reach = Number(/inset:\s*-(\d+)px;/.exec(rule(coarse, '.ask-citation::after'))?.[1]);
     expect(reach).toBeGreaterThan(0);
-    const apart = /margin-left:\s*(\d+)px;/.exec(
+    const apart = /margin-inline-start:\s*(\d+)px;/.exec(
       rule(coarse, '.ask-citation[data-after-citation]'),
     )?.[1];
     expect(Number(apart)).toBeGreaterThanOrEqual(2 * reach);

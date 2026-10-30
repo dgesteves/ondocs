@@ -1,9 +1,9 @@
 // `ondocs dev`: the ask endpoint on this machine, answering from a built index, so the dialog
 // on a site's dev server has something to post to. Node.js only.
 import { existsSync } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import type { EmbeddingModel, LanguageModel } from 'ai';
@@ -27,7 +27,8 @@ server, and the same index as an MCP server at /api/mcp, for your editor's agent
 embedded as the index was: with the mock model, with OpenAI or AI Gateway (set OPENAI_API_KEY or
 AI_GATEWAY_API_KEY), with Workers AI (set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN), or not
 at all for a keyword-only index. Answers come from OpenAI when OPENAI_API_KEY is set, else from
-the mock model.
+the mock model. Each locale's index beside it, as the plugins write them (dist/fr/ask-index.json
+next to dist/ask-index.json), answers the questions the dialog sends from that locale's pages.
 
 Options:
       --index <file>           Index file (default: ask-index.json, then build/ask-index.json,
@@ -192,6 +193,28 @@ export async function devModels(
   );
 }
 
+/**
+ * The index of each locale beside `file`, as the plugins write them: `dist/fr/ask-index.json`
+ * next to `dist/ask-index.json`, by its folder's name, which is the locale's path and what the
+ * dialog sends from its pages.
+ */
+export async function findLocaleIndexFiles(file: string): Promise<Record<string, string>> {
+  const folder = dirname(file);
+  let entries;
+  try {
+    entries = await readdir(folder, { withFileTypes: true });
+  } catch {
+    return {};
+  }
+  return Object.fromEntries(
+    entries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => [entry.name, join(folder, entry.name, basename(file))] as const)
+      .filter(([, path]) => existsSync(path))
+      .sort(([a], [b]) => a.localeCompare(b)),
+  );
+}
+
 /** The index to serve: `--index`, else the first of {@link INDEX_FILES} in `cwd`. */
 export function findIndexFile(cwd: string, index?: string): string {
   if (index !== undefined) {
@@ -233,6 +256,8 @@ export interface DevServer {
   /** How questions are embedded and answered. */
   description: string;
   chunks: number;
+  /** Each locale's index beside the file, by locale: its file and its chunks. */
+  locales: Record<string, { file: string; chunks: number }>;
   close: () => Promise<void>;
 }
 
@@ -276,8 +301,20 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
     const index = await readIndexFile(options.file);
     if (!index) throw new DevError(`No index at ${options.file}.`);
     const { description, ...models } = await devModels(index, options.env, options.answerModel);
+    // Each locale's, read once for both endpoints: questions and searches name their locale.
+    const localeFiles = await findLocaleIndexFiles(options.file);
+    const locales: Record<string, { file: string; chunks: number }> = {};
+    const indexes: Record<string, object> = {};
+    for (const [locale, file] of Object.entries(localeFiles)) {
+      const localeIndex = await readIndexFile(file);
+      if (!localeIndex) continue;
+      indexes[locale] = localeIndex;
+      locales[locale] = { file, chunks: localeIndex.chunks.length };
+    }
+    const localeIndexes = Object.keys(indexes).length > 0 ? { indexes } : {};
     const handler = createAskHandler({
       index,
+      ...localeIndexes,
       ...models,
       // Every question comes from this machine, so one bucket, roomier than a public endpoint's
       // default, still bounds what a runaway page can spend of your key.
@@ -303,6 +340,7 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
     // The MCP endpoint, keyword-only as by default: it calls no model, so it spends nothing.
     const mcp = createMcpHandler({
       index,
+      ...localeIndexes,
       siteName: 'the docs',
       // The site runs on another port, which this server does not know: keep the index's paths.
       siteUrl: false,
@@ -319,17 +357,30 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
         options.error(`  ✗ ${error instanceof Error ? error.message : String(error)}`);
       },
     });
-    return { handler, mcp, description, chunks: index.chunks.length };
+    return { handler, mcp, description, chunks: index.chunks.length, locales };
+  };
+
+  /** When the index and each locale's were written, to tell when the site is built again. */
+  const written = async (loaded: { locales: Record<string, { file: string }> }) => {
+    const locales = await Promise.all(
+      Object.values(loaded.locales).map(({ file }) =>
+        stat(file).then(
+          ({ mtimeMs }) => mtimeMs,
+          () => -1,
+        ),
+      ),
+    );
+    return [(await stat(options.file)).mtimeMs, ...locales].join(' ');
   };
 
   let current = await load();
-  let loadedAt = (await stat(options.file)).mtimeMs;
+  let loadedAt = await written(current);
   let reloading: Promise<void> | null = null;
   // A rebuilt index replaces the handler before the next question is answered. The file counts as
   // read only once it loads: a question that finds it half written fails, and the next one reads
   // it again, though some file systems give the finished file the same modification time.
   const handlerFor = async () => {
-    const modified = (await stat(options.file)).mtimeMs;
+    const modified = await written(current);
     if (modified !== loadedAt) {
       // Questions that arrive during a reload wait for it, rather than each reading the file.
       reloading ??= (async () => {
@@ -485,6 +536,7 @@ export async function startDevServer(options: DevServerOptions): Promise<DevServ
     mcp: `http://localhost:${String(port)}/api/mcp`,
     description: current.description,
     chunks: current.chunks,
+    locales: current.locales,
     close: () =>
       new Promise((resolveClose) => {
         server.closeAllConnections();
@@ -596,6 +648,10 @@ export async function dev(args: string[], io: CliIO): Promise<number> {
   io.stdout(
     [
       `ondocs dev: ${label} (${String(server.chunks)} chunks), ${server.description}`,
+      ...Object.entries(server.locales).map(
+        ([locale, index]) =>
+          `            ${locale}: ${relative(io.cwd, index.file) || index.file} (${String(index.chunks)} chunks)`,
+      ),
       '',
       `  Endpoint  ${endpoint}  (CORS: ${cors})`,
       `  MCP       ${server.mcp}`,

@@ -21,6 +21,15 @@ export function openAsk(): void {
 /** ⌘K, as the dialog is this site's only search, and ⌘I, its shortcut in the plugins. */
 const SHORTCUT_KEYS = new Set(['k', 'i']);
 
+/**
+ * The letter a key types, or, on a layout that types no Latin letters (Russian, Greek), the one
+ * in its place on a US keyboard, as the library's shortcut reads it.
+ */
+const letterOf = (event: KeyboardEvent): string => {
+  const key = event.key.toLowerCase();
+  return /^[a-z]$/.test(key) ? key : (/^Key([A-Z])$/.exec(event.code)?.[1]?.toLowerCase() ?? key);
+};
+
 /** Text fields and editors keep ⌘K and ⌘I, as the dialog's own shortcut does. */
 const isEditable = (target: EventTarget | null): boolean =>
   target instanceof Element &&
@@ -44,7 +53,7 @@ export function Ask({ mode }: { mode: 'openai' | 'mock' }) {
     // has two. As in the dialog: a text field keeps them, except the dialog's own input, which
     // closes it.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || !SHORTCUT_KEYS.has(event.key.toLowerCase())) return;
+      if (!(event.metaKey || event.ctrlKey) || !SHORTCUT_KEYS.has(letterOf(event))) return;
       if (!openRef.current && isEditable(event.target)) return;
       event.preventDefault();
       setOpen(!openRef.current);

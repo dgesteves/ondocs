@@ -6,6 +6,7 @@
 import type { EmbeddingModel, LanguageModel } from 'ai';
 
 import { loadIndex, type LoadedIndex, type RetrievalOptions } from '../search/retrieve';
+import { memoryBudgetStore } from '../server/budget';
 import { turnstile, type ChallengeVerifier } from '../server/challenge';
 import { createAskHandler } from '../server/handler';
 import { createMcpHandler } from '../server/mcp';
@@ -21,6 +22,13 @@ export interface RouteSettings {
   indexPath: string;
   /** Each locale's index's path, by the locale the dialog sends: `{ fr: '/docs/fr/ask-index.json' }`. */
   localeIndexPaths?: Record<string, string>;
+  /**
+   * What the ask route answers when nothing is relevant, without calling the model. Default
+   * "I don't know. I couldn't find anything about that on {siteName}."
+   */
+  noAnswerMessage?: string;
+  /** The same in each locale whose message is not `noAnswerMessage`, by the locale the dialog sends. */
+  localeNoAnswerMessages?: Record<string, string>;
   /** Questions a minute per client, or `false` for no limit. */
   rateLimit: { limit: number; windowMs: number } | false;
   /** Tool calls a minute per client, or `false` for no limit. */
@@ -162,6 +170,51 @@ interface Handlers {
   mcp: Handler;
 }
 
+/** `load`, run once for every caller, and again on the next call after it fails. */
+function once<T>(load: () => Promise<T>): () => Promise<T> {
+  let loading: Promise<T> | null = null;
+  return () =>
+    (loading ??= load().catch((error: unknown) => {
+      loading = null;
+      throw error;
+    }));
+}
+
+/** The ask handler's own limit on a body, which a question's locale is read within. */
+const MAX_BODY_BYTES = 64 * 1024;
+
+/**
+ * The locale a question names, from a copy of its body, read up to {@link MAX_BODY_BYTES}: for
+ * the ask handler with that locale's "I don't know". `undefined` for a question without one, and
+ * for a body that is too long or not JSON, which the root locale's handler turns away.
+ */
+async function askedLocale(request: Request): Promise<string | undefined> {
+  if (request.method !== 'POST' || !request.body) return undefined;
+  const reader = request.clone().body?.getReader();
+  if (!reader) return undefined;
+  const decoder = new TextDecoder();
+  let text = '';
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > MAX_BODY_BYTES) {
+        await reader.cancel();
+        return undefined;
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    const body: unknown = JSON.parse(text + decoder.decode());
+    const locale =
+      typeof body === 'object' && body !== null ? (body as { locale?: unknown }).locale : undefined;
+    return typeof locale === 'string' ? locale : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Reads `path` (the index's path on the site, with `base`) from the build's static files, in the
  * folder @astrojs/node serves them from: `client` from the closest folder named `server` above
@@ -218,6 +271,8 @@ export function routeHandlers(module: RouteModule): (context: RouteContext) => P
     limit ? memoryRateLimit({ ...limit, key }) : false;
   const askLimit = limiter(module.settings.rateLimit);
   const mcpLimit = limiter(module.settings.mcpRateLimit);
+  // One day's count for every locale's ask handler, as for one handler.
+  const budgetStore = memoryBudgetStore();
 
   const create = async ({ url, locals }: RouteContext): Promise<Handlers> => {
     const { settings } = module;
@@ -231,10 +286,13 @@ export function routeHandlers(module: RouteModule): (context: RouteContext) => P
       ...(fetchAsset ? { fetch: fetchAsset } : {}),
       ...(bypass ? { headers: { 'x-vercel-protection-bypass': bypass } } : {}),
     };
-    // With the Node adapter, the build's own files, each read once. Elsewhere the site's, at the
-    // request's origin, which the host routes requests by, and checked again after a deploy.
+    // With the Node adapter, the build's own files, each read once, and loaded once for every
+    // handler that answers from them. Elsewhere the site's, at the request's origin, which the
+    // host routes requests by, and checked again after a deploy.
     const source = (path: string) =>
-      built ? () => readBuilt(built, path) : remoteIndex(new URL(path, url), fetchOptions);
+      built
+        ? once(async () => loadIndex(await readBuilt(built, path)))
+        : remoteIndex(new URL(path, url), fetchOptions);
     const index: LoadedIndex | RemoteIndex = built
       ? loadIndex(await readBuilt(built, settings.indexPath))
       : remoteIndex(new URL(settings.indexPath, url), fetchOptions);
@@ -246,20 +304,46 @@ export function routeHandlers(module: RouteModule): (context: RouteContext) => P
     );
     const loaded = typeof index === 'function' ? await index() : index;
     const query = await queryModel(module, loaded.embedding?.model);
+    const shared = {
+      model: module.chatModel(),
+      ...query,
+      siteName: settings.siteName,
+      rateLimit: askLimit,
+      ...(settings.budget ? { budget: { ...settings.budget, store: budgetStore } } : {}),
+      answerCache: settings.answerCache,
+      ...(settings.turnstile ? { challenge: turnstileChallenge(module) } : {}),
+    };
+    const ask = createAskHandler({
+      index,
+      ...(Object.keys(indexes).length > 0 ? { indexes } : {}),
+      ...shared,
+      ...(settings.noAnswerMessage === undefined
+        ? {}
+        : { noAnswerMessage: settings.noAnswerMessage }),
+    });
+    // A locale with an "I don't know" of its own has a handler of its own, from its index, with
+    // the same limits, budget and model: a question goes to its locale's.
+    const localeAsk = new Map<string, Handler>();
+    for (const [locale, message] of Object.entries(settings.localeNoAnswerMessages ?? {})) {
+      const localeIndex = indexes[locale];
+      if (!localeIndex) continue;
+      localeAsk.set(
+        locale,
+        createAskHandler({ index: localeIndex, ...shared, noAnswerMessage: message }),
+      );
+    }
     return {
-      ask: createAskHandler({
-        index,
-        ...(Object.keys(indexes).length > 0 ? { indexes } : {}),
-        model: module.chatModel(),
-        ...query,
-        siteName: settings.siteName,
-        rateLimit: askLimit,
-        ...(settings.budget ? { budget: settings.budget } : {}),
-        answerCache: settings.answerCache,
-        ...(settings.turnstile ? { challenge: turnstileChallenge(module) } : {}),
-      }),
+      ask:
+        localeAsk.size === 0
+          ? ask
+          : async (request) => {
+              const locale = await askedLocale(request);
+              return ((locale === undefined ? undefined : localeAsk.get(locale)) ?? ask)(request);
+            },
       mcp: createMcpHandler({
         index,
+        // Each locale's too, so search and list_pages take a locale, as the dialog's questions do.
+        ...(Object.keys(indexes).length > 0 ? { indexes } : {}),
         // Keyword-only, so agents' searches call no model.
         siteName: settings.siteName,
         ...(settings.siteUrl ? { siteUrl: settings.siteUrl } : {}),

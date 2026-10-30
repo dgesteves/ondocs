@@ -156,12 +156,13 @@ export function AskAnswer({
     if (segment.code) {
       // Streaming: an unclosed fence is still a code block, so code renders as it arrives. A long
       // line scrolls sideways, so the block takes focus: keyboard users can scroll it too. Its
-      // tokens are coloured, still as text nodes.
+      // tokens are coloured, still as text nodes. Code reads left to right on any page.
       const lang = fenceLanguage(segment.text);
       blocks.push(
         <pre
           key={`b${String(key++)}`}
           className="ask-pre"
+          dir="ltr"
           tabIndex={0}
           data-lang={lang || undefined}
         >
@@ -197,7 +198,8 @@ const kindOf = (line: string): LineKind =>
  * Paragraphs and lists. Within a paragraph block, consecutive lines of one kind are grouped, so
  * "To install:" directly followed by "1. …" lines renders as a paragraph and then a list. A
  * numbered list starts at its first item's number: steps with code or a blank line between them
- * come as lists of their own, and read 1, 2, 3 rather than 1, 1, 1.
+ * come as lists of their own, and read 1, 2, 3 rather than 1, 1, 1. Each block takes the direction
+ * of its first letters, so an English answer on an Arabic page keeps its punctuation at the end.
  */
 function prose(
   text: string,
@@ -225,7 +227,11 @@ function prose(
     for (const run of runs) {
       const key = `b${String(nextKey())}`;
       if (run.kind === 'p') {
-        out.push(<p key={key}>{inline(run.lines.join(' '))}</p>);
+        out.push(
+          <p key={key} dir="auto">
+            {inline(run.lines.join(' '))}
+          </p>,
+        );
         continue;
       }
       const marker = run.kind === 'ul' ? BULLET : NUMBERED;
@@ -233,9 +239,11 @@ function prose(
       const start = Number(NUMBERED.exec(run.lines[0] ?? '')?.[1] ?? 1);
       out.push(
         run.kind === 'ul' ? (
-          <ul key={key}>{items}</ul>
+          <ul key={key} dir="auto">
+            {items}
+          </ul>
         ) : (
-          <ol key={key} start={start === 1 ? undefined : start}>
+          <ol key={key} dir="auto" start={start === 1 ? undefined : start}>
             {items}
           </ol>
         ),
@@ -264,7 +272,11 @@ function renderInline(
     last = match.index + match[0].length;
     const [raw, code, bold, label, href, citations] = match;
     if (code !== undefined) {
-      out.push(<code key={key++}>{code}</code>);
+      out.push(
+        <code key={key++} dir="ltr">
+          {code}
+        </code>,
+      );
     } else if (bold !== undefined) {
       out.push(<strong key={key++}>{bold}</strong>);
     } else if (label !== undefined && href !== undefined) {

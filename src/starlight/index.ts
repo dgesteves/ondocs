@@ -21,6 +21,7 @@ import {
   type OndocsDialogOptions as AstroDialogOptions,
   type OndocsOptions,
 } from '../astro/integration';
+import { ENGLISH, translation, type TranslatedLabels } from './translations';
 
 /** What the dialog shows; passed to `mountAskDialog` from `ondocs/embed/standalone`. */
 export interface OndocsDialogOptions extends AstroDialogOptions {
@@ -68,14 +69,15 @@ export default function ondocs(options: OndocsStarlightOptions = {}): StarlightP
     name: 'ondocs',
     hooks: {
       'config:setup'({ config, addIntegration, updateConfig, astroConfig }) {
-        const navbar = options.dialog?.navbar
-          ? navbarButtons(config, options.dialog, fileURLToPath(astroConfig.root))
+        const words = builtInWords(config, options);
+        const navbar = words.dialog?.navbar
+          ? navbarButtons(config, words.dialog, fileURLToPath(astroConfig.root))
           : undefined;
         if (navbar) {
           updateConfig({ components: { ...config.components, Search: OWN_SEARCH } });
         }
         addIntegration(
-          createIntegration(options, {
+          createIntegration(words.dialog ? { ...options, dialog: words.dialog } : options, {
             ...(navbar ? { navbar } : {}),
             // Starlight puts the page title, its Markdown and the page footer (edit link, last
             // updated, pagination; footers are never indexed) in `<main data-pagefind-body>`,
@@ -89,9 +91,10 @@ export default function ondocs(options: OndocsStarlightOptions = {}): StarlightP
               ...(navbar ? ['ondocs/embed/button.css'] : []),
               'ondocs/starlight/launcher.css',
             ],
-            title: `Ask ${siteTitle(config)}`,
+            title: words.title,
             siteTitle: siteTitle(config),
-            localeTitles: localeTitles(config),
+            localeTitles: words.localeTitles,
+            noAnswerMessages: words.noAnswerMessages,
             ...(siteDescription(config) ? { siteDescription: siteDescription(config) } : {}),
             // Starlight plugins that write llms files, which the integration leaves them to.
             plugins: (config.plugins ?? []).map((plugin) => plugin.name),
@@ -166,16 +169,91 @@ export function navbarButtons(
   };
 }
 
-/** The dialog's title in each locale but the root one, from the site title in its language. */
-function localeTitles({ title, locales }: StarlightUserConfig): Record<string, string> {
-  const titles: Record<string, string> = {};
+/** `text` with the site's title for `{site}`. */
+const naming = (text: string, site: string): string => text.replace('{site}', () => site);
+
+/** The language of the pages under no locale's path: the root locale's, else the default one's. */
+function rootLanguage({ locales, defaultLocale }: StarlightUserConfig): string {
+  if (locales?.root) return locales.root.lang;
+  if (!defaultLocale) return 'en';
+  return locales?.[defaultLocale]?.lang ?? defaultLocale;
+}
+
+/**
+ * The plugin's words in each locale's language, where ondocs has them (src/starlight/translations):
+ * the dialog's labels, its title, named after the site's title in that language, and the ask
+ * route's "I don't know". A locale in the root's language, or in one ondocs has no words in, keeps
+ * the root's, as Starlight falls back to the default locale's.
+ */
+function builtInWords(
+  config: StarlightUserConfig,
+  options: OndocsStarlightOptions,
+): {
+  dialog: OndocsDialogOptions | undefined;
+  title: string;
+  localeTitles: Record<string, string>;
+  noAnswerMessages: Record<string, string>;
+} {
+  const { title, locales } = config;
+  const site = siteTitle(config);
+  // The root's words: English, the dialog's defaults, unless ondocs has its language.
+  const rootWords = translation(rootLanguage(config)) ?? ENGLISH;
+  const rootOwn = rootWords === ENGLISH ? undefined : rootWords;
+  const routeSite = options.route ? options.route.siteName : undefined;
+  const localeLabels: Record<string, TranslatedLabels> = {};
+  const localeTitles: Record<string, string> = {};
+  const noAnswerMessages: Record<string, string> = rootOwn
+    ? { root: naming(rootOwn.noAnswer, routeSite ?? site) }
+    : {};
   for (const [key, locale] of Object.entries(locales ?? {})) {
     if (key === 'root') continue;
     const lang = locale.lang ?? key;
     const translated = typeof title === 'string' ? title : (title[lang] ?? title[key]);
-    if (translated) titles[key] = `Ask ${translated}`;
+    const own = translation(lang);
+    localeTitles[key] = naming((own ?? rootWords).title, translated ?? site);
+    if (!own || own === rootWords) continue;
+    localeLabels[key] = own.labels;
+    noAnswerMessages[key] = naming(own.noAnswer, routeSite ?? translated ?? site);
   }
-  return titles;
+  return {
+    dialog: withLabels(options.dialog, rootOwn?.labels, localeLabels),
+    title: naming(rootWords.title, site),
+    localeTitles,
+    noAnswerMessages,
+  };
+}
+
+/** Whether `value` is an object to spread, as the options' check takes one. */
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * `dialog` with `root`'s labels under its own, and each locale's under that locale's own. Options
+ * the check will turn away are left as they are, for it to say what is wrong.
+ */
+function withLabels(
+  dialog: OndocsDialogOptions | undefined,
+  root: TranslatedLabels | undefined,
+  byLocale: Record<string, TranslatedLabels>,
+): OndocsDialogOptions | undefined {
+  if (!root && Object.keys(byLocale).length === 0) return dialog;
+  const given: unknown = dialog ?? {};
+  if (!isRecord(given) || !isRecord(given.labels ?? {}) || !isRecord(given.locales ?? {})) {
+    return dialog;
+  }
+  const { labels, locales } = given as OndocsDialogOptions;
+  const merged: NonNullable<OndocsDialogOptions['locales']> = { ...locales };
+  for (const [key, own] of Object.entries(byLocale)) {
+    const locale: unknown = locales?.[key] ?? {};
+    if (!isRecord(locale) || !isRecord(locale.labels ?? {})) return dialog;
+    const options = locale as NonNullable<OndocsDialogOptions['locales']>[string];
+    merged[key] = { ...options, labels: { ...own, ...options.labels } };
+  }
+  return {
+    ...dialog,
+    ...(root ? { labels: { ...root, ...labels } } : {}),
+    ...(Object.keys(merged).length > 0 ? { locales: merged } : {}),
+  };
 }
 
 /** The site title, in the default locale's language when it is translated. */

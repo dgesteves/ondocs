@@ -98,6 +98,13 @@ export interface OndocsRouteOptions {
   mcp?: string | false;
   /** Names the site in the model's instructions. Default: the site's title. */
   siteName?: string;
+  /**
+   * What the ask endpoint answers when nothing on the site is relevant, without calling the
+   * model: one message, or one per locale by its path prefix (`fr`), with `root` for the pages
+   * under none. Default "I don't know. I couldn't find anything about that on {siteName}.", and
+   * in Starlight, in each locale's language that ondocs has words for.
+   */
+  noAnswerMessage?: string | Record<string, string>;
 }
 
 export interface OndocsOptions extends IndexOptions {
@@ -237,6 +244,11 @@ export interface IntegrationPreset {
   siteTitle?: string;
   /** The dialog's title in each locale, by path prefix, unless the site sets one. */
   localeTitles?: Record<string, string>;
+  /**
+   * The ask route's "I don't know" by locale path prefix, `root` for the pages under none, unless
+   * `route.noAnswerMessage` gives one.
+   */
+  noAnswerMessages?: Record<string, string>;
   /** The site's description, for `llms.txt`. */
   siteDescription?: string;
   /** Plugins of the framework that write llms files, by name, e.g. Starlight plugins. */
@@ -263,6 +275,13 @@ const routeRules = shape<OndocsRouteOptions>({
   answerCache: boolean,
   mcp: oneOf(string, literal(false)),
   siteName: string,
+  noAnswerMessage: oneOf(
+    string,
+    optionRules.recordOf(
+      string,
+      "an object of messages by locale, such as { root: 'I don’t know.', fr: 'Je ne sais pas.' }",
+    ),
+  ),
 });
 
 const astroDialogRules: OptionRules<OndocsDialogOptions> = {
@@ -397,6 +416,7 @@ export function createIntegration(
           if (routes.mcp && astro.site) mcpRoute = `${base}${routes.mcp}`;
           const indexFile = (options.indexFile ?? 'ask-index.json').replace(/^\/+/, '');
           injected = { ...routes, indexPath: `${base}/${indexFile}` };
+          const locales = preset.locales ?? astroLocales(astro);
           routeModule = routeModuleCode(
             {
               siteName:
@@ -407,11 +427,9 @@ export function createIntegration(
               indexPath: injected.indexPath,
               // Each locale's index, which the dialog asks for on that locale's pages.
               localeIndexPaths: Object.fromEntries(
-                (preset.locales ?? astroLocales(astro)).map((locale) => [
-                  locale,
-                  `${base}/${locale}/${indexFile}`,
-                ]),
+                locales.map((locale) => [locale, `${base}/${locale}/${indexFile}`]),
               ),
+              ...noAnswerSettings(routeOptions?.noAnswerMessage, preset.noAnswerMessages, locales),
               rateLimit: perMinute(routeOptions?.rateLimit, 10),
               mcpRateLimit: perMinute(routeOptions?.mcpRateLimit, 60),
               ...(trustedHeader ? { trustedHeader: trustedHeader.toLowerCase() } : {}),
@@ -688,6 +706,37 @@ const perMinute = (
   fallback: number,
 ): RouteSettings['rateLimit'] =>
   value === false ? false : { limit: value ?? fallback, windowMs: 60_000 };
+
+/**
+ * The ask route's "I don't know" for the root locale and for each locale whose message differs:
+ * `route.noAnswerMessage`, one for all or one per locale, over the framework's in each locale's
+ * language. Throws for a locale the site does not have.
+ */
+function noAnswerSettings(
+  own: OndocsRouteOptions['noAnswerMessage'],
+  preset: Record<string, string> | undefined,
+  locales: readonly string[],
+): Pick<RouteSettings, 'noAnswerMessage' | 'localeNoAnswerMessages'> {
+  if (typeof own === 'string') return { noAnswerMessage: own };
+  const unknown = Object.keys(own ?? {}).find((key) => key !== 'root' && !locales.includes(key));
+  if (unknown !== undefined) {
+    throw new Error(
+      `ondocs: route.noAnswerMessage has a message for '${unknown}', which is not a locale of the site: key them by the locales' paths (${[...locales, 'root'].join(', ')}), with root for the pages under none.`,
+    );
+  }
+  const messages: Record<string, string> = { ...preset, ...own };
+  const root = messages.root;
+  const byLocale = Object.fromEntries(
+    locales.flatMap((locale) => {
+      const message = messages[locale];
+      return message === undefined || message === root ? [] : [[locale, message]];
+    }),
+  );
+  return {
+    ...(root === undefined ? {} : { noAnswerMessage: root }),
+    ...(Object.keys(byLocale).length > 0 ? { localeNoAnswerMessages: byLocale } : {}),
+  };
+}
 
 /** Whether `name` resolves from the site's root. */
 function hasPackage(name: string, root: URL): boolean {
