@@ -7,7 +7,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { startOpenAIStub } from '../scripts/openai-stub.mjs';
 import { buildIndex, serializeIndexFile } from '../src';
-import { devModels, DevError, findIndexFile, startDevServer, type DevServer } from '../src/cli/dev';
+import {
+  devModels,
+  DevError,
+  findIndexFile,
+  findLocaleIndexFiles,
+  startDevServer,
+  type DevServer,
+} from '../src/cli/dev';
 import { main } from '../src/cli/main';
 import { mockEmbeddingModel } from '../src/mock';
 import { writeIndexFile } from '../src/node';
@@ -216,6 +223,27 @@ describe('ondocs dev', () => {
     expect(await asked({ question: 'Combien coûte le forfait ?', locale: 'fr' })).toContain(
       '"url":"/fr/tarifs"',
     );
+  });
+
+  it('takes folders named as locales for locales, not the copies of the index in build/ or public/', async () => {
+    const { index } = await buildIndex({ documents: corpus, embeddingModel: mockEmbeddingModel() });
+    const folders = [
+      'build',
+      'public',
+      'site',
+      '_site',
+      'docs',
+      'fr',
+      'pt-br',
+      'zh-Hans',
+      'es-419',
+    ];
+    for (const folder of ['', ...folders]) {
+      await writeIndexFile(join(root, folder, 'ask-index.json'), index);
+    }
+    const found = await findLocaleIndexFiles(join(root, 'ask-index.json'));
+    expect(Object.keys(found).sort()).toEqual(['es-419', 'fr', 'pt-br', 'zh-Hans']);
+    expect(found['pt-br']).toBe(join(root, 'pt-br/ask-index.json'));
   });
 
   it('reads the index again after a reload fails, as when it is read half written', async () => {

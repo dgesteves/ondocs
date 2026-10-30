@@ -194,6 +194,13 @@ export async function devModels(
 }
 
 /**
+ * A locale's folder, named as its path: a language, with or without a region or script, as `fr`,
+ * `pt-br` and `zh-Hans`. Not `build` or `public`, which can hold copies of the root's index (see
+ * {@link INDEX_FILES}).
+ */
+const LOCALE_FOLDER = /^[a-z]{2,3}(?:-[a-z\d]{2,8})*$/i;
+
+/**
  * The index of each locale beside `file`, as the plugins write them: `dist/fr/ask-index.json`
  * next to `dist/ask-index.json`, by its folder's name, which is the locale's path and what the
  * dialog sends from its pages.
@@ -208,7 +215,7 @@ export async function findLocaleIndexFiles(file: string): Promise<Record<string,
   }
   return Object.fromEntries(
     entries
-      .filter((entry) => entry.isDirectory())
+      .filter((entry) => entry.isDirectory() && LOCALE_FOLDER.test(entry.name))
       .map((entry) => [entry.name, join(folder, entry.name, basename(file))] as const)
       .filter(([, path]) => existsSync(path))
       .sort(([a], [b]) => a.localeCompare(b)),

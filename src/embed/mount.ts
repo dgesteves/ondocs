@@ -82,12 +82,18 @@ function isEditable(target: EventTarget | null): boolean {
  * types, or, for a letter on a layout that types no Latin letters (Russian, Greek, Hebrew,
  * Arabic), by the key's place, the letter's on a US keyboard. A layout that types Latin letters in
  * other places, as Dvorak does, goes by the character alone: its key in I's place types C, and
- * Ctrl+C copies.
+ * Ctrl+C copies. So does a key pressed with Alt or Option: AltGr (Ctrl and Alt) and Option type
+ * other characters from the same place, as AltGr+I types í on US International.
  */
 export function pressesShortcut(event: KeyboardEvent, key: string): boolean {
   if (!key || !(event.metaKey || event.ctrlKey)) return false;
   if (event.key.toUpperCase() === key) return true;
-  return /^[A-Z]$/.test(key) && !/^[a-z]$/i.test(event.key) && event.code === `Key${key}`;
+  return (
+    !event.altKey &&
+    /^[A-Z]$/.test(key) &&
+    !/^[a-z]$/i.test(event.key) &&
+    event.code === `Key${key}`
+  );
 }
 
 /** A key that types a character, on its own or with Shift or Option (AltGr is Ctrl and Alt). */

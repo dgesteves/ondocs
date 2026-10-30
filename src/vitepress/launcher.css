@@ -28,7 +28,7 @@
   --ask-button-hover-bg: var(--vp-c-brand-2);
 }
 .VPNavBarSearch .ondocs-button:not(:first-child) {
-  margin-left: 12px;
+  margin-inline-start: 12px;
 }
 html.mac .ondocs-button > kbd::before {
   content: '\2318';

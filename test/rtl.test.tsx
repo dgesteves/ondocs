@@ -3,8 +3,10 @@
 // <html dir="rtl">. Code, inline code and source URLs read left to right whatever the page's
 // direction: laid out right to left, "// docusaurus.config.ts" read "docusaurus.config.ts //" and a
 // source's URL "docusaurus/". Text people write or the model writes takes the direction of its own
-// first letters, so an English question on an Arabic page keeps its question mark at the end. The
-// stylesheet places what has a side by the text's start and end, not left and right.
+// first letters, so an English question on an Arabic page keeps its question mark at the end; an
+// empty input keeps the page's direction, as dir="auto" would make it left to right, and put the
+// placeholder away from the icon. The stylesheets place what has a side by the text's start and
+// end, not left and right.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -115,6 +117,7 @@ describe('the dialog on a right-to-left page', () => {
       embeddingModel,
       retrieval: { minSimilarity: MOCK_MIN_SIMILARITY },
       rateLimit: false,
+      onFeedback: vi.fn(),
     });
     const fetch = vi.fn((input: string | URL | Request, init?: RequestInit) =>
       handler(
@@ -125,7 +128,8 @@ describe('the dialog on a right-to-left page', () => {
     render(<AskDialog fetch={fetch} defaultOpen suggestions={['كيف أثبّته؟']} />);
     const dialog = await screen.findByRole('dialog');
     const input = within(dialog).getByRole('combobox');
-    expect(input.getAttribute('dir')).toBe('auto');
+    // Empty, the page's direction, for the placeholder; with text, the text's own.
+    expect(input.getAttribute('dir')).toBeNull();
     const itemText = () =>
       Array.from(dialog.querySelectorAll('.ask-item-text'), (text) => [
         text.textContent,
@@ -133,6 +137,7 @@ describe('the dialog on a right-to-left page', () => {
       ]);
     expect(itemText()).toEqual([['كيف أثبّته؟', 'auto']]);
     await user.type(input, 'How do I install with pnpm?');
+    expect(input.getAttribute('dir')).toBe('auto');
     expect(itemText()).toEqual([['How do I install with pnpm?', 'auto']]);
     await user.keyboard('{Enter}');
     await waitFor(() => {
@@ -151,6 +156,15 @@ describe('the dialog on a right-to-left page', () => {
         question.getAttribute('dir'),
       ),
     ).toEqual(['auto', 'auto']);
+    // The feedback's comment, as the question's input.
+    await user.click(
+      within(dialog).getAllByRole('button', { name: 'No, it did not help' }).at(-1)!,
+    );
+    await user.click(await within(dialog).findByRole('button', { name: 'Add a comment' }));
+    const comment = within(dialog).getByRole('textbox', { name: 'Comment' });
+    expect(comment.getAttribute('dir')).toBeNull();
+    await user.type(comment, 'Too short');
+    expect(comment.getAttribute('dir')).toBe('auto');
   });
 });
 
@@ -165,19 +179,47 @@ function rule(source: string, selector: string): string {
   return declarations.join('\n');
 }
 
+/** A margin, padding or position on the left or the right, or a margin or padding with four sides. */
+const PHYSICAL =
+  /(?:margin|padding)-(?:left|right)\s*:|(?:^|[\s;{])(?:left|right)\s*:(?!\s*50%)|(?:^|[\s;{])(?:margin|padding)\s*:[ \t]*[^\s;]+(?:[ \t]+[^\s;]+){3}[ \t]*;/m;
+
 describe('the stylesheets on a right-to-left page', () => {
   const css = read('src/react/styles.css');
+  const withoutComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '');
 
   it('place the dialog’s sides by the text’s start and end, not left and right', () => {
     // Every margin, padding and position in the dialog's stylesheet. Docusaurus flips
     // left and right itself on its right-to-left locales (RTLCSS), but no other site does.
-    expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(
-      /(?:margin|padding)-(?:left|right)\s*:|(?:^|[\s;{])(?:left|right)\s*:(?!\s*50%)/m,
-    );
+    expect(withoutComments(css)).not.toMatch(PHYSICAL);
     expect(rule(css, '.ask-markdown ul')).toMatch(/padding-inline-start:\s*1\.25em;/);
     expect(rule(css, '.ask-source')).toMatch(/padding-inline:\s*8px 12px;/);
     expect(rule(read('src/embed/launcher.css'), '.ondocs-launcher')).toMatch(
       /inset-inline-end:\s*max\(1rem, env\(safe-area-inset-right\)\);/,
+    );
+  });
+
+  it('place the floating button, the header button and their shortcuts by the text’s start and end', () => {
+    // The plugins' stylesheets but Docusaurus's, which RTLCSS flips.
+    for (const file of [
+      'src/embed/launcher.css',
+      'src/embed/button.css',
+      'src/starlight/launcher.css',
+      'src/vitepress/launcher.css',
+    ]) {
+      expect(withoutComments(read(file)), file).not.toMatch(PHYSICAL);
+    }
+    expect(rule(read('src/embed/launcher.css'), '.ondocs-launcher > kbd')).toMatch(
+      /margin-inline-start:\s*0\.25rem;/,
+    );
+    expect(rule(read('src/embed/button.css'), '.ondocs-button > kbd')).toMatch(
+      /margin-inline-start:\s*0\.1rem;/,
+    );
+    expect(
+      rule(read('src/vitepress/launcher.css'), '.VPNavBarSearch .ondocs-button:not(:first-child)'),
+    ).toMatch(/margin-inline-start:\s*12px;/);
+    // The floating button's end is on the left on a right-to-left page, past the left safe area.
+    expect(rule(read('src/embed/launcher.css'), '.ondocs-launcher:dir(rtl)')).toMatch(
+      /inset-inline-end:\s*max\(1rem, env\(safe-area-inset-left\)\);/,
     );
   });
 

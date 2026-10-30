@@ -221,9 +221,10 @@ function Feedback({
               onSubmit={submit}
               onKeyDown={keepKeys}
             >
+              {/* As the question's input: the page's direction while empty, for the placeholder. */}
               <input
                 className="ask-feedback-input"
-                dir="auto"
+                dir={text ? 'auto' : undefined}
                 aria-label={labels.comment}
                 placeholder={labels.commentPlaceholder}
                 maxLength={1000}
@@ -558,12 +559,14 @@ export function DialogPanel({
             <div className="ask-input-row">
               <SearchIcon />
               {/* What people type, and the suggestions, read in their own direction: an English
-                  question on an Arabic page keeps its question mark at the end. */}
+                  question on an Arabic page keeps its question mark at the end. Empty, the input
+                  keeps the page's, which places the placeholder by the icon: an empty field with
+                  dir="auto" is left to right. */}
               <Command.Input
                 ref={setInput}
                 value={query}
                 onValueChange={setQuery}
-                dir="auto"
+                dir={query ? 'auto' : undefined}
                 placeholder={placeholder}
                 maxLength={500}
                 className={cx('ask-input', classNames.input)}

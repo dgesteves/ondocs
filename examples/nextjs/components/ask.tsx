@@ -23,11 +23,13 @@ const SHORTCUT_KEYS = new Set(['k', 'i']);
 
 /**
  * The letter a key types, or, on a layout that types no Latin letters (Russian, Greek), the one
- * in its place on a US keyboard, as the library's shortcut reads it.
+ * in its place on a US keyboard, as the library's shortcut reads it. Not with Alt or Option, which
+ * type other characters from the same place (AltGr+I types í on US International).
  */
 const letterOf = (event: KeyboardEvent): string => {
   const key = event.key.toLowerCase();
-  return /^[a-z]$/.test(key) ? key : (/^Key([A-Z])$/.exec(event.code)?.[1]?.toLowerCase() ?? key);
+  if (/^[a-z]$/.test(key) || event.altKey) return key;
+  return /^Key([A-Z])$/.exec(event.code)?.[1]?.toLowerCase() ?? key;
 };
 
 /** Text fields and editors keep ⌘K and ⌘I, as the dialog's own shortcut does. */

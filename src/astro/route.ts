@@ -10,8 +10,14 @@ import { memoryBudgetStore } from '../server/budget';
 import { turnstile, type ChallengeVerifier } from '../server/challenge';
 import { createAskHandler } from '../server/handler';
 import { createMcpHandler } from '../server/mcp';
-import { clientKey, memoryRateLimit, type RateLimiter } from '../server/rate-limit';
+import {
+  clientKey,
+  memoryRateLimit,
+  type RateLimiter,
+  type RateLimitResult,
+} from '../server/rate-limit';
 import { remoteIndex, type RemoteIndex } from '../server/remote-index';
+import { isJson, sharedIndexSource } from '../server/shared';
 
 /** What the integration passes to the route, as JSON, through `virtual:ondocs/route`. */
 export interface RouteSettings {
@@ -170,26 +176,47 @@ interface Handlers {
   mcp: Handler;
 }
 
-/** `load`, run once for every caller, and again on the next call after it fails. */
-function once<T>(load: () => Promise<T>): () => Promise<T> {
-  let loading: Promise<T> | null = null;
-  return () =>
-    (loading ??= load().catch((error: unknown) => {
-      loading = null;
-      throw error;
-    }));
-}
-
 /** The ask handler's own limit on a body, which a question's locale is read within. */
 const MAX_BODY_BYTES = 64 * 1024;
 
 /**
- * The locale a question names, from a copy of its body, read up to {@link MAX_BODY_BYTES}: for
- * the ask handler with that locale's "I don't know". `undefined` for a question without one, and
- * for a body that is too long or not JSON, which the root locale's handler turns away.
+ * `limit`, asked once for each request: the locale's reading of a question asks first, and the
+ * handler it picks gets the same answer rather than counting the question twice.
  */
-async function askedLocale(request: Request): Promise<string | undefined> {
+function oncePerRequest(limit: RateLimiter): RateLimiter {
+  const results = new WeakMap<Request, RateLimitResult | Promise<RateLimitResult>>();
+  return (request) => {
+    let result = results.get(request);
+    if (result === undefined) {
+      result = limit(request);
+      results.set(request, result);
+    }
+    return result;
+  };
+}
+
+/**
+ * The locale a question names, from a copy of its body: for the ask handler with that locale's
+ * "I don't know". Only a body the handler would read is read, as it reads one: a POST of JSON,
+ * from a client within the rate limit, and up to {@link MAX_BODY_BYTES}, so a client cannot hold
+ * the route on it. `undefined` for a question without a locale, and for a request the root
+ * locale's handler turns away: over the rate limit, too long, or not JSON.
+ */
+async function askedLocale(
+  request: Request,
+  limit: RateLimiter | false,
+): Promise<string | undefined> {
   if (request.method !== 'POST' || !request.body) return undefined;
+  if (!isJson(request.headers.get('content-type'))) return undefined;
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_BODY_BYTES) return undefined;
+  if (limit) {
+    try {
+      if (!(await limit(request)).success) return undefined;
+    } catch {
+      // The handler asks again, and answers as its failure mode says.
+      return undefined;
+    }
+  }
   const reader = request.clone().body?.getReader();
   if (!reader) return undefined;
   const decoder = new TextDecoder();
@@ -201,7 +228,9 @@ async function askedLocale(request: Request): Promise<string | undefined> {
       if (done) break;
       size += value.byteLength;
       if (size > MAX_BODY_BYTES) {
-        await reader.cancel();
+        // Not awaited: a copy's cancel settles only once the body itself is cancelled too, which
+        // the handler does when it reaches the limit.
+        void reader.cancel().catch(() => undefined);
         return undefined;
       }
       text += decoder.decode(value, { stream: true });
@@ -269,7 +298,9 @@ export function routeHandlers(module: RouteModule): (context: RouteContext) => P
   const key = (request: Request): string => clientId(request, trustedHeader);
   const limiter = (limit: RouteSettings['rateLimit']): RateLimiter | false =>
     limit ? memoryRateLimit({ ...limit, key }) : false;
-  const askLimit = limiter(module.settings.rateLimit);
+  const counted = limiter(module.settings.rateLimit);
+  // Once a question, though the locale's reading of it asks before its handler does.
+  const askLimit = counted && oncePerRequest(counted);
   const mcpLimit = limiter(module.settings.mcpRateLimit);
   // One day's count for every locale's ask handler, as for one handler.
   const budgetStore = memoryBudgetStore();
@@ -291,7 +322,7 @@ export function routeHandlers(module: RouteModule): (context: RouteContext) => P
     // host routes requests by, and checked again after a deploy.
     const source = (path: string) =>
       built
-        ? once(async () => loadIndex(await readBuilt(built, path)))
+        ? sharedIndexSource(() => readBuilt(built, path))
         : remoteIndex(new URL(path, url), fetchOptions);
     const index: LoadedIndex | RemoteIndex = built
       ? loadIndex(await readBuilt(built, settings.indexPath))
@@ -337,7 +368,7 @@ export function routeHandlers(module: RouteModule): (context: RouteContext) => P
         localeAsk.size === 0
           ? ask
           : async (request) => {
-              const locale = await askedLocale(request);
+              const locale = await askedLocale(request, askLimit);
               return ((locale === undefined ? undefined : localeAsk.get(locale)) ?? ask)(request);
             },
       mcp: createMcpHandler({

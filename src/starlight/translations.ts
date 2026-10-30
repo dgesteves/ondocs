@@ -1,7 +1,8 @@
 // The dialog's words in the languages ondocs ships, for the Starlight plugin to give a locale in
 // one of them: French, German and Spanish, with English, its defaults, for an English locale on a
 // site whose root is in another language. A site's own labels, in `dialog.labels` and
-// `dialog.locales`, go over these.
+// `dialog.locales`, go over these. The French, German and Spanish are machine translations that
+// native speakers have not reviewed yet, as the docs say: corrections are welcome.
 import type { OndocsDialogOptions } from '../integration';
 
 /**
@@ -91,7 +92,7 @@ export const TRANSLATIONS: Readonly<Record<string, Translation>> = {
         'Saisissez une question et appuyez sur Entrée. Les réponses sont générées à partir des pages de ce site, qu’elles citent.',
       placeholder: 'Posez une question…',
       ask: 'Demander',
-      followUp: 'Poursuivre',
+      followUp: 'Question de suivi',
       suggested: 'Questions suggérées',
       list: 'Suggestions',
       stop: 'Arrêter',
@@ -145,13 +146,13 @@ export const TRANSLATIONS: Readonly<Record<string, Translation>> = {
       launcher: 'KI fragen',
       controlKey: 'Strg',
       description:
-        'Gib eine Frage ein und drücke die Eingabetaste. Die Antworten entstehen aus den Seiten dieser Website und nennen sie als Quellen.',
+        'Gib eine Frage ein und drücke die Eingabetaste. Die Antworten werden aus den Seiten dieser Website erstellt und nennen sie als Quellen.',
       placeholder: 'Stell eine Frage…',
       ask: 'Fragen',
       followUp: 'Nachfragen',
-      suggested: 'Vorschläge',
+      suggested: 'Vorgeschlagene Fragen',
       list: 'Vorschläge',
-      stop: 'Stopp',
+      stop: 'Stoppen',
       escapeKey: 'esc',
       close: 'Schließen',
       footer: 'Die Antworten stammen von dieser Website und können falsch sein. Prüfe die Quellen.',
@@ -164,9 +165,9 @@ export const TRANSLATIONS: Readonly<Record<string, Translation>> = {
       noAnswerFound: 'Keine Antwort auf dieser Website gefunden.',
       answerReadyOne: 'Antwort fertig, mit 1 zitierten Quelle.',
       answerReadyMany: 'Antwort fertig, mit {count} zitierten Quellen.',
-      answerTruncated: 'Antwort fertig, aber an ihrer Längengrenze abgeschnitten.',
+      answerTruncated: 'Antwort fertig, aber bei der maximalen Länge abgeschnitten.',
       truncatedNotice:
-        'Diese Antwort hat ihre Längengrenze erreicht und ist vielleicht unvollständig.',
+        'Diese Antwort hat die maximale Länge erreicht und ist möglicherweise unvollständig.',
       retry: 'Erneut versuchen',
       sources: 'Quellen',
       citation: 'Quelle {n}: {title}',
@@ -207,8 +208,8 @@ export const TRANSLATIONS: Readonly<Record<string, Translation>> = {
         'Escribe una pregunta y pulsa Intro. Las respuestas se generan a partir de las páginas de este sitio y las citan.',
       placeholder: 'Haz una pregunta…',
       ask: 'Preguntar',
-      followUp: 'Continuar',
-      suggested: 'Sugerencias',
+      followUp: 'Pregunta de seguimiento',
+      suggested: 'Preguntas sugeridas',
       list: 'Sugerencias',
       stop: 'Detener',
       escapeKey: 'esc',

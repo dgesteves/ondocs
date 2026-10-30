@@ -790,7 +790,8 @@ describe('the injected routes', () => {
     }
   });
 
-  it('say "I don’t know" in each locale’s words, from one budget for all', async () => {
+  /** The routes of a site with a French index and "I don't know" in English and French. */
+  const localeRoutes = async (settings: Partial<RouteSettings>) => {
     const index = async (documents: typeof corpus) =>
       serializeIndexFile(
         (await buildIndex({ documents, embeddingModel: mockEmbeddingModel() })).index,
@@ -806,7 +807,7 @@ describe('the injected routes', () => {
         },
       ]),
     };
-    const handlers = routeHandlers({
+    return routeHandlers({
       settings: {
         siteName: 'Acme',
         indexPath: '/ask-index.json',
@@ -815,8 +816,9 @@ describe('the injected routes', () => {
         localeNoAnswerMessages: { fr: 'Rien là-dessus ici.' },
         rateLimit: false,
         mcpRateLimit: false,
-        budget: { requestsPerDay: 4 },
+        budget: false,
         answerCache: false,
+        ...settings,
       },
       chatModel: () => mockLanguageModel({ initialDelayMs: 0, wordDelayMs: 0 }),
       openaiEmbedding: null,
@@ -830,6 +832,10 @@ describe('the injected routes', () => {
         },
       }),
     });
+  };
+
+  it('say "I don’t know" in each locale’s words, from one budget for all', async () => {
+    const handlers = await localeRoutes({ budget: { requestsPerDay: 4 } });
     const ask = async (body: object) => {
       const response = await serve(handlers, 'ask', context('/api/ask', body));
       return [response.status, await response.text()] as const;
@@ -849,6 +855,80 @@ describe('the injected routes', () => {
     const [status, body] = await ask({ question: capital, locale: 'fr' });
     expect(status).toBe(429);
     expect(body).toContain('budget_exceeded');
+  });
+
+  /** A question as a site's visitor sends it: its body as text, or streamed, without a length. */
+  const posted = (
+    body: string | ReadableStream<Uint8Array>,
+    headers: Record<string, string> = {},
+    clientAddress = '203.0.113.1',
+  ): RouteContext => {
+    const request = new Request('https://acme.dev/api/ask', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body,
+      duplex: 'half',
+    } as RequestInit);
+    return { request, url: new URL(request.url), clientAddress, locals: {} };
+  };
+
+  /** `text` in chunks of 4 KiB, and then, unless `end` is false, the end of the body. */
+  const streamed = (text: string, end = true): ReadableStream<Uint8Array> => {
+    const bytes = new TextEncoder().encode(text);
+    let offset = 0;
+    return new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (offset < bytes.byteLength) {
+          controller.enqueue(bytes.slice(offset, offset + 4096));
+          offset += 4096;
+        } else if (end) {
+          controller.close();
+        }
+      },
+    });
+  };
+
+  it('turn away a body over 64 KiB with a 413 when a locale has its own "I don’t know"', async () => {
+    const handlers = await localeRoutes({ rateLimit: { limit: 10, windowMs: 60_000 } });
+    const question = (size: number) =>
+      JSON.stringify({
+        question: 'Combien coûte le forfait ?',
+        locale: 'fr',
+        note: 'x'.repeat(size),
+      });
+    const status = async (context: RouteContext) => (await serve(handlers, 'ask', context)).status;
+    // By its Content-Length, by its bytes when it has none, and streamed in chunks.
+    const large = question(70 * 1024);
+    expect(await status(posted(large, { 'content-length': String(large.length) }))).toBe(413);
+    expect(await status(posted(large))).toBe(413);
+    expect(await status(posted(streamed(question(200 * 1024))))).toBe(413);
+    // The route still reads a question's locale after them.
+    const response = await serve(
+      handlers,
+      'ask',
+      posted(JSON.stringify({ question: 'Quelle est la capitale du Pérou ?', locale: 'fr' })),
+    );
+    expect(await response.text()).toContain('Rien là-dessus ici.');
+  });
+
+  it('read no question’s locale before the rate limit, and count each question once', async () => {
+    const handlers = await localeRoutes({ rateLimit: { limit: 2, windowMs: 60_000 } });
+    const ask = async (context: RouteContext) => {
+      const response = await serve(handlers, 'ask', context);
+      return [response.status, await response.text()] as const;
+    };
+    const french = JSON.stringify({ question: 'Quelle est la capitale du Pérou ?', locale: 'fr' });
+    // Two questions a minute: the reading of the locale and the handler count each once.
+    expect(await ask(posted(french))).toEqual([200, expect.stringContaining('Rien là-dessus')]);
+    expect(await ask(posted(french))).toEqual([200, expect.stringContaining('Rien là-dessus')]);
+    // Over the limit, a body that never ends gets its 429 at once: nothing waits to read it.
+    const [status] = await ask(posted(streamed(french.slice(0, -1), false)));
+    expect(status).toBe(429);
+    // Another client is within its own.
+    expect(await ask(posted(french, {}, '203.0.113.2'))).toEqual([
+      200,
+      expect.stringContaining('Rien là-dessus'),
+    ]);
   });
 
   it('answer 500 while there is no index, and try again on the next request', async () => {
