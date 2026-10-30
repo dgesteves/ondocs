@@ -167,7 +167,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitest/coverage-v8": "^5.0.5",
     "ai": "^7.0.137",
-    "astro": "7.3.8",
+    "astro": "7.4.2",
     "axe-core": "^4.14.0",
     "cmdk": "^1.1.1",
     "eslint": "^10.12.0",
