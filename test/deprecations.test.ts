@@ -87,6 +87,25 @@ describe('REMOVED_IN', () => {
     expect(new Set(removals(page))).toEqual(new Set([REMOVED_IN]));
     expect(page.match(/until the next minor[^.]*/g)).toBeNull();
   });
+
+  it('leaves the old names to the upgrading page: no other docs page sets one', async () => {
+    // The "Before" column of the upgrading page's tables, such as `rateLimitFailure: 'open'`.
+    const docs = join(root, 'examples/nextjs/content/docs');
+    const upgrading = await readFile(join(docs, 'upgrading.md'), 'utf8');
+    const before = upgrading
+      .split('\n')
+      .filter((line) => /^\| [^|]+\| `/.test(line))
+      .flatMap((line) => [...(line.split('|')[2] ?? '').matchAll(/`([^`]+)`/g)].map((m) => m[1]));
+    expect(before).toContain("rateLimitFailure: 'open'");
+    const found: string[] = [];
+    for (const file of await readdir(docs)) {
+      if (file === 'upgrading.md' || !file.endsWith('.md')) continue;
+      const page = await readFile(join(docs, file), 'utf8');
+      for (const old of before)
+        if (page.includes(`\`${old ?? ''}\``)) found.push(`${file}: ${old ?? ''}`);
+    }
+    expect(found).toEqual([]);
+  });
 });
 
 describe('createAskHandler: maxContextChars is now retrieval.maxContextChars', () => {

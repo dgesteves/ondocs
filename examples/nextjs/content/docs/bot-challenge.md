@@ -34,12 +34,12 @@ export const POST = createAskHandler({
 
 Each question must then carry a token, as `challenge` in its JSON body. The endpoint checks it after the rate limit and before anything else: before the answer cache, the embedding and the model.
 
-| Request                                             | Response                                                              |
-| --------------------------------------------------- | --------------------------------------------------------------------- |
-| No token                                            | 403, code `challenge_required`                                        |
-| A token Turnstile rejects (bad, used, expired)      | 403, code `challenge_failed`                                          |
-| Turnstile cannot be reached, or the secret is wrong | 503, reported to `onError`; with `rateLimitFailure: 'open'`, answered |
-| A good token                                        | the answer                                                            |
+| Request                                             | Response                                                         |
+| --------------------------------------------------- | ---------------------------------------------------------------- |
+| No token                                            | 403, code `challenge_required`                                   |
+| A token Turnstile rejects (bad, used, expired)      | 403, code `challenge_failed`                                     |
+| Turnstile cannot be reached, or the secret is wrong | 503, reported to `onError`; with `failureMode: 'open'`, answered |
+| A good token                                        | the answer                                                       |
 
 A token is good for one question and five minutes. Ratings sent to `onFeedback` need no token: they cost nothing.
 
