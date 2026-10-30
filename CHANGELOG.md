@@ -2,6 +2,18 @@
 
 Until 0.6.0 this package was published as `ask-my-site`. Its entries below keep the links and names of that time.
 
+## 0.16.4
+
+### Patch Changes
+
+- [#256](https://github.com/dgesteves/ondocs/pull/256) [`ab8dda6`](https://github.com/dgesteves/ondocs/commit/ab8dda67f70c5b25f5db56cedbbe79887ba217f6) Thanks [@kasettadoo-sys](https://github.com/kasettadoo-sys)! - `createAskHandler` and `createMcpHandler` check `allowedOrigins` when they are made. An entry that no browser sends as its `Origin`, such as `'https://blog.example.com/'` with a trailing slash, `'https://Blog.Example.com'` or `'https://blog.example.com:443'`, matched no request, so the page on that origin silently got no CORS headers (and a 403 from the MCP endpoint). Each now fails with the origin to write instead. A list holding `'*'` says to pass `'*'` itself, and a string other than `'*'`, which JavaScript code could pass and which was searched as text (`'https://blog.example.com'` let `https://blog.example.co` in), is refused. It also refuses `'null'`, which let a request with `Origin: null` in (a sandboxed iframe or a `file://` page), and `''`, which splitting an empty environment variable gives and which acted as an empty list.
+
+- [#258](https://github.com/dgesteves/ondocs/pull/258) [`7ff6050`](https://github.com/dgesteves/ondocs/commit/7ff6050ea77ee2c3ee41b7af706ffd1ca256b69c) Thanks [@kasettadoo-sys](https://github.com/kasettadoo-sys)! - `astro dev` on a site with an SSR adapter and a `base` answers from the last build's index. The dev server serves that index for the routes the integration adds, and looked for its request at `<base>/ask-index.json` in `request.url`. Astro's own base middleware, which runs first, has already stripped `base` from that URL, so the request fell through to a 404 and every question failed. It now matches the path as requested.
+
+- [#267](https://github.com/dgesteves/ondocs/pull/267) [`942ce90`](https://github.com/dgesteves/ondocs/commit/942ce900ea2ed97c88f6659c9b95ab08ffa7132b) Thanks [@dgesteves](https://github.com/dgesteves)! - `ondocs index` reads MDX imports and exports more like MDX does. An `export` line inside a code fence indented in JSX is kept as code, where it was dropped, and an import or export right after a JSX tag line, a `{…}` expression, a thematic break or a setext underline is dropped, where it was kept as text. `allowedOrigins` also refuses an entry with `*` in it, such as `'https://*.example.com'`, which matched no request: list each origin.
+
+- [#254](https://github.com/dgesteves/ondocs/pull/254) [`e1b25aa`](https://github.com/dgesteves/ondocs/commit/e1b25aa73102bc7ce016a560a879ab5dc48d8eaf) Thanks [@kasettadoo-sys](https://github.com/kasettadoo-sys)! - `ondocs index` no longer drops MDX text that only looks like an import or export. Any line starting with `import ` or `export ` was read as one, with the lines after it up to a blank line, so a wrapped paragraph such as "you can\nexport the site as static files" lost its second half from the index and the `.md` copies. As in MDX, an import or export now counts only where a block starts: on the first line, or after a blank line or a heading. An export holding a template string is now dropped whole, where its backticks used to leave part of it in the text.
+
 ## 0.16.3
 
 ### Patch Changes

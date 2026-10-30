@@ -99,7 +99,7 @@ The answer is rendered from a small Markdown subset into React nodes, never as H
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/npm/ondocs@0.16.3/dist/embed.global.js"
+  src="https://cdn.jsdelivr.net/npm/ondocs@0.16.4/dist/embed.global.js"
   integrity="sha384-…"
   data-dialog-integrity="sha384-…"
   crossorigin="anonymous"
@@ -112,7 +112,7 @@ Get the two hashes for the version you pin:
 
 ```sh
 for file in embed.global.js embed-dialog.global.js; do
-  hash=$(set -o pipefail; curl -fsSL "https://cdn.jsdelivr.net/npm/ondocs@0.16.3/dist/$file" | openssl dgst -sha384 -binary | openssl base64 -A) || break
+  hash=$(set -o pipefail; curl -fsSL "https://cdn.jsdelivr.net/npm/ondocs@0.16.4/dist/$file" | openssl dgst -sha384 -binary | openssl base64 -A) || break
   echo "$file sha384-$hash"
 done
 ```
