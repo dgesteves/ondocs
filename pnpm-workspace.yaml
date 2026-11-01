@@ -14,6 +14,12 @@ allowBuilds:
 # install takes the overrides: a site that installs ondocs resolves its own Docusaurus, Starlight and
 # VitePress.
 overrides:
+  # High: follow-redirects 1.16.0-1.16.1 drop cross-realm sensitiveHeaders on redirect (fixed in 1.16.2),
+  # through Docusaurus's dev server (webpack-dev-server > http-proxy-middleware > http-proxy).
+  follow-redirects@<1.16.2: ^1.16.2
+  # High: quadratic-time split in joi's string().email({ multiple: true }) before 17.13.9, through
+  # @docusaurus/types.
+  joi@<17.13.9: ^17.13.9
   # High GHSA-27r3-jxmh-p828: trailing bytes after a compressed request body, in body-parser 1, which
   # express 4 asks for through Docusaurus's dev server (@docusaurus/core > webpack-dev-server).
   body-parser@<1.20.9: ^1.20.9
