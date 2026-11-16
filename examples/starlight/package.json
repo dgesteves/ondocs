@@ -13,7 +13,7 @@
     "@astrojs/starlight": "0.42.8",
     "@radix-ui/react-dialog": "^1.2.0",
     "ondocs": "workspace:*",
-    "astro": "7.4.7",
+    "astro": "7.4.12",
     "cmdk": "^1.1.1",
     "react": "19.3.1",
     "react-dom": "19.3.1"
