@@ -52,6 +52,15 @@ overrides:
   # major has a patch release in range.
   'undici@>=7 <7.30.1': ^7.30.1
   'undici@>=8 <8.12.2': ^8.12.2
+  # Moderate GHSA-g3hv-75wg-m249: a pattern with **/.. portions makes minimatch 7 to 11.0.0 build an
+  # amplified set of patterns and compare them in pairs, and only 11.0.1 fixes it. The lint's
+  # dependencies ask for ^10: ESLint 10.14 and its @eslint/config-array 0.23.5, and typescript-eslint's
+  # typescript-estree, for allowDefaultProject. They call minimatch(), new Minimatch(), its match()
+  # and its pattern, which 11 keeps (it removes makeRe(), the regexp property and the AST class), and
+  # ESLint 10.15 moves to ^11.0.5 with the same code. `pnpm lint` checks the same files with it. Take
+  # it out once typescript-eslint asks for 11. Docusaurus's serve-handler asks for minimatch 3, which
+  # the advisory does not list.
+  'minimatch@>=7 <11.0.1': ^11.0.1
 # Advisories the audit skips, because no release this repository can take fixes them. Take an entry
 # out once one does.
 auditConfig:
