@@ -236,7 +236,7 @@ jobs:
   # The oldest Node.js the engines field allows, 22.13.0, and the newest, 26: the tests and the
   # built CLI on each. The tooling runs on 24, as it needs a newer 22 (tsdown asks for 22.18), so
   # the job installs and builds there, then switches. On 22.13.0 the tests that run in jsdom are
-  # left out: jsdom 30 asks for Node 22.22, and what they test, the dialog, runs in a browser, not
+  # left out: jsdom 31 asks for Node 22.22, and what they test, the dialog, runs in a browser, not
   # on Node.js. The floor is 22.13 rather than 22.12, where require() of an ES module warns that it
   # is experimental, and one that throws as it loads also rejects, unhandled, ending the process.
   node-compat:
